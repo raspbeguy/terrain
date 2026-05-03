@@ -1,0 +1,39 @@
+id: io.github.raspbeguy.Terrain
+runtime: org.gnome.Platform
+runtime-version: '49'
+sdk: org.gnome.Sdk
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.golang
+build-options:
+  # NOTE: --share=network during build is acceptable for personal builds but
+  # NOT for Flathub submission. Flathub requires reproducible builds with all
+  # sources pre-declared in the manifest; before publishing, switch to a
+  # vendored Go modules approach (`go mod vendor` on the host, declare the
+  # vendor dir as a source, drop -mod=mod). Until then, this simply lets the
+  # sandbox reach proxy.golang.org and toolchain downloads.
+  build-args:
+    - --share=network
+  append-path: /usr/lib/sdk/golang/bin
+  env:
+    GOFLAGS: -mod=mod
+    GOPROXY: https://proxy.golang.org,direct
+    # auto: lets `go` download the toolchain version pinned in go.mod when the
+    # SDK extension's bundled toolchain is older. The 25.08 extension ships
+    # Go 1.25, but go.mod pins 1.26 — auto pulls the right one on demand.
+    GOTOOLCHAIN: auto
+command: terrain
+finish-args:
+  - --share=ipc
+  - --share=network
+  - --socket=fallback-x11
+  - --socket=wayland
+  - --device=dri
+  - --filesystem=home
+  - --talk-name=org.freedesktop.secrets
+  - --talk-name=org.freedesktop.Flatpak
+modules:
+  - name: terrain
+    buildsystem: meson
+    sources:
+      - type: dir
+        path: ../..
