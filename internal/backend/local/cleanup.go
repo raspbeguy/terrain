@@ -12,7 +12,8 @@ import (
 // deletes any leftover sensitive files from runs that didn't complete
 // cleanly (app crashed, OOM kill, SIGKILL).
 //
-// Specifically: every `vars.auto.tfvars.json` under
+// Specifically: every `vars.auto.tfvars` (or its old `.json` sibling
+// from before the HCL switch) under
 // $XDG_CACHE_HOME/terrain/<backend>/<workspace>/runs/<run>/ — these are
 // written 0600 with materialised secret values and normally deleted via
 // `defer os.Remove` when the run worker exits. If the process dies before
@@ -36,11 +37,18 @@ func (b *Backend) CleanupOrphanArtifacts() {
 		return // nothing to clean
 	}
 
-	pattern := filepath.Join(root, "*", "runs", "*", "vars.auto.tfvars.json")
-	matches, err := filepath.Glob(pattern)
-	if err != nil {
-		slog.Warn("orphan cleanup glob", "err", err)
-		return
+	patterns := []string{
+		filepath.Join(root, "*", "runs", "*", "vars.auto.tfvars"),
+		filepath.Join(root, "*", "runs", "*", "vars.auto.tfvars.json"),
+	}
+	var matches []string
+	for _, p := range patterns {
+		m, err := filepath.Glob(p)
+		if err != nil {
+			slog.Warn("orphan cleanup glob", "err", err)
+			continue
+		}
+		matches = append(matches, m...)
 	}
 
 	cleaned := 0

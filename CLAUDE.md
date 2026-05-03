@@ -172,8 +172,9 @@ testdata/                   Fixtures used by integration tests.
   Linux via go-keyring). Plaintext fallback in `config.toml` is allowed
   when keyring is unreachable, with a logged warning. Run-time materializer
   pulls sensitive values from the keyring into a per-run
-  `vars.auto.tfvars.json` (0600 perms) that's `defer os.Remove`'d on
-  terminal status.
+  `vars.auto.tfvars` (0600 perms; HCL — preserves cty types so list/object
+  variables don't collapse to strings and trip "Invalid value for input
+  variable") that's `defer os.Remove`'d on terminal status.
 
 ## Common gotchas
 
