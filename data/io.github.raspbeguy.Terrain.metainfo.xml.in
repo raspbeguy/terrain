@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>@APP_ID@</id>
+  <name>@APP_NAME@</name>
+  <summary>@APP_SUMMARY@</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+  <developer id="io.github.raspbeguy">
+    <name>raspbeguy</name>
+  </developer>
+
+  <description>
+    <p>
+      Terrain is a native GNOME desktop application for managing Terraform
+      and OpenTofu workflows, inspired by Terraform Enterprise and OTF.
+    </p>
+    <p>
+      It supports both local working directories (via the tofu/terraform
+      CLI) and remote backends (HCP Terraform, self-hosted Terraform
+      Enterprise, OTF) through a single unified interface — workspaces,
+      runs, variables, state, and structured plan diffs render the same
+      whether the data comes from a subprocess or a remote API.
+    </p>
+    <p>Features:</p>
+    <ul>
+      <li>Workspaces and runs with streamed plan/apply logs</li>
+      <li>TFE-style per-resource plan diffs with action badges and attribute-level changes</li>
+      <li>State visualization: resource tree with attribute viewer</li>
+      <li>Variable management with sensitive-value masking via the system keyring</li>
+      <li>Run history persisted on disk (local) or fetched from the API (remote)</li>
+      <li>Multiple backends side-by-side in one sidebar — switch between projects without restarting</li>
+    </ul>
+    <p>
+      Sensitive credentials are stored in the platform secret service
+      (libsecret on Linux, Keychain on macOS, Credential Vault on
+      Windows), never in plaintext on disk.
+    </p>
+  </description>
+
+  <launchable type="desktop-id">@APP_ID@.desktop</launchable>
+
+  <url type="homepage">https://github.com/raspbeguy/terrain</url>
+  <url type="bugtracker">https://github.com/raspbeguy/terrain/issues</url>
+  <url type="vcs-browser">https://github.com/raspbeguy/terrain</url>
+
+  <categories>
+    <category>Development</category>
+    <category>GTK</category>
+  </categories>
+
+  <keywords>
+    <keyword>terraform</keyword>
+    <keyword>opentofu</keyword>
+    <keyword>tofu</keyword>
+    <keyword>infrastructure</keyword>
+    <keyword>iac</keyword>
+    <keyword>devops</keyword>
+    <keyword>cloud</keyword>
+  </keywords>
+
+  <content_rating type="oars-1.1" />
+
+  <requires>
+    <display_length compare="ge">768</display_length>
+  </requires>
+
+  <recommends>
+    <control>keyboard</control>
+    <control>pointing</control>
+  </recommends>
+
+  <supports>
+    <control>touch</control>
+  </supports>
+
+  <branding>
+    <color type="primary" scheme_preference="light">#c5d8c0</color>
+    <color type="primary" scheme_preference="dark">#3a4a36</color>
+  </branding>
+
+  <screenshots>
+    <screenshot type="default">
+      <caption>Workspace overview with the runs tab populated</caption>
+      <image>https://raw.githubusercontent.com/raspbeguy/terrain/main/data/screenshots/workspace.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Plan diff viewer showing per-resource changes</caption>
+      <image>https://raw.githubusercontent.com/raspbeguy/terrain/main/data/screenshots/plan-diff.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>State tree with attribute viewer</caption>
+      <image>https://raw.githubusercontent.com/raspbeguy/terrain/main/data/screenshots/state-tree.png</image>
+    </screenshot>
+  </screenshots>
+
+  <releases>
+    <release version="@VERSION@" date="2026-05-03">
+      <description>
+        <p>
+          Pre-release build covering the M0–M5 milestones: workspace
+          shell, local plan/apply pipeline with streaming logs,
+          terraform-json plan diff and state viewer, variable editing
+          with libsecret, run history with replay, remote backends
+          (HCP/TFE/OTF) for listing, runs, plan diff, state, and apply.
+        </p>
+        <p>
+          Variable sets and full Flathub metadata land in subsequent
+          releases.
+        </p>
+      </description>
+    </release>
+  </releases>
+</component>

@@ -1,0 +1,31 @@
+# Build directories
+/build/
+/build-*/
+/.flatpak-builder/
+/repo/
+
+# Generated artifacts
+/internal/resources/*.gresource
+/data/ui/*.ui
+/cmd/terrain/terrain
+/terrain
+/*.flatpak
+
+# Local agent state
+/.claude/
+
+# Go
+*.test
+*.out
+/vendor/
+
+# Editors
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db

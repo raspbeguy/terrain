@@ -1,0 +1,40 @@
+using Gtk 4.0;
+using Adw 1;
+
+Adw.Dialog statediff_dialog {
+  title: "Compare State Versions";
+  content-width: 760;
+  content-height: 720;
+
+  child: Adw.ToolbarView {
+    [top]
+    Adw.HeaderBar {}
+
+    content: Box {
+      orientation: vertical;
+
+      Box {
+        orientation: vertical;
+        margin-start: 12;
+        margin-end: 12;
+        margin-top: 12;
+        margin-bottom: 6;
+
+        Adw.PreferencesGroup {
+          Adw.ComboRow statediff_from_row {
+            title: "From";
+          }
+
+          Adw.ComboRow statediff_to_row {
+            title: "To";
+          }
+        }
+      }
+
+      Adw.Bin statediff_container {
+        hexpand: true;
+        vexpand: true;
+      }
+    };
+  };
+}

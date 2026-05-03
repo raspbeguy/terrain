@@ -1,0 +1,143 @@
+using Gtk 4.0;
+using Adw 1;
+
+menu primary_menu {
+  section {
+    item {
+      label: "Add Local Project…";
+      action: "app.add-local-project";
+    }
+
+    item {
+      label: "Add Remote Backend…";
+      action: "app.add-remote-backend";
+    }
+  }
+
+  section {
+    item {
+      label: "Variable Sets…";
+      action: "app.variable-sets";
+    }
+  }
+
+  section {
+    item {
+      label: "Preferences";
+      action: "app.preferences";
+    }
+  }
+
+  section {
+    item {
+      label: "Quit";
+      action: "app.quit";
+    }
+  }
+}
+
+Adw.ApplicationWindow main_window {
+  title: "Terrain";
+  default-width: 960;
+  default-height: 640;
+
+  content: Adw.ToastOverlay main_toast_overlay {
+    child: Adw.NavigationSplitView split_view {
+    min-sidebar-width: 220;
+    max-sidebar-width: 320;
+    sidebar-width-fraction: 0.3;
+
+    sidebar: Adw.NavigationPage {
+      title: "Workspaces";
+      tag: "sidebar";
+
+      child: Adw.ToolbarView {
+        [top]
+        Adw.HeaderBar {
+          [end]
+          MenuButton primary_menu_button {
+            icon-name: "open-menu-symbolic";
+            tooltip-text: "Main Menu";
+            primary: true;
+            menu-model: primary_menu;
+          }
+
+          [end]
+          Button add_backend_button {
+            icon-name: "list-add-symbolic";
+            tooltip-text: "Add project or backend";
+            action-name: "app.add-local-project";
+          }
+        }
+
+        content: ScrolledWindow {
+          hscrollbar-policy: never;
+          vexpand: true;
+
+          child: Stack sidebar_stack {
+            transition-type: crossfade;
+
+            StackPage {
+              name: "empty";
+              child: Adw.StatusPage {
+                icon-name: "folder-symbolic";
+                title: "No Projects";
+                description: "Add a Terraform or OpenTofu project to begin";
+
+                child: Button add_project_button {
+                  label: "Add Local Project";
+                  halign: center;
+                  action-name: "app.add-local-project";
+
+                  styles ["pill", "suggested-action"]
+                };
+              };
+            }
+
+            StackPage {
+              name: "list";
+              child: ListBox sidebar_listbox {
+                selection-mode: single;
+
+                styles ["navigation-sidebar"]
+              };
+            }
+          };
+        };
+      };
+    };
+
+    content: Adw.NavigationPage {
+      title: "Terrain";
+      tag: "content";
+
+      child: Adw.ToolbarView content_toolbar {
+        [top]
+        Adw.HeaderBar content_header {
+          title-widget: Adw.WindowTitle content_title {
+            title: "Terrain";
+          };
+        }
+
+        content: Stack content_stack {
+          transition-type: crossfade;
+
+          StackPage {
+            name: "welcome";
+            child: Adw.StatusPage {
+              icon-name: "network-server-symbolic";
+              title: "Welcome to Terrain";
+              description: "A native GUI for Terraform and OpenTofu workflows.\nAdd a project from the sidebar to get started.";
+            };
+          }
+
+          StackPage {
+            name: "workspace";
+            child: Adw.Bin workspace_detail_container {};
+          }
+        };
+      };
+    };
+    };
+  };
+}

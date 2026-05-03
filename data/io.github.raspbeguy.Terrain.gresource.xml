@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gresources>
+  <gresource prefix="/io/github/raspbeguy/Terrain">
+    <file preprocess="xml-stripblanks" compressed="true">window.ui</file>
+    <file preprocess="xml-stripblanks" compressed="true">workspace-detail.ui</file>
+    <file preprocess="xml-stripblanks" compressed="true">preferences.ui</file>
+    <file preprocess="xml-stripblanks" compressed="true">run-detail.ui</file>
+    <file preprocess="xml-stripblanks" compressed="true">add-remote.ui</file>
+    <file preprocess="xml-stripblanks" compressed="true">var-edit.ui</file>
+    <file preprocess="xml-stripblanks" compressed="true">varsets.ui</file>
+    <file preprocess="xml-stripblanks" compressed="true">state-diff.ui</file>
+  </gresource>
+</gresources>

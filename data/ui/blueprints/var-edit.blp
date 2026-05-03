@@ -1,0 +1,70 @@
+using Gtk 4.0;
+using Adw 1;
+
+Adw.Dialog var_edit_dialog {
+  title: "Edit Variable";
+  content-width: 460;
+  content-height: 540;
+
+  child: Adw.ToolbarView {
+    [top]
+    Adw.HeaderBar {
+      show-end-title-buttons: false;
+      show-start-title-buttons: false;
+
+      [start]
+      Button var_edit_cancel_button {
+        label: "Cancel";
+      }
+
+      [end]
+      Button var_edit_save_button {
+        label: "Save";
+        sensitive: false;
+
+        styles ["suggested-action"]
+      }
+    }
+
+    content: ScrolledWindow {
+      hscrollbar-policy: never;
+
+      child: Adw.PreferencesPage {
+        Adw.PreferencesGroup {
+          Adw.EntryRow var_edit_key_row {
+            title: "Key";
+          }
+
+          Adw.EntryRow var_edit_value_row {
+            title: "Value";
+          }
+
+          Adw.EntryRow var_edit_description_row {
+            title: "Description";
+          }
+        }
+
+        Adw.PreferencesGroup {
+          Adw.ComboRow var_edit_category_row {
+            title: "Category";
+            subtitle: "Terraform variables go to .tfvars; environment variables are exported into the run.";
+
+            model: StringList {
+              strings ["Terraform", "Environment"]
+            };
+          }
+
+          Adw.SwitchRow var_edit_hcl_row {
+            title: "HCL Expression";
+            subtitle: "Treat the value as raw HCL (lists, objects, references).";
+          }
+
+          Adw.SwitchRow var_edit_sensitive_row {
+            title: "Sensitive";
+            subtitle: "Store the value in the system keyring; write a placeholder to disk.";
+          }
+        }
+      };
+    };
+  };
+}

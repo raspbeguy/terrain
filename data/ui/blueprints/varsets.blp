@@ -1,0 +1,114 @@
+using Gtk 4.0;
+using Adw 1;
+
+Adw.Dialog varsets_dialog {
+  title: "Variable Sets";
+  content-width: 640;
+  content-height: 600;
+
+  child: Adw.NavigationView varsets_nav {
+    Adw.NavigationPage varsets_list_page {
+      title: "Variable Sets";
+      tag: "list";
+
+      child: Adw.ToolbarView {
+        [top]
+        Adw.HeaderBar {
+          [end]
+          Button varsets_new_button {
+            label: "New Set";
+            valign: center;
+
+            styles ["suggested-action"]
+          }
+        }
+
+        content: ScrolledWindow {
+          hscrollbar-policy: never;
+
+          child: Adw.PreferencesPage {
+            Adw.PreferencesGroup varsets_intro_group {
+              title: "About";
+              description: "Variable sets are reusable named collections of variables. Global sets apply to every workspace; their values are merged into runs at lower precedence than workspace variables.";
+            }
+
+            Adw.PreferencesGroup varsets_list_group {
+              title: "Global Sets";
+            }
+          };
+        };
+      };
+    }
+
+    Adw.NavigationPage varsets_detail_page {
+      title: "Set Details";
+      tag: "detail";
+
+      child: Adw.ToolbarView {
+        [top]
+        Adw.HeaderBar {
+          [end]
+          Button varsets_detail_delete_button {
+            label: "Delete";
+            valign: center;
+
+            styles ["destructive-action"]
+          }
+        }
+
+        content: ScrolledWindow {
+          hscrollbar-policy: never;
+
+          child: Adw.PreferencesPage {
+            Adw.PreferencesGroup {
+              title: "Properties";
+
+              Adw.EntryRow varsets_detail_name_row {
+                title: "Name";
+              }
+
+              Adw.EntryRow varsets_detail_description_row {
+                title: "Description";
+              }
+            }
+
+            Adw.PreferencesGroup {
+              title: "Scope";
+              description: "Global sets apply to every workspace; project sets apply only to one local project's workspaces.";
+
+              Adw.ComboRow varsets_detail_scope_row {
+                title: "Scope";
+
+                model: StringList {
+                  strings ["Global", "Project", "Workspace"]
+                };
+              }
+
+              Adw.ComboRow varsets_detail_project_row {
+                title: "Project";
+                visible: false;
+              }
+            }
+
+            Adw.PreferencesGroup varsets_detail_workspaces_group {
+              title: "Attached Workspaces";
+              description: "Pick the workspaces this set applies to.";
+              visible: false;
+            }
+
+            Adw.PreferencesGroup varsets_detail_vars_group {
+              title: "Variables";
+              header-suffix: Button varsets_detail_add_var_button {
+                icon-name: "list-add-symbolic";
+                tooltip-text: "Add variable";
+                valign: center;
+
+                styles ["flat"]
+              };
+            }
+          };
+        };
+      };
+    }
+  };
+}

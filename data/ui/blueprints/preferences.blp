@@ -1,0 +1,76 @@
+using Gtk 4.0;
+using Adw 1;
+
+Adw.PreferencesDialog preferences_dialog {
+  title: "Preferences";
+
+  Adw.PreferencesPage {
+    title: "General";
+    icon-name: "preferences-system-symbolic";
+
+    Adw.PreferencesGroup {
+      title: "Appearance";
+
+      Adw.ComboRow theme_row {
+        title: "Color Scheme";
+        subtitle: "Follow the system, force light, or force dark";
+
+        model: StringList {
+          strings ["System", "Light", "Dark"]
+        };
+      }
+    }
+
+    Adw.PreferencesGroup {
+      title: "Defaults";
+
+      Adw.ComboRow engine_row {
+        title: "Default Engine";
+        subtitle: "Used when both tofu and terraform are installed";
+
+        model: StringList {
+          strings ["OpenTofu", "Terraform"]
+        };
+      }
+    }
+  }
+
+  Adw.PreferencesPage {
+    title: "Binaries";
+    icon-name: "applications-system-symbolic";
+
+    Adw.PreferencesGroup tofu_group {
+      title: "OpenTofu";
+      description: "Detected from PATH";
+
+      Adw.ActionRow tofu_row {
+        title: "tofu";
+        subtitle: "—";
+
+        styles ["property"]
+      }
+    }
+
+    Adw.PreferencesGroup terraform_group {
+      title: "Terraform";
+      description: "Detected from PATH";
+
+      Adw.ActionRow terraform_row {
+        title: "terraform";
+        subtitle: "—";
+
+        styles ["property"]
+      }
+    }
+  }
+
+  Adw.PreferencesPage {
+    title: "Backends";
+    icon-name: "network-server-symbolic";
+
+    Adw.PreferencesGroup remote_backends_group {
+      title: "Remote Backends";
+      description: "Refresh capability bitmasks if a backend has been upgraded since the last connect.";
+    }
+  }
+}

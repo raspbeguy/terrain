@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist gettext-domain="terrain">
+  <schema id="io.github.raspbeguy.Terrain" path="/io/github/raspbeguy/Terrain/">
+    <key name="window-width" type="i">
+      <default>960</default>
+      <summary>Window width</summary>
+    </key>
+    <key name="window-height" type="i">
+      <default>640</default>
+      <summary>Window height</summary>
+    </key>
+    <key name="window-maximized" type="b">
+      <default>false</default>
+      <summary>Window maximized</summary>
+    </key>
+    <key name="default-engine" type="s">
+      <choices>
+        <choice value="tofu"/>
+        <choice value="terraform"/>
+      </choices>
+      <default>'tofu'</default>
+      <summary>Default infrastructure tool to use when both are installed</summary>
+    </key>
+  </schema>
+</schemalist>

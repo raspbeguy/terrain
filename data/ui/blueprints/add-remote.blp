@@ -1,0 +1,88 @@
+using Gtk 4.0;
+using Adw 1;
+
+Adw.Dialog add_remote_dialog {
+  title: "Add Remote Backend";
+  content-width: 480;
+  content-height: 560;
+
+  child: Adw.ToolbarView {
+    [top]
+    Adw.HeaderBar {
+      show-end-title-buttons: false;
+      show-start-title-buttons: false;
+
+      [start]
+      Button add_remote_cancel_button {
+        label: "Cancel";
+      }
+
+      [end]
+      Button add_remote_add_button {
+        label: "Add";
+        sensitive: false;
+
+        styles ["suggested-action"]
+      }
+    }
+
+    content: ScrolledWindow {
+      hscrollbar-policy: never;
+
+      child: Adw.PreferencesPage {
+        Adw.PreferencesGroup {
+          title: "Backend";
+
+          Adw.ComboRow add_remote_flavor_row {
+            title: "Type";
+
+            model: StringList {
+              strings ["HCP Terraform", "Self-hosted TFE", "OTF (leg100/otf)"]
+            };
+          }
+
+          Adw.EntryRow add_remote_name_row {
+            title: "Display Name";
+          }
+
+          Adw.EntryRow add_remote_endpoint_row {
+            title: "Endpoint URL";
+            visible: false;
+          }
+
+          Adw.EntryRow add_remote_org_row {
+            title: "Organization";
+          }
+
+          Adw.PasswordEntryRow add_remote_token_row {
+            title: "API Token";
+          }
+        }
+
+        Adw.PreferencesGroup {
+          title: "Connection";
+
+          Adw.ActionRow add_remote_status_row {
+            title: "Status";
+            subtitle: "Not tested";
+            subtitle-lines: 4;
+          }
+
+          Adw.ActionRow {
+            activatable-widget: add_remote_test_button;
+            title: "Test Connection";
+            subtitle: "Issue a low-cost API request to verify credentials.";
+
+            [suffix]
+            Button add_remote_test_button {
+              label: "Test";
+              valign: center;
+
+              styles ["flat"]
+            }
+          }
+        }
+      };
+    };
+  };
+}

@@ -1,0 +1,85 @@
+using Gtk 4.0;
+using Adw 1;
+
+Box run_detail_root {
+  orientation: vertical;
+  hexpand: true;
+  vexpand: true;
+
+  Box {
+    orientation: vertical;
+    margin-top: 6;
+    margin-bottom: 6;
+
+    Adw.ViewSwitcher {
+      policy: wide;
+      halign: center;
+      stack: run_view_stack;
+    }
+  }
+
+  Adw.ViewStack run_view_stack {
+    hexpand: true;
+    vexpand: true;
+
+    Adw.ViewStackPage {
+      name: "log";
+      title: "Log";
+      icon-name: "utilities-terminal-symbolic";
+
+      child: Adw.Bin run_log_container {
+        hexpand: true;
+        vexpand: true;
+      };
+    }
+
+    Adw.ViewStackPage {
+      name: "plan";
+      title: "Plan";
+      icon-name: "view-list-symbolic";
+
+      child: Adw.Bin run_plan_container {
+        hexpand: true;
+        vexpand: true;
+      };
+    }
+  }
+
+  Separator {}
+
+  Box run_action_box {
+    orientation: horizontal;
+    spacing: 8;
+    margin-start: 12;
+    margin-end: 12;
+    margin-top: 8;
+    margin-bottom: 8;
+
+    Button run_cancel_button {
+      label: "Cancel";
+      visible: false;
+
+      styles ["destructive-action"]
+    }
+
+    Box {
+      hexpand: true;
+    }
+
+    Button run_back_button {
+      label: "Back";
+    }
+
+    Button run_discard_button {
+      label: "Discard";
+      visible: false;
+    }
+
+    Button run_apply_button {
+      label: "Apply";
+      visible: false;
+
+      styles ["suggested-action"]
+    }
+  }
+}

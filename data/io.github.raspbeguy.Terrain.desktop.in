@@ -1,0 +1,11 @@
+[Desktop Entry]
+Name=@APP_NAME@
+GenericName=Terraform/OpenTofu GUI
+Comment=@APP_SUMMARY@
+Exec=terrain %U
+Icon=@APP_ID@
+Terminal=false
+Type=Application
+Categories=GTK;Development;
+StartupNotify=true
+Keywords=terraform;tofu;opentofu;infrastructure;iac;
