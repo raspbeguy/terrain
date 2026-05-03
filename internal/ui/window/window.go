@@ -155,6 +155,7 @@ func (w *Window) refreshFrom(backends []domain.Backend) error {
 		}
 		all = append(all, list...)
 	}
+	w.backends = backends
 	w.workspaces = all
 
 	w.clearList()
