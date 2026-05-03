@@ -170,15 +170,6 @@ func runWorker(
 		return
 	}
 
-	switch req.Kind {
-	case domain.RunKindPlan, domain.RunKindDestroy:
-		setStatus(domain.StatusPlanning,
-			fmt.Sprintf("running `%s %s`", bin.Name, formatArgsForLog(args)))
-	case domain.RunKindApply:
-		setStatus(domain.StatusApplying,
-			fmt.Sprintf("running `%s %s`", bin.Name, formatArgsForLog(args)))
-	}
-
 	stdoutLog, stderrLog, logErr := openLogFiles(runDir)
 	if logErr != nil {
 		// Non-fatal: the live log channel still works, just no on-disk
@@ -210,10 +201,9 @@ func runWorker(
 		}()
 	}
 
-	extraEnv := append([]string{"NO_COLOR=1"}, rv.envEntries()...)
-	cmd := hostCommand(ctx, ws.WorkingDirectory, extraEnv, bin.Path, args...)
-
-	// Tee subprocess output to disk before forwarding to the live channel.
+	// Single tee goroutine shared by the init pass and the main subprocess
+	// so both streams land in the same on-disk log files and the same live
+	// channel. Closed once after the LAST streamCommand returns.
 	teedLogs := make(chan domain.LogLine, cap(stream.logs))
 	var wg sync.WaitGroup
 	wg.Add(1)
@@ -224,6 +214,49 @@ func runWorker(
 			stream.logs <- line
 		}
 	}()
+
+	// Init phase: plan/destroy runs always do `tofu init -input=false` first.
+	// Apply runs skip it because they replay a saved plan that's already
+	// gone through init at plan time. Init output streams into the same log
+	// pipeline so the user sees provider downloads / module fetches alongside
+	// the eventual plan output.
+	if req.Kind == domain.RunKindPlan || req.Kind == domain.RunKindDestroy {
+		setStatus(domain.StatusFetching,
+			fmt.Sprintf("running `%s init -input=false`", bin.Name))
+		initCmd := hostCommand(ctx, ws.WorkingDirectory,
+			[]string{"NO_COLOR=1"},
+			bin.Path, "init", "-input=false", "-no-color")
+		if initErr := streamCommand(ctx, initCmd, teedLogs); initErr != nil {
+			close(teedLogs)
+			wg.Wait()
+			close(stream.logs)
+			switch {
+			case isCancelError(ctx, initErr):
+				setStatus(domain.StatusCanceled, "canceled by user")
+				finalErr = context.Canceled
+			default:
+				exitCode = exitCodeOf(initErr)
+				setStatus(domain.StatusErrored,
+					fmt.Sprintf("init failed (exit %d): %s", exitCode, initErr.Error()))
+				finalErr = initErr
+			}
+			close(stream.events)
+			close(stream.plan)
+			return
+		}
+	}
+
+	switch req.Kind {
+	case domain.RunKindPlan, domain.RunKindDestroy:
+		setStatus(domain.StatusPlanning,
+			fmt.Sprintf("running `%s %s`", bin.Name, formatArgsForLog(args)))
+	case domain.RunKindApply:
+		setStatus(domain.StatusApplying,
+			fmt.Sprintf("running `%s %s`", bin.Name, formatArgsForLog(args)))
+	}
+
+	extraEnv := append([]string{"NO_COLOR=1"}, rv.envEntries()...)
+	cmd := hostCommand(ctx, ws.WorkingDirectory, extraEnv, bin.Path, args...)
 
 	cmdErr := streamCommand(ctx, cmd, teedLogs)
 	close(teedLogs)
