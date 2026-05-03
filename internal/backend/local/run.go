@@ -116,6 +116,14 @@ func runWorker(
 		exitCode   int
 	)
 
+	// Apply runs persist a backref to the plan file they consumed; the runs
+	// list uses it to mark plan rows whose plan was actually applied vs ones
+	// that were just dry-run inspections. Plan/destroy runs set PlanFile
+	// themselves after producing the file.
+	if req.Kind == domain.RunKindApply {
+		run.PlanFile = req.PlanFile
+	}
+
 	setStatus := func(s domain.RunStatus, msg string) {
 		lastStatus = s
 		ev := domain.RunEvent{At: time.Now(), Status: s, Message: msg}

@@ -394,9 +394,21 @@ func (p *Page) bindRuns(runs []domain.Run) {
 		return
 	}
 
+	// Cross-index: which plan files were consumed by an apply run?
+	// Successful AND errored applies both count as "the user attempted to
+	// apply this plan" — the plan stops being a pure dry-run inspection.
+	// Lets us mark plan rows that aren't just hypothetical changes.
+	appliedPlans := map[string]domain.RunStatus{}
+	for _, r := range runs {
+		if r.Kind == domain.RunKindApply && r.PlanFile != "" {
+			// Latest apply attempt wins — runs comes in oldest-first.
+			appliedPlans[r.PlanFile] = r.Status
+		}
+	}
+
 	p.runsStack.SetVisibleChildName("list")
 	for _, r := range reversed {
-		row := buildRunRow(r)
+		row := buildRunRow(r, appliedPlans)
 		p.runsListBox.Append(row)
 	}
 }
@@ -413,11 +425,27 @@ func (p *Page) onRunRowActivated(row *gtk.ListBoxRow) {
 
 // buildRunRow renders one history entry as an AdwActionRow with status
 // glyph, run kind, age, and (if errored) the error message as subtitle.
-func buildRunRow(r domain.Run) *adw.ActionRow {
+//
+// appliedPlans maps PlanFile path → terminal status of the apply run that
+// consumed it. Plan/destroy rows whose plan file was applied get a
+// "→ applied" or "→ apply errored" suffix badge so users can tell at a
+// glance which plans turned into real changes.
+func buildRunRow(r domain.Run, appliedPlans map[string]domain.RunStatus) *adw.ActionRow {
 	row := adw.NewActionRow()
 	row.SetTitle(string(r.Kind) + " · " + r.ID[:min(12, len(r.ID))])
 	row.SetSubtitle(runRowSubtitle(r))
 	row.SetActivatable(true)
+
+	if (r.Kind == domain.RunKindPlan || r.Kind == domain.RunKindDestroy) && r.PlanFile != "" {
+		if applyStatus, ok := appliedPlans[r.PlanFile]; ok {
+			pill := gtk.NewLabel(planOutcomeBadge(applyStatus))
+			pill.AddCSSClass("pill")
+			pill.AddCSSClass(runStatusCSSClass(applyStatus))
+			pill.SetVAlign(gtk.AlignCenter)
+			pill.SetTooltipText("This plan was used by a later apply run")
+			row.AddSuffix(pill)
+		}
+	}
 
 	badge := gtk.NewLabel(runStatusGlyph(r.Status))
 	badge.AddCSSClass("pill")
@@ -425,6 +453,21 @@ func buildRunRow(r domain.Run) *adw.ActionRow {
 	badge.SetVAlign(gtk.AlignCenter)
 	row.AddSuffix(badge)
 	return row
+}
+
+// planOutcomeBadge renders the short label shown on a plan row indicating
+// the outcome of the apply that consumed it. Errored / canceled apply rows
+// still get a marker so the user knows the plan wasn't a passive inspection.
+func planOutcomeBadge(applyStatus domain.RunStatus) string {
+	switch applyStatus {
+	case domain.StatusApplied:
+		return "→ applied"
+	case domain.StatusErrored:
+		return "→ apply errored"
+	case domain.StatusCanceled:
+		return "→ apply canceled"
+	}
+	return "→ " + string(applyStatus)
 }
 
 func runRowSubtitle(r domain.Run) string {
