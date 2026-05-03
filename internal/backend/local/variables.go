@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/hashicorp/hcl/v2/hclwrite"
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/raspbeguy/terrain/internal/domain"
@@ -159,6 +160,8 @@ func ctyToString(v cty.Value) string {
 	case cty.Number:
 		return v.AsBigFloat().Text('g', 12)
 	}
-	// For complex types use the cty serializer; fine for display.
-	return v.GoString()
+	// Complex types (objects, maps, tuples, lists): serialize as canonical
+	// HCL via hclwrite.TokensForValue, then trim. The result reads like the
+	// user wrote it — `{"a" = "b"}` rather than `cty.ObjectVal(...)`.
+	return strings.TrimSpace(string(hclwrite.TokensForValue(v).Bytes()))
 }

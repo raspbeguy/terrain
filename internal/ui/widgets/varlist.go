@@ -1,6 +1,8 @@
 package widgets
 
 import (
+	"strings"
+
 	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 
@@ -127,13 +129,15 @@ func buildVarRow(v domain.Variable) *adw.ActionRow {
 }
 
 // varDisplay picks the most informative single-line representation: hide
-// sensitive values, otherwise truncate. Empty values render as a dash.
+// sensitive values, otherwise flatten any whitespace runs (HCL object/map
+// literals come through multi-line) and truncate. Empty values render as
+// a dash.
 func varDisplay(v domain.Variable) string {
 	switch {
 	case v.Sensitive:
 		return "•••••"
 	case v.Value != "":
-		return truncate(v.Value, 60)
+		return truncate(strings.Join(strings.Fields(v.Value), " "), 60)
 	}
 	return "—"
 }
