@@ -13,6 +13,12 @@ build-options:
   # sandbox reach proxy.golang.org and toolchain downloads.
   build-args:
     - --share=network
+  # ccache shim must come BEFORE the SDK's plain gcc on PATH, otherwise
+  # `cc` inside the sandbox finds /usr/bin/gcc directly and bypasses the
+  # cache entirely. With this prepend, every cgo C compilation (the long
+  # pole on gotk4 builds) routes through ccache and the ~3-minute fresh-
+  # source rebuild collapses to seconds on subsequent runs.
+  prepend-path: /usr/lib/sdk/ccache/bin
   append-path: /usr/lib/sdk/golang/bin
   env:
     GOFLAGS: -mod=mod
