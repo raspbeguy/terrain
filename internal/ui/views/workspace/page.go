@@ -61,6 +61,7 @@ type Page struct {
 	onOpenRun           func(domain.Workspace, domain.Run)
 	onEditVar           func(domain.Workspace, domain.Variable)
 	onAddVar            func(domain.Workspace)
+	onRemoveVar         func(domain.Workspace, domain.Variable)
 }
 
 // LineageWarning is returned by the load-state-versions callback when the
@@ -197,6 +198,21 @@ func (p *Page) SetOnEditVariable(fn func(domain.Workspace, domain.Variable)) {
 // SetOnAddVariable wires the "Add Variable" button.
 func (p *Page) SetOnAddVariable(fn func(domain.Workspace)) {
 	p.onAddVar = fn
+}
+
+// SetOnRemoveVariable wires the per-row Remove kebab action. Window-side
+// shows a confirmation dialog before forwarding to the backend.
+func (p *Page) SetOnRemoveVariable(fn func(domain.Workspace, domain.Variable)) {
+	p.onRemoveVar = fn
+	if fn == nil {
+		p.varList.SetOnRemove(nil)
+		return
+	}
+	p.varList.SetOnRemove(func(v domain.Variable) {
+		if p.current.ID != "" {
+			fn(p.current, v)
+		}
+	})
 }
 
 // RefreshVariables exposes the internal refresh hook so callers (window)

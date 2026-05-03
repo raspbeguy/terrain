@@ -57,6 +57,10 @@ func (b *Backend) VariablesForWorkspace(_ context.Context, workspaceID string) (
 			Key:         v.Name,
 			Description: v.Description,
 			Category:    domain.VarCategoryTerraform,
+			// SourceFile is set by the HCL loader only when the variable was
+			// found in a `variable "<name>" {}` block — entries that exist
+			// only in terraform.tfvars come back with SourceFile="".
+			Declared: v.SourceFile != "",
 		}
 		// Best-effort sensitivity flag: the .tfvars value being our sentinel
 		// or a corresponding keyring entry existing both indicate sensitive.

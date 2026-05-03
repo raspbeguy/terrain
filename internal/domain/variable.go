@@ -39,6 +39,16 @@ type Variable struct {
 
 	// Description is free-form documentation shown next to the row.
 	Description string
+
+	// Declared marks variables that have a `variable "<name>" {}` block in
+	// the workspace's .tf source — i.e. part of the module's declared
+	// interface. Variables that exist only as terrain-managed entries in
+	// terraform.tfvars or in the keyring (no source declaration) report
+	// Declared=false; the UI surfaces this as an "ad-hoc" badge so the
+	// user can spot stale or accidental entries that terraform itself
+	// would warn about. Remote (TFE/HCP/OTF) backends always report false
+	// — source-level declarations aren't visible from the API.
+	Declared bool
 }
 
 // VariableScope names where a variable set applies — global (every workspace

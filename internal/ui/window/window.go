@@ -98,6 +98,7 @@ func New(app *adw.Application, backends []domain.Backend, locks *runner.Workspac
 	w.workspacePage.SetOnOpenRun(w.openRun)
 	w.workspacePage.SetOnEditVariable(w.editVariable)
 	w.workspacePage.SetOnAddVariable(w.addVariable)
+	w.workspacePage.SetOnRemoveVariable(w.removeVariable)
 	w.runPage.SetOnBack(w.showWorkspaceView)
 	w.runPage.SetOnStatus(func(status domain.RunStatus, _ string) {
 		w.contentTitle.SetSubtitle(string(status))
@@ -624,6 +625,68 @@ func (w *Window) addVariable(ws domain.Workspace) {
 func (w *Window) editVariable(ws domain.Workspace, v domain.Variable) {
 	dialogs.EditVariable(w.GtkWindow(), dialogs.VarEditEdit, v,
 		func(saved domain.Variable) { w.saveVariable(ws, saved) })
+}
+
+// variableDeleter is the optional capability for backends that support
+// removing a workspace variable. Local backends implement it; remote will
+// follow when go-tfe's Variables.Delete is wired.
+type variableDeleter interface {
+	DeleteVariable(ctx context.Context, workspaceID, key string) error
+}
+
+// removeVariable opens an AdwAlertDialog asking the user to confirm before
+// dropping the variable. Wording adapts to whether the variable is declared
+// in source: declared vars fall back to source defaults, ad-hoc ones are
+// fully removed from terraform.tfvars / keyring.
+func (w *Window) removeVariable(ws domain.Workspace, v domain.Variable) {
+	title := "Remove variable?"
+	body := fmt.Sprintf("Remove %q from this workspace? It will be deleted from terraform.tfvars and any keyring entries.", v.Key)
+	confirmLabel := "Remove"
+	if v.Declared {
+		title = "Reset variable?"
+		body = fmt.Sprintf("Reset %q to its source default? terrain's override is removed; the `variable` block in your .tf files is left untouched.", v.Key)
+		confirmLabel = "Reset"
+	}
+	dlg := adw.NewAlertDialog(title, body)
+	dlg.AddResponse("cancel", "Cancel")
+	dlg.AddResponse("confirm", confirmLabel)
+	dlg.SetResponseAppearance("confirm", adw.ResponseDestructive)
+	dlg.SetDefaultResponse("cancel")
+	dlg.SetCloseResponse("cancel")
+	dlg.ConnectResponse(func(resp string) {
+		if resp == "confirm" {
+			w.deleteVariable(ws, v)
+		}
+	})
+	dlg.Present(&w.root.Window)
+}
+
+// deleteVariable forwards the actual delete to the backend (if it implements
+// variableDeleter) and refreshes the Variables tab on success. Mirrors
+// saveVariable's locking discipline: per-workspace lock acquired so an
+// in-flight run doesn't materialise vars mid-edit.
+func (w *Window) deleteVariable(ws domain.Workspace, v domain.Variable) {
+	backend := w.findBackend(ws.BackendID)
+	if backend == nil {
+		slog.Error("delete variable: backend not found", "id", ws.BackendID)
+		return
+	}
+	deleter, ok := backend.(variableDeleter)
+	if !ok {
+		slog.Warn("backend does not support variable delete", "id", ws.BackendID)
+		w.ToastError("This backend doesn't support removing variables yet")
+		return
+	}
+	release := w.locks.Acquire(ws.ID)
+	defer release()
+	if err := deleter.DeleteVariable(context.Background(), ws.ID, v.Key); err != nil {
+		slog.Error("delete variable", "ws", ws.ID, "key", v.Key, "err", err)
+		w.ToastError("Couldn't remove " + v.Key + ": " + err.Error())
+		return
+	}
+	slog.Info("variable removed", "ws", ws.ID, "key", v.Key, "declared", v.Declared)
+	w.Toast("Removed " + v.Key)
+	w.workspacePage.RefreshVariables()
 }
 
 // saveVariable forwards the dialog's payload to the backend (if it
