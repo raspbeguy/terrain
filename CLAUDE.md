@@ -21,7 +21,11 @@ go vet ./...
 meson test -C build             # 3 tests: validate-desktop, validate-metainfo, boot-smoke
 
 # Flatpak (built and tested before; ~1h fresh, much faster incrementally)
-flatpak-builder --user --force-clean --repo=build-flatpak-repo build-flatpak \
+# Default iteration command: keeps the build dir + uses ccache, so re-runs
+# reuse the prior cgo work and finish in seconds-to-minutes once the first
+# fresh build is done. Add --force-clean ONLY when you need a hermetic build
+# (manifest changes, release cuts, or any time you don't trust the cache).
+flatpak-builder --user --ccache --repo=build-flatpak-repo build-flatpak \
     build-aux/flatpak/io.github.raspbeguy.Terrain.yml
 flatpak build-bundle build-flatpak-repo terrain.flatpak io.github.raspbeguy.Terrain
 ```
