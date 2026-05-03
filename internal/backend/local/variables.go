@@ -45,7 +45,8 @@ func (b *Backend) VariablesForWorkspace(_ context.Context, workspaceID string) (
 	if err != nil {
 		return nil, err
 	}
-	hvars, err := hcl.LoadVariables(ws.WorkingDirectory)
+	overrides, _ := overridesPath(b.id, workspaceID)
+	hvars, err := hcl.LoadVariablesWithExtras(ws.WorkingDirectory, overrides)
 	if err != nil {
 		// Diagnostics aren't fatal — the loader returns whatever it could
 		// parse alongside the error. We propagate the error so the UI can
@@ -83,63 +84,75 @@ func (b *Backend) VariablesForWorkspace(_ context.Context, workspaceID string) (
 	return out, err
 }
 
-// UpsertVariable writes a workspace variable. For sensitive vars it stores
-// the value in the keyring and writes a `null` placeholder; otherwise it
-// writes directly to terraform.tfvars via hclwrite (round-trip preserves
-// comments and other attributes).
+// UpsertVariable writes a workspace variable. Storage by category:
 //
-// Category=env vars are stored in the keyring keyed by env/<key> regardless
-// of sensitive flag — they're exported into the run subprocess at
-// materialisation time, never written to .tfvars.
+//   - Plain terraform var: written to the per-workspace overrides tfvars
+//     under $XDG_DATA_HOME/terrain/<backend>/<ws>/overrides.tfvars, NOT the
+//     project's own terraform.tfvars. This keeps terrain-managed values out
+//     of the user's source tree where they could be accidentally committed.
+//   - Sensitive terraform var: keyring only. No on-disk placeholder needed
+//     anymore now that overrides aren't intermingled with the project's
+//     own tfvars; the run materialiser pulls the resolved value from the
+//     keyring and writes it into a 0600 vars.auto.tfvars.json that lives
+//     in the per-run cache dir.
+//   - Env-category var: keyring (with name-only index in env-vars.json).
+//     Exported into the run subprocess env, never written to any tfvars.
 func (b *Backend) UpsertVariable(ctx context.Context, workspaceID string, v domain.Variable) error {
-	ws, err := b.Workspace(ctx, workspaceID)
+	if _, err := b.Workspace(ctx, workspaceID); err != nil {
+		return err
+	}
+
+	overrides, err := overridesPath(b.id, workspaceID)
 	if err != nil {
 		return err
 	}
 
-	// Defensive cleanup: clear keyring entries for the OTHER namespace so
-	// a category transition (env↔terraform, sensitive↔plain) doesn't leave
-	// a stale value behind. Idempotent — Delete on a missing key is a no-op.
+	// Defensive cleanup: clear keyring entries for the OTHER namespace and
+	// any prior overrides-file entry so a category transition (env↔terraform,
+	// sensitive↔plain) doesn't leave a stale value behind. Idempotent — all
+	// targets accept "missing" gracefully.
 	_ = secrets.Delete(secretKey(b.id, workspaceID, v.Key))
 	_ = secrets.Delete(envKey(b.id, workspaceID, v.Key))
-	_ = removeEnvVar(ws.WorkingDirectory, workspaceID, v.Key)
+	_ = removeEnvVar(b.id, workspaceID, v.Key)
+	_ = hcl.DeleteTfvarFile(overrides, v.Key)
 
 	if v.Category == domain.VarCategoryEnvironment {
-		// Env vars always go through keyring; runner injects them later.
 		if err := secrets.Set(envKey(b.id, workspaceID, v.Key), v.Value); err != nil {
 			return err
 		}
-		return addEnvVar(ws.WorkingDirectory, workspaceID, v.Key)
+		return addEnvVar(b.id, workspaceID, v.Key)
 	}
 
 	if v.Sensitive {
 		if err := secrets.Set(secretKey(b.id, workspaceID, v.Key), v.Value); err != nil {
 			return fmt.Errorf("store sensitive value: %w", err)
 		}
-		// Write a placeholder so the variable is "set" from terraform's
-		// perspective (the runner replaces it).
-		return hcl.UpsertTfvar(ws.WorkingDirectory, v.Key, cty.NullVal(cty.String))
+		return nil
 	}
 
-	// Plain variable: write the literal to .tfvars.
-
+	// Plain variable: write the literal to the overrides file.
 	if v.HCL {
-		return hcl.UpsertTfvarExpr(ws.WorkingDirectory, v.Key, v.Value)
+		return hcl.UpsertTfvarFileExpr(overrides, v.Key, v.Value)
 	}
-	return hcl.UpsertTfvar(ws.WorkingDirectory, v.Key, cty.StringVal(v.Value))
+	return hcl.UpsertTfvarFile(overrides, v.Key, cty.StringVal(v.Value))
 }
 
-// DeleteVariable removes a variable from the workspace's tfvars and clears
-// any keyring + env-index entry. Idempotent.
+// DeleteVariable removes a variable from terrain's overrides file and clears
+// any keyring + env-index entry. Idempotent. Project's own terraform.tfvars
+// is intentionally left alone — terrain doesn't write there, so it shouldn't
+// delete from there either.
 func (b *Backend) DeleteVariable(ctx context.Context, workspaceID, key string) error {
-	ws, err := b.Workspace(ctx, workspaceID)
+	if _, err := b.Workspace(ctx, workspaceID); err != nil {
+		return err
+	}
+	overrides, err := overridesPath(b.id, workspaceID)
 	if err != nil {
 		return err
 	}
 	_ = secrets.Delete(secretKey(b.id, workspaceID, key))
 	_ = secrets.Delete(envKey(b.id, workspaceID, key))
-	_ = removeEnvVar(ws.WorkingDirectory, workspaceID, key)
-	return hcl.DeleteTfvar(ws.WorkingDirectory, key)
+	_ = removeEnvVar(b.id, workspaceID, key)
+	return hcl.DeleteTfvarFile(overrides, key)
 }
 
 func envKey(backendID, workspaceID, name string) string {

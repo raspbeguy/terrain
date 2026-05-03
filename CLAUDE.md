@@ -157,8 +157,15 @@ testdata/                   Fixtures used by integration tests.
     (ephemeral; deleted by cache cleanup is fine)
   - `$XDG_DATA_HOME/terrain/<backend>/<ws>/state-versions/<id>/` — state
     snapshots (durable; retention: keep newest 50 + last 30 days)
-  - `<projectDir>/.terrain/env-vars.json` — env-category variable index
-    per workspace (names only; values in keyring)
+  - `$XDG_DATA_HOME/terrain/<backend>/<ws>/overrides.tfvars` — terrain-
+    managed plain (non-sensitive) variable values. Loaded with the
+    project's own tfvars at run-materialize time and passed via
+    `-var-file=` so it overrides the project's defaults. Living outside
+    the project tree means terrain-managed values can never be
+    accidentally committed to the user's repo.
+  - `$XDG_DATA_HOME/terrain/<backend>/<ws>/env-vars.json` — env-category
+    variable name index (names only; values in keyring). Same out-of-
+    project rationale as overrides.tfvars.
 
 - **Secrets**: never plaintext on disk if avoidable. Sensitive variable
   values + remote backend tokens go to the system keyring (libsecret on

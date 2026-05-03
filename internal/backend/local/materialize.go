@@ -77,9 +77,11 @@ func (b *Backend) materialize(ws domain.Workspace) *resolvedVars {
 		return rv
 	}
 
-	// 2. Workspace declared variables — overlay terraform.tfvars values
-	// for non-null overrides.
-	declared, _ := hcl.LoadVariables(ws.WorkingDirectory)
+	// 2. Workspace declared variables — overlay project tfvars values, then
+	// terrain's overrides file (lives outside the project tree). LoadVariables
+	// merges both, with extras taking precedence over project tfvars.
+	overrides, _ := overridesPath(b.id, ws.ID)
+	declared, _ := hcl.LoadVariablesWithExtras(ws.WorkingDirectory, overrides)
 	for _, v := range declared {
 		if v.Override != nil && !v.Override.IsNull() && (*v.Override).Type() != cty.NilType {
 			if s := ctyToString(*v.Override); s != "" {
@@ -96,7 +98,7 @@ func (b *Backend) materialize(ws domain.Workspace) *resolvedVars {
 	}
 
 	// 4. Workspace env-category vars — overlay any varset env values.
-	names, _ := loadEnvIndex(ws.WorkingDirectory, ws.ID)
+	names, _ := loadEnvIndex(b.id, ws.ID)
 	for _, name := range names {
 		if val, err := secrets.Get(envKey(b.id, ws.ID, name)); err == nil {
 			rv.Env[name] = val

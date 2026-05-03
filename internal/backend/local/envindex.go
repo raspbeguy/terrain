@@ -5,26 +5,31 @@ import (
 	"errors"
 	"io/fs"
 	"os"
-	"path/filepath"
 )
 
 // envIndex is the on-disk record of which Environment-category variables
-// exist for each workspace. Names only — values remain in the keyring. Lives
-// at `<projectDir>/.terrain/env-vars.json` with shape:
+// exist for a workspace. Names only — values remain in the keyring. Lives
+// at $XDG_DATA_HOME/terrain/<backendID>/<sanitized-ws>/env-vars.json with
+// shape:
 //
-//	{ "<workspace-id>": ["VAR1", "VAR2"] }
+//	["VAR1", "VAR2"]
 //
 // Why a side file: keyring backends (libsecret, Keychain) don't expose a
 // portable List API, so we can't enumerate "all env vars for this workspace"
 // from the keyring alone. A small JSON index is the simplest fix.
-type envIndex map[string][]string
+//
+// Why per-workspace under XDG_DATA_HOME (not under the project directory):
+// keeping it out of the user's project tree avoids accidental commits of
+// terrain-internal state, and lets the user delete + re-clone their project
+// without losing terrain's view of which env vars apply to that workspace.
+type envIndex []string
 
-func envIndexPath(projectDir string) string {
-	return filepath.Join(projectDir, ".terrain", "env-vars.json")
-}
-
-func loadEnvIndex(projectDir, workspaceID string) ([]string, error) {
-	data, err := os.ReadFile(envIndexPath(projectDir))
+func loadEnvIndex(backendID, workspaceID string) ([]string, error) {
+	path, err := envIndexFile(backendID, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	data, err := os.ReadFile(path)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
 			return nil, nil
@@ -35,27 +40,21 @@ func loadEnvIndex(projectDir, workspaceID string) ([]string, error) {
 	if err := json.Unmarshal(data, &idx); err != nil {
 		return nil, err
 	}
-	return idx[workspaceID], nil
+	return idx, nil
 }
 
-func saveEnvIndex(projectDir, workspaceID string, names []string) error {
-	path := envIndexPath(projectDir)
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+func saveEnvIndex(backendID, workspaceID string, names []string) error {
+	path, err := envIndexFile(backendID, workspaceID)
+	if err != nil {
 		return err
 	}
-	var idx envIndex
-	if data, err := os.ReadFile(path); err == nil {
-		_ = json.Unmarshal(data, &idx)
-	}
-	if idx == nil {
-		idx = envIndex{}
-	}
 	if len(names) == 0 {
-		delete(idx, workspaceID)
-	} else {
-		idx[workspaceID] = names
+		// No entries: remove the file rather than leaving an empty array.
+		// Best-effort — failure to remove an absent file is fine.
+		_ = os.Remove(path)
+		return nil
 	}
-	data, err := json.MarshalIndent(idx, "", "  ")
+	data, err := json.MarshalIndent(envIndex(names), "", "  ")
 	if err != nil {
 		return err
 	}
@@ -63,25 +62,25 @@ func saveEnvIndex(projectDir, workspaceID string, names []string) error {
 }
 
 // addEnvVar appends name to the workspace's env-var index. Idempotent.
-func addEnvVar(projectDir, workspaceID, name string) error {
-	names, _ := loadEnvIndex(projectDir, workspaceID)
+func addEnvVar(backendID, workspaceID, name string) error {
+	names, _ := loadEnvIndex(backendID, workspaceID)
 	for _, n := range names {
 		if n == name {
 			return nil
 		}
 	}
-	return saveEnvIndex(projectDir, workspaceID, append(names, name))
+	return saveEnvIndex(backendID, workspaceID, append(names, name))
 }
 
 // removeEnvVar drops name from the workspace's env-var index. Missing names
 // are silently ignored.
-func removeEnvVar(projectDir, workspaceID, name string) error {
-	names, _ := loadEnvIndex(projectDir, workspaceID)
+func removeEnvVar(backendID, workspaceID, name string) error {
+	names, _ := loadEnvIndex(backendID, workspaceID)
 	out := make([]string, 0, len(names))
 	for _, n := range names {
 		if n != name {
 			out = append(out, n)
 		}
 	}
-	return saveEnvIndex(projectDir, workspaceID, out)
+	return saveEnvIndex(backendID, workspaceID, out)
 }

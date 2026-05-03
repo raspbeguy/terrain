@@ -43,11 +43,28 @@ type Variable struct {
 // subdirectories aren't surfaced — that's a future enhancement when we have
 // a richer "module variables" UI section.
 func LoadVariables(projectDir string) ([]Variable, error) {
+	return LoadVariablesWithExtras(projectDir)
+}
+
+// LoadVariablesWithExtras is like LoadVariables but also reads value
+// overrides from the additional tfvars files at extraPaths (after the
+// project's own tfvars files, so later wins for the same key). Used by the
+// local backend to layer a terrain-managed overrides file that lives
+// outside the project directory on top of the project's own tfvars.
+//
+// Missing extra paths are silently ignored — the file is created lazily on
+// first write.
+func LoadVariablesWithExtras(projectDir string, extraPaths ...string) ([]Variable, error) {
 	parser := hclparse.NewParser()
 
 	tfFiles, tfvarsFiles, err := listHCLFiles(projectDir)
 	if err != nil {
 		return nil, err
+	}
+	for _, p := range extraPaths {
+		if _, err := os.Stat(p); err == nil {
+			tfvarsFiles = append(tfvarsFiles, p)
+		}
 	}
 
 	vars := map[string]*Variable{}
