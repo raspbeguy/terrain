@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -128,6 +129,57 @@ func TestAddLocalProject_RelativePathBecomesAbsolute(t *testing.T) {
 	}
 	if !filepath.IsAbs(p.Path) {
 		t.Errorf("expected absolute path, got %q", p.Path)
+	}
+}
+
+func TestRemoveLocalProject_RemovesOneOfMany(t *testing.T) {
+	withConfigDir(t)
+	c := defaultConfig()
+	_, a, err := c.AddLocalProject("a", "/home/dev/a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, b, err := c.AddLocalProject("b", "/home/dev/b")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := c.RemoveLocalProject(a.ID); err != nil {
+		t.Fatalf("RemoveLocalProject: %v", err)
+	}
+	if len(c.Backends) != 1 {
+		t.Fatalf("expected local backend retained, got %d backends", len(c.Backends))
+	}
+	if len(c.Backends[0].Projects) != 1 || c.Backends[0].Projects[0].ID != b.ID {
+		t.Errorf("expected only project b to remain, got %+v", c.Backends[0].Projects)
+	}
+}
+
+func TestRemoveLocalProject_DropsBackendWhenEmpty(t *testing.T) {
+	withConfigDir(t)
+	c := defaultConfig()
+	_, p, err := c.AddLocalProject("only", "/home/dev/only")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := c.RemoveLocalProject(p.ID); err != nil {
+		t.Fatalf("RemoveLocalProject: %v", err)
+	}
+	if len(c.Backends) != 0 {
+		t.Errorf("expected empty backend list after last project removal, got %+v", c.Backends)
+	}
+}
+
+func TestRemoveLocalProject_NotFound(t *testing.T) {
+	withConfigDir(t)
+	c := defaultConfig()
+	if _, _, err := c.AddLocalProject("a", "/home/dev/a"); err != nil {
+		t.Fatal(err)
+	}
+	err := c.RemoveLocalProject("does-not-exist")
+	if !errors.Is(err, ErrProjectNotFound) {
+		t.Errorf("expected ErrProjectNotFound, got %v", err)
 	}
 }
 

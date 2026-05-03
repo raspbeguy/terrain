@@ -136,7 +136,33 @@ func (a *App) onActivate() {
 		return
 	}
 	a.window = w
+	w.SetOnRemoveProject(a.removeLocalProject)
 	w.Present()
+}
+
+// removeLocalProject is the sidebar kebab "Remove project" callback. Drops
+// the project from the on-disk config, rebuilds the backend registry, and
+// refreshes the sidebar.
+func (a *App) removeLocalProject(ws domain.Workspace) {
+	if a.cfg == nil || a.window == nil {
+		return
+	}
+	if err := a.cfg.RemoveLocalProject(ws.ProjectID); err != nil {
+		slog.Error("remove project", "err", err, "project_id", ws.ProjectID)
+		a.window.ToastError("Couldn't remove project: " + err.Error())
+		return
+	}
+	backends, err := config.BuildBackends(a.cfg)
+	if err != nil {
+		slog.Error("rebuild backends", "err", err)
+		a.window.ToastError("Couldn't rebuild backends: " + err.Error())
+		return
+	}
+	a.backends = backends
+	if err := a.window.Refresh(backends); err != nil {
+		slog.Error("refresh sidebar", "err", err)
+	}
+	a.window.Toast("Removed " + ws.ProjectName)
 }
 
 func (a *App) onAddLocalProject() {

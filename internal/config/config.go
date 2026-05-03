@@ -214,6 +214,36 @@ func (c *Config) MigrateTokens() (int, error) {
 	return migrated, nil
 }
 
+// RemoveLocalProject removes the project with the given ID from the local
+// backend in the config and persists. If removal leaves the local backend
+// with no projects, the local backend itself is dropped from the registry.
+// Returns domain-style sentinel ErrProjectNotFound if no matching project
+// exists. Does NOT touch on-disk artifacts (cache, state versions, keyring)
+// — those persist so re-adding the same path keeps run history visible.
+func (c *Config) RemoveLocalProject(projectID string) error {
+	for bi, bc := range c.Backends {
+		if bc.Type != "local" {
+			continue
+		}
+		for pi, p := range bc.Projects {
+			if p.ID != projectID {
+				continue
+			}
+			c.Backends[bi].Projects = append(bc.Projects[:pi], bc.Projects[pi+1:]...)
+			if len(c.Backends[bi].Projects) == 0 {
+				c.Backends = append(c.Backends[:bi], c.Backends[bi+1:]...)
+			}
+			return c.Save()
+		}
+	}
+	return ErrProjectNotFound
+}
+
+// ErrProjectNotFound is returned by RemoveLocalProject when the project ID
+// isn't registered. Distinct from a save error so callers can distinguish a
+// stale UI request from a disk failure.
+var ErrProjectNotFound = errors.New("project not found")
+
 // AddLocalBackend appends a new local backend with one project, persisting
 // immediately. If a local backend already exists in the config, the project
 // is appended to it (one local backend per registry).

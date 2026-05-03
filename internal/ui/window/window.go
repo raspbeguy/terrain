@@ -49,6 +49,17 @@ type Window struct {
 
 	// Last produced plan path, captured between Plan and Apply.
 	lastPlanFile string
+
+	// onRemoveProject, if set by the application, is invoked after the user
+	// confirms the "Remove project" action on a sidebar row. The receiver is
+	// expected to update config + rebuild backends + call Refresh.
+	onRemoveProject func(domain.Workspace)
+}
+
+// SetOnRemoveProject installs the callback fired when the user confirms
+// removing a project from a sidebar row's kebab menu.
+func (w *Window) SetOnRemoveProject(fn func(domain.Workspace)) {
+	w.onRemoveProject = fn
 }
 
 // New loads the window from gresource, wires it to the given application,
@@ -172,9 +183,91 @@ func (w *Window) refreshFrom(backends []domain.Backend) error {
 		row.SetTitle(ws.ProjectName)
 		row.SetSubtitle(ws.Name)
 		row.SetActivatable(true)
+		w.attachRowKebab(row, ws)
 		w.sidebarList.Append(row)
 	}
+
+	// If the active workspace was removed in this refresh, fall back to the
+	// welcome view so we don't leave a stale detail pane bound to a workspace
+	// that no longer exists.
+	if w.current.ID != "" {
+		stillThere := false
+		for _, ws := range all {
+			if ws.ID == w.current.ID {
+				stillThere = true
+				break
+			}
+		}
+		if !stillThere {
+			w.current = domain.Workspace{}
+			w.contentStack.SetVisibleChildName("welcome")
+			w.contentTitle.SetTitle("Terrain")
+			w.contentTitle.SetSubtitle("")
+		}
+	}
 	return nil
+}
+
+// attachRowKebab adds a kebab menu (⋯) suffix to a sidebar row with one
+// "Remove project" action. Local-only — remote workspaces aren't directly
+// removable from the sidebar (you'd remove the whole remote backend).
+func (w *Window) attachRowKebab(row *adw.ActionRow, ws domain.Workspace) {
+	if ws.BackendID == "" || !isLocalBackendID(w.backends, ws.BackendID) {
+		return
+	}
+
+	popover := gtk.NewPopover()
+	popover.SetHasArrow(true)
+
+	removeBtn := gtk.NewButtonWithLabel("Remove project")
+	removeBtn.AddCSSClass("flat")
+	removeBtn.AddCSSClass("destructive-action")
+	removeBtn.ConnectClicked(func() {
+		popover.Popdown()
+		w.confirmRemoveProject(ws)
+	})
+	popover.SetChild(removeBtn)
+
+	menu := gtk.NewMenuButton()
+	menu.SetIconName("view-more-symbolic")
+	menu.AddCSSClass("flat")
+	menu.SetVAlign(gtk.AlignCenter)
+	menu.SetPopover(popover)
+	menu.SetTooltipText("More actions")
+
+	row.AddSuffix(menu)
+}
+
+// isLocalBackendID reports whether the backend with id is a local backend.
+// Used to gate per-row UI affordances that only apply to local workspaces.
+func isLocalBackendID(backends []domain.Backend, id string) bool {
+	for _, b := range backends {
+		if b.ID() == id {
+			return b.Kind() == domain.BackendKindLocal
+		}
+	}
+	return false
+}
+
+// confirmRemoveProject opens an AdwAlertDialog asking the user to confirm
+// before unregistering ws from the local backend. On confirmation, fires
+// the OnRemoveProject callback installed by the App.
+func (w *Window) confirmRemoveProject(ws domain.Workspace) {
+	dlg := adw.NewAlertDialog(
+		"Remove project?",
+		fmt.Sprintf("This unregisters %q from terrain. The project files on disk are not deleted.", ws.ProjectName),
+	)
+	dlg.AddResponse("cancel", "Cancel")
+	dlg.AddResponse("remove", "Remove")
+	dlg.SetResponseAppearance("remove", adw.ResponseDestructive)
+	dlg.SetDefaultResponse("cancel")
+	dlg.SetCloseResponse("cancel")
+	dlg.ConnectResponse(func(resp string) {
+		if resp == "remove" && w.onRemoveProject != nil {
+			w.onRemoveProject(ws)
+		}
+	})
+	dlg.Present(&w.root.Window)
 }
 
 func (w *Window) clearList() {
