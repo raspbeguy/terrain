@@ -30,38 +30,25 @@ type Backend struct {
 	defaults RuntimeDefaults
 }
 
-// RuntimeDefaults captures the app-wide preferences the local backend
-// needs to resolve a workspace's run mode + image when the per-workspace
-// settings.json doesn't override them. Populated by the registry from
-// AppConfig at backend construction time.
+// RuntimeDefaults snapshots the AppConfig fields the local backend needs
+// to resolve runtime mode + image when a workspace has no override.
+// Populated by the registry at backend construction.
 type RuntimeDefaults struct {
-	// Engine selects the default container image when a workspace doesn't
-	// pin one — "tofu" (default) maps to ImageTofu, "terraform" to
-	// ImageTerraform.
+	// Engine is "tofu" or "terraform"; selects which image default to use.
 	Engine string
-
-	// RuntimePath is the path to the container CLI binary (podman, docker,
-	// nerdctl, ...). Empty means container mode is unavailable.
-	RuntimePath string
-
-	// RunMode is the default for new workspaces ("subprocess" or
-	// "container"). Empty means subprocess.
-	RunMode string
-
-	// ImageTofu / ImageTerraform are the engine-specific image fallbacks
-	// when a workspace's settings.json has no Image override.
+	// RuntimePath is the container CLI binary; empty disables container mode.
+	RuntimePath    string
+	RunMode        string
 	ImageTofu      string
 	ImageTerraform string
 }
 
-// New constructs a local backend with no projects yet.
 func New(id, name string) *Backend {
 	return &Backend{id: id, name: name}
 }
 
-// SetRuntimeDefaults snapshots the app-wide runtime preferences into the
-// backend so per-run resolution doesn't need to re-load config.toml on
-// every plan invocation. Call before the backend is published to UI code.
+// SetRuntimeDefaults must be called before the backend is published to
+// other goroutines.
 func (b *Backend) SetRuntimeDefaults(d RuntimeDefaults) {
 	b.defaults = d
 }

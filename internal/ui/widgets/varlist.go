@@ -51,9 +51,7 @@ func (vl *VarList) Root() *gtk.ScrolledWindow { return vl.scroller }
 // Pass nil to make the list non-interactive.
 func (vl *VarList) SetOnActivate(fn func(domain.Variable)) { vl.onActivate = fn }
 
-// SetOnRemove registers the callback fired when the user picks Remove from
-// a row's kebab menu. Passing nil hides the menu (rows have edit-only
-// behaviour). The callback is invoked AFTER the user confirms.
+// SetOnRemove installs the kebab Remove callback; nil hides the kebab.
 func (vl *VarList) SetOnRemove(fn func(domain.Variable)) { vl.onRemove = fn }
 
 // Bind replaces the current view with the supplied list of variables. Empty
@@ -89,10 +87,8 @@ func (vl *VarList) buildActivatableRow(v domain.Variable) *adw.ActionRow {
 	return row
 }
 
-// buildVarRowKebab returns a MenuButton with a popover offering the per-row
-// Remove action. Wording is chosen to match the variable's source-declaration
-// status: declared variables fall back to source defaults on remove, ad-hoc
-// (tfvars-only) ones disappear entirely.
+// buildVarRowKebab returns a MenuButton with a popover offering Remove
+// (or "Reset to default" for source-declared variables).
 func buildVarRowKebab(v domain.Variable, onRemove func(domain.Variable)) *gtk.MenuButton {
 	popover := gtk.NewPopover()
 	popover.SetHasArrow(true)
@@ -165,11 +161,8 @@ func buildVarRow(v domain.Variable) *adw.ActionRow {
 		envBadge.SetVAlign(gtk.AlignCenter)
 		row.AddSuffix(envBadge)
 	}
-	// Ad-hoc badge: variable found in terraform.tfvars (or set via terrain)
-	// but with no matching `variable "<name>" {}` block in source. Terraform
-	// would silently ignore these — surface them so the user can clean up.
-	// Env-category vars don't have source declarations either, but we don't
-	// double-flag those: the "env" pill already conveys the distinction.
+	// Ad-hoc: tfvars entry with no matching `variable` block in source.
+	// Env-category gets the "env" pill instead, so don't double-flag.
 	if !v.Declared && v.Category != domain.VarCategoryEnvironment {
 		adhoc := gtk.NewLabel("ad-hoc")
 		adhoc.AddCSSClass("pill")
@@ -180,10 +173,9 @@ func buildVarRow(v domain.Variable) *adw.ActionRow {
 	return row
 }
 
-// varDisplay picks the most informative single-line representation: hide
-// sensitive values, otherwise flatten any whitespace runs (HCL object/map
-// literals come through multi-line) and truncate. Empty values render as
-// a dash.
+// varDisplay returns the row's suffix label: bullets for sensitive, a
+// truncated single-line render for plain (HCL multi-line literals get
+// flattened to one line first), dash for empty.
 func varDisplay(v domain.Variable) string {
 	switch {
 	case v.Sensitive:

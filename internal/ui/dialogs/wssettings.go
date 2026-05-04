@@ -12,11 +12,6 @@ import (
 
 const wsSettingsResource = "/io/github/raspbeguy/Terrain/workspace-settings.ui"
 
-// WorkspaceSettings is the per-workspace settings dialog. Lets the user
-// override the default run mode (subprocess vs container) and the
-// container image for one workspace. Saved on commit (apply + close)
-// rather than per-keystroke; cancellation = closing the dialog without
-// applying.
 type WorkspaceSettings struct {
 	dialog *adw.PreferencesDialog
 
@@ -25,14 +20,11 @@ type WorkspaceSettings struct {
 
 	backendID   string
 	workspaceID string
-
-	// Snapshot loaded from disk; we compute changes against this and only
-	// write back if something actually moved.
+	// initial is the on-disk snapshot; persist() compares against it so a
+	// no-op edit doesn't cause a needless write.
 	initial local.WorkspaceSettings
 }
 
-// NewWorkspaceSettings constructs the dialog pre-populated from the on-disk
-// settings file (or a zero value when none exists).
 func NewWorkspaceSettings(backendID, workspaceID string) *WorkspaceSettings {
 	builder := gtk.NewBuilderFromResource(wsSettingsResource)
 	w := &WorkspaceSettings{
@@ -66,7 +58,6 @@ func NewWorkspaceSettings(backendID, workspaceID string) *WorkspaceSettings {
 	return w
 }
 
-// Present shows the dialog parented to parent.
 func (w *WorkspaceSettings) Present(parent *gtk.Window) {
 	w.dialog.Present(parent)
 }

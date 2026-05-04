@@ -96,8 +96,6 @@ func TestWorkspaceSettings_RoundTrip(t *testing.T) {
 		ws      = "local:p1:default"
 	)
 
-	// Empty initially — file doesn't exist; LoadWorkspaceSettings returns
-	// zero value without error.
 	got, err := LoadWorkspaceSettings(backend, ws)
 	if err != nil {
 		t.Fatalf("Load on missing file: %v", err)
@@ -106,7 +104,6 @@ func TestWorkspaceSettings_RoundTrip(t *testing.T) {
 		t.Errorf("expected zero value, got %+v", got)
 	}
 
-	// Save non-empty, read back.
 	want := WorkspaceSettings{
 		RunMode: RunModeContainer,
 		Image:   "ghcr.io/opentofu/opentofu:1.7",
@@ -122,7 +119,6 @@ func TestWorkspaceSettings_RoundTrip(t *testing.T) {
 		t.Errorf("round-trip mismatch: got %+v, want %+v", got, want)
 	}
 
-	// Saving zero value removes the file.
 	if err := SaveWorkspaceSettings(backend, ws, WorkspaceSettings{}); err != nil {
 		t.Fatalf("Save zero: %v", err)
 	}

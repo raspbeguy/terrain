@@ -116,10 +116,8 @@ func runWorker(
 		exitCode   int
 	)
 
-	// Apply runs persist a backref to the plan file they consumed; the runs
-	// list uses it to mark plan rows whose plan was actually applied vs ones
-	// that were just dry-run inspections. Plan/destroy runs set PlanFile
-	// themselves after producing the file.
+	// Apply persists a backref to the plan file it consumed so the runs
+	// list can mark plan rows whose plan was applied.
 	if req.Kind == domain.RunKindApply {
 		run.PlanFile = req.PlanFile
 	}
@@ -159,11 +157,9 @@ func runWorker(
 
 	setStatus(domain.StatusPending, "queued")
 
-	// Resolve runtime mode + image. Apply runs read these from the
-	// producing plan's snapshot — the user might have toggled the
-	// workspace's settings between plan and apply, but the apply still
-	// has to use the same mode/image because the plan file inside it
-	// references the producing run's container paths.
+	// Apply binds to the producing plan's mode/image (read from its
+	// request.txt) so toggling workspace settings mid-flow can't strand
+	// a plan whose paths reference the original sandbox.
 	rtOpts, err := b.resolveRuntimeOptions(ws.ID, run.ID)
 	if err != nil {
 		finalErr = fmt.Errorf("resolve runtime: %w", err)
@@ -243,9 +239,8 @@ func runWorker(
 		}()
 	}
 
-	// Single tee goroutine shared by the init pass and the main subprocess
-	// so both streams land in the same on-disk log files and the same live
-	// channel. Closed once after the LAST streamCommand returns.
+	// One tee goroutine drains all streamCommand calls (init + main) into
+	// the same on-disk log files and live channel; closed after the last.
 	teedLogs := make(chan domain.LogLine, cap(stream.logs))
 	var wg sync.WaitGroup
 	wg.Add(1)
@@ -257,10 +252,7 @@ func runWorker(
 		}
 	}()
 
-	// Image pre-pull (container mode only). Streams progress through the
-	// same log pipeline so the user sees the pull happening rather than a
-	// frozen "Fetching" status pill. Skipped silently when the image is
-	// already local — both podman and docker short-circuit fast.
+	// Image pre-pull (container mode only); host + bwrap return nil here.
 	if pullCmd := rt.PullCommand(ctx, rtOpts.Image); pullCmd != nil {
 		setStatus(domain.StatusFetching,
 			fmt.Sprintf("pulling image %s", rtOpts.Image))
@@ -276,11 +268,8 @@ func runWorker(
 		}
 	}
 
-	// Init phase: plan/destroy runs always do `tofu init -input=false` first.
-	// Apply runs skip it because they replay a saved plan that's already
-	// gone through init at plan time. Init output streams into the same log
-	// pipeline so the user sees provider downloads / module fetches alongside
-	// the eventual plan output.
+	// Plan/destroy always init first; apply replays a saved plan that's
+	// already been through init.
 	if req.Kind == domain.RunKindPlan || req.Kind == domain.RunKindDestroy {
 		setStatus(domain.StatusFetching,
 			fmt.Sprintf("running `%s init -input=false`", bin.Name))
@@ -531,12 +520,9 @@ func writeRequestSnapshot(runDir string, run domain.Run, req domain.RunRequest, 
 	return os.WriteFile(filepath.Join(runDir, "request.txt"), []byte(body), 0o644)
 }
 
-// readRequestSnapshot parses a previous run's request.txt to recover the
-// run-mode + image it executed under. Used by apply to bind itself to the
-// producing plan's mode (TFE-style: a run carries its own execution mode,
-// independent of the workspace's current settings). Missing fields default
-// to subprocess + empty image — preserves backward compatibility for run
-// snapshots written before the runtime layer existed.
+// readRequestSnapshot recovers the run-mode + image fields from a prior
+// run's request.txt. Missing fields default to subprocess + empty so
+// pre-runtime-layer snapshots still load.
 func readRequestSnapshot(runDir string) (mode RunMode, image string, err error) {
 	data, err := os.ReadFile(filepath.Join(runDir, "request.txt"))
 	if err != nil {

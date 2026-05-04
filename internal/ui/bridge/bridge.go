@@ -41,11 +41,8 @@ type RunSinks struct {
 	OnDone  func(error)
 }
 
-// OnMainThread schedules fn to run on the GTK main thread. Use from a
-// background goroutine when you have a one-shot result (e.g. an async
-// backend fetch returning a workspace list) that doesn't fit the streaming
-// PumpRun shape. Centralizing the call here keeps the "no glib import
-// outside bridge" architectural rule grep-provable.
+// OnMainThread schedules fn on the GTK main thread. Use from background
+// goroutines for one-shot results that don't fit the PumpRun shape.
 func OnMainThread(fn func()) {
 	glib.IdleAdd(fn)
 }

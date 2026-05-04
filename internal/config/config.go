@@ -28,29 +28,20 @@ type Config struct {
 
 // AppConfig holds global preferences not tied to a single backend.
 type AppConfig struct {
-	// DefaultEngine is which CLI to prefer when both are installed.
+	// DefaultEngine is "tofu" or "terraform"; preferred when both exist.
 	DefaultEngine string `toml:"default_engine"`
 
-	// ContainerRuntimePath is the path to the container CLI binary used
-	// when a workspace is in container run-mode. Default "/usr/bin/podman";
-	// users can point at docker, nerdctl, finch, etc. Empty means
-	// container mode is unavailable (runs in container mode will error).
+	// ContainerRuntimePath is the container CLI binary (podman, docker,
+	// nerdctl, …). Empty disables container mode.
 	ContainerRuntimePath string `toml:"container_runtime_path"`
 
-	// DefaultRunMode is the run mode applied to workspaces that haven't
-	// set a per-workspace override. "subprocess" or "container". Empty
-	// (default) is treated as subprocess for backward compatibility — no
-	// existing user gets surprised by container mode after upgrading.
+	// DefaultRunMode is the mode for workspaces with no override:
+	// "subprocess", "bubblewrap", or "container". Empty = subprocess.
 	DefaultRunMode string `toml:"default_run_mode"`
 
-	// DefaultImageTofu is the container image template used when a
-	// workspace's chosen engine is opentofu and no per-workspace image
-	// override is set. Accepts a tag form ("ghcr.io/opentofu/opentofu:1.7")
-	// or digest-pinned form ("...@sha256:...").
-	DefaultImageTofu string `toml:"default_image_tofu"`
-
-	// DefaultImageTerraform is the container image template for the
-	// terraform engine. Same format rules as DefaultImageTofu.
+	// DefaultImageTofu / DefaultImageTerraform are the engine-specific
+	// container image fallbacks. Tag or @digest forms both work.
+	DefaultImageTofu      string `toml:"default_image_tofu"`
 	DefaultImageTerraform string `toml:"default_image_terraform"`
 }
 
@@ -127,9 +118,8 @@ func Load() (*Config, error) {
 	if c.App.DefaultImageTerraform == "" {
 		c.App.DefaultImageTerraform = "hashicorp/terraform:latest"
 	}
-	// DefaultRunMode intentionally left as the empty string when unset —
-	// the resolver treats "" as subprocess, so existing users see no
-	// behaviour change after upgrading.
+	// DefaultRunMode stays empty when unset; the resolver treats "" as
+	// subprocess.
 	return c, nil
 }
 

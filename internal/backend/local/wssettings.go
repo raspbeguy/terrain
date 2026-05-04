@@ -9,58 +9,30 @@ import (
 	"path/filepath"
 )
 
-// RunMode determines how a workspace's runs are launched. Default is empty
-// string which the resolver interprets as "fall back to the app-wide default
-// in AppConfig.DefaultRunMode" — that way a brand-new workspace inherits the
-// user's preference without us having to write a settings file on first
-// access.
+// RunMode picks the launcher for a workspace's runs. Empty value means
+// "inherit AppConfig.DefaultRunMode".
 type RunMode string
 
 const (
-	// RunModeUnset means "use the global default". Persisted as the empty
-	// string so a missing settings.json file is indistinguishable from a
-	// freshly-saved one with no per-workspace override.
-	RunModeUnset RunMode = ""
-
-	// RunModeSubprocess invokes tofu/terraform directly on the host (the
-	// pre-existing behaviour, what every workspace gets by default).
+	RunModeUnset      RunMode = ""
 	RunModeSubprocess RunMode = "subprocess"
-
-	// RunModeContainer launches each run inside a container, bind-mounting
-	// the project dir + per-run cache dir. See runtime.go for the wiring.
-	RunModeContainer RunMode = "container"
-
-	// RunModeBubblewrap launches each run under bubblewrap (bwrap), the
-	// same low-level user-namespace sandboxer Flatpak uses internally.
-	// Uses the host's tofu/terraform binary (no image system) but
-	// confines its filesystem view to /usr + the explicitly-bound
-	// project/run/cache dirs. Lighter than container mode and starts in
-	// milliseconds; doesn't help with version-pin or CI-parity, just
-	// isolation. See runtime.go for the wiring.
+	RunModeContainer  RunMode = "container"
 	RunModeBubblewrap RunMode = "bubblewrap"
 )
 
-// WorkspaceSettings is the per-workspace user preference set saved next to
-// overrides.tfvars / env-vars.json. None of these fields are required — a
-// zero value means "follow the app-wide defaults."
-//
-// Why a separate file (vs extending domain.Workspace.ExecutionMode): the
-// domain field is a TFE-mirror used by the remote backend too. Run-mode is
-// a local-backend implementation choice and belongs here.
+// WorkspaceSettings persists per-workspace overrides under
+// $XDG_DATA_HOME/terrain/<backend>/<ws>/settings.json. Zero value =
+// inherit app defaults.
 type WorkspaceSettings struct {
-	// RunMode chooses subprocess vs container. Empty = inherit global.
 	RunMode RunMode `json:"run_mode,omitempty"`
-
-	// Image is the container image reference (with optional digest). Only
-	// honoured when RunMode resolves to container. Empty = inherit the
-	// engine-specific global default (tofu image vs terraform image).
+	// Image is the container image; only used when RunMode resolves to
+	// container. Empty = engine-specific default.
 	Image string `json:"image,omitempty"`
 }
 
-// LoadWorkspaceSettings reads the per-workspace settings.json. A missing
-// file is not an error — returns zero-value settings, which the resolver
-// treats as "fall back to global defaults". JSON parse errors propagate so
-// the UI can surface them; we don't silently overwrite a corrupt file.
+// LoadWorkspaceSettings returns the zero value when the file is missing.
+// JSON parse errors propagate so the UI can flag a corrupt file rather
+// than silently overwrite it.
 func LoadWorkspaceSettings(backendID, workspaceID string) (WorkspaceSettings, error) {
 	path, err := workspaceSettingsPath(backendID, workspaceID)
 	if err != nil {
@@ -80,10 +52,8 @@ func LoadWorkspaceSettings(backendID, workspaceID string) (WorkspaceSettings, er
 	return s, nil
 }
 
-// SaveWorkspaceSettings writes settings to the per-workspace settings.json
-// using a temp-file + rename so a partial write or crash never leaves a
-// corrupt file. If s is the zero value, the file is removed instead — keeps
-// the data dir clean of empty-marker files.
+// SaveWorkspaceSettings writes via temp-file + rename. A zero-value s
+// removes the file rather than persisting an empty marker.
 func SaveWorkspaceSettings(backendID, workspaceID string, s WorkspaceSettings) error {
 	path, err := workspaceSettingsPath(backendID, workspaceID)
 	if err != nil {

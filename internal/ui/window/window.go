@@ -44,36 +44,27 @@ type Window struct {
 	workspacePage *workspace.Page
 	runPage       *run.Page
 
-	// searchFilter is the lowercased query the sidebar filter func reads.
-	// Empty means "show all rows". Updated on SearchEntry changes.
+	// searchFilter is the lowercased sidebar query; empty = no filter.
 	searchFilter string
 
-	// Flat list of workspaces in row order; index matches ListBoxRow.Index().
+	// workspaces is in row order; index matches ListBoxRow.Index().
 	workspaces []domain.Workspace
-
-	// Currently displayed workspace, used to restore content when a run
-	// finishes or the user clicks Back.
-	current domain.Workspace
-
-	// Last produced plan path, captured between Plan and Apply.
+	current    domain.Workspace
+	// lastPlanFile is captured between Plan and Apply.
 	lastPlanFile string
 
-	// onRemoveProject, if set by the application, is invoked after the user
-	// confirms the "Remove project" action on a sidebar row. The receiver is
-	// expected to update config + rebuild backends + call Refresh.
+	// onRemoveProject is invoked when the user confirms Remove on a
+	// sidebar row. The app handles the config mutation + Refresh.
 	onRemoveProject func(domain.Workspace)
 }
 
-// SetOnRemoveProject installs the callback fired when the user confirms
-// removing a project from a sidebar row's kebab menu.
 func (w *Window) SetOnRemoveProject(fn func(domain.Workspace)) {
 	w.onRemoveProject = fn
 }
 
-// New loads the window from gresource, wires it to the given application,
-// and populates the sidebar from the provided backends. locks is the
-// per-workspace lock registry — pass the same instance the app uses so the
-// rest of the UI sees consistent state.
+// New loads the window from gresource and populates the sidebar from
+// backends. Pass the app-shared lock registry so per-workspace lock state
+// is consistent across the UI.
 func New(app *adw.Application, backends []domain.Backend, locks *runner.WorkspaceLocks) (*Window, error) {
 	if locks == nil {
 		locks = runner.NewWorkspaceLocks()
@@ -171,13 +162,9 @@ func (w *Window) Refresh(backends []domain.Backend) error {
 	return w.refreshFrom(backends)
 }
 
-// refreshFrom populates the sidebar from the supplied backend list. Local
-// backends (filesystem-only) are read synchronously so their rows show
-// immediately; remote backends are read on background goroutines and post
-// their workspaces back via bridge.OnMainThread, appending to the sidebar
-// when they arrive. This keeps window startup ms-fast even when an OTF /
-// HCP / TFE org has thousands of workspaces — the user gets an interactive
-// UI right away and remote rows fill in shortly after.
+// refreshFrom rebuilds the sidebar. Local backends are read synchronously;
+// remote backends are read on background goroutines and posted back via
+// bridge.OnMainThread so a slow OTF list never blocks startup.
 func (w *Window) refreshFrom(backends []domain.Backend) error {
 	ctx := context.Background()
 	w.backends = backends
@@ -205,10 +192,6 @@ func (w *Window) refreshFrom(backends []domain.Backend) error {
 	return nil
 }
 
-// fetchRemoteWorkspaces is the background-goroutine half of remote workspace
-// loading. Bounded by a 30s timeout so a stuck API doesn't leave the
-// goroutine hanging forever; an error there surfaces as a toast on the
-// main thread.
 func (w *Window) fetchRemoteWorkspaces(b domain.Backend) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -224,11 +207,6 @@ func (w *Window) fetchRemoteWorkspaces(b domain.Backend) {
 	})
 }
 
-// replaceBackendWorkspaces drops any workspaces currently attributed to
-// backendID and replaces them with list, rebuilding the sidebar so row
-// order matches the flat workspaces slice. Used by fetchRemoteWorkspaces
-// to merge async-arriving remote rows into the sidebar without disturbing
-// the local rows already shown.
 func (w *Window) replaceBackendWorkspaces(backendID string, list []domain.Workspace) {
 	next := make([]domain.Workspace, 0, len(w.workspaces)+len(list))
 	for _, ws := range w.workspaces {
@@ -241,9 +219,6 @@ func (w *Window) replaceBackendWorkspaces(backendID string, list []domain.Worksp
 	w.rebuildSidebar()
 }
 
-// rebuildSidebar wipes and re-creates all sidebar rows from w.workspaces.
-// Cheap enough to run on every list-shape change (a few thousand widget
-// ops max); a future virtualized list view would let us skip the wipe.
 func (w *Window) rebuildSidebar() {
 	w.clearList()
 
@@ -283,9 +258,8 @@ func (w *Window) rebuildSidebar() {
 	}
 }
 
-// attachRowKebab adds a kebab menu (⋯) suffix to a sidebar row with one
-// "Remove project" action. Local-only — remote workspaces aren't directly
-// removable from the sidebar (you'd remove the whole remote backend).
+// attachRowKebab adds a kebab menu with a Remove-project action.
+// Local-only — remote workspaces are managed at the backend level.
 func (w *Window) attachRowKebab(row *adw.ActionRow, ws domain.Workspace) {
 	if ws.BackendID == "" || !isLocalBackendID(w.backends, ws.BackendID) {
 		return
@@ -313,8 +287,6 @@ func (w *Window) attachRowKebab(row *adw.ActionRow, ws domain.Workspace) {
 	row.AddSuffix(menu)
 }
 
-// isLocalBackendID reports whether the backend with id is a local backend.
-// Used to gate per-row UI affordances that only apply to local workspaces.
 func isLocalBackendID(backends []domain.Backend, id string) bool {
 	for _, b := range backends {
 		if b.ID() == id {
@@ -324,9 +296,6 @@ func isLocalBackendID(backends []domain.Backend, id string) bool {
 	return false
 }
 
-// confirmRemoveProject opens an AdwAlertDialog asking the user to confirm
-// before unregistering ws from the local backend. On confirmation, fires
-// the OnRemoveProject callback installed by the App.
 func (w *Window) confirmRemoveProject(ws domain.Workspace) {
 	dlg := adw.NewAlertDialog(
 		"Remove project?",
@@ -355,13 +324,8 @@ func (w *Window) clearList() {
 	}
 }
 
-// sidebarFilter is the GtkListBox filter func used by the search bar.
-// Empty query → all rows visible. Non-empty → row visible iff the
-// workspace's project name, workspace name, or backend display name
-// contains the (lowercased) query as a substring. Backends are looked up
-// by ID at filter time so a row from a since-removed backend silently
-// fails the lookup and gets hidden — that's acceptable because such a
-// row will be rebuilt out of existence on the next refresh.
+// sidebarFilter matches the lowercased query against the project name,
+// workspace name, and backend display name.
 func (w *Window) sidebarFilter(row *gtk.ListBoxRow) bool {
 	if w.searchFilter == "" {
 		return true
@@ -378,9 +342,8 @@ func (w *Window) sidebarFilter(row *gtk.ListBoxRow) bool {
 	return strings.Contains(hay, w.searchFilter)
 }
 
-// sidebarHeaderFunc inserts a section heading above the first workspace of
-// each backend. GtkListBox calls this on rebuild and when adjacent rows
-// change.
+// sidebarHeaderFunc inserts a section header above the first row of each
+// backend group.
 func (w *Window) sidebarHeaderFunc(row, before *gtk.ListBoxRow) {
 	idx := row.Index()
 	if idx < 0 || int(idx) >= len(w.workspaces) {
@@ -712,11 +675,8 @@ type variableUpserter interface {
 	UpsertVariable(ctx context.Context, workspaceID string, v domain.Variable) error
 }
 
-// openWorkspaceSettings shows the per-workspace run-mode + image dialog.
-// Local-only — remote workspaces don't have a runtime knob (TFE handles
-// execution mode server-side). For remote, the gear button in the
-// overview is currently a no-op; we silently return rather than show an
-// empty dialog.
+// openWorkspaceSettings opens the per-workspace runtime dialog.
+// Local-only — remote backends manage execution mode server-side.
 func (w *Window) openWorkspaceSettings(ws domain.Workspace) {
 	if !isLocalBackendID(w.backends, ws.BackendID) {
 		w.Toast("Workspace settings are local-backend only")
@@ -738,17 +698,10 @@ func (w *Window) editVariable(ws domain.Workspace, v domain.Variable) {
 		func(saved domain.Variable) { w.saveVariable(ws, saved) })
 }
 
-// variableDeleter is the optional capability for backends that support
-// removing a workspace variable. Local backends implement it; remote will
-// follow when go-tfe's Variables.Delete is wired.
 type variableDeleter interface {
 	DeleteVariable(ctx context.Context, workspaceID, key string) error
 }
 
-// removeVariable opens an AdwAlertDialog asking the user to confirm before
-// dropping the variable. Wording adapts to whether the variable is declared
-// in source: declared vars fall back to source defaults, ad-hoc ones are
-// fully removed from terraform.tfvars / keyring.
 func (w *Window) removeVariable(ws domain.Workspace, v domain.Variable) {
 	title := "Remove variable?"
 	body := fmt.Sprintf("Remove %q from this workspace? It will be deleted from terraform.tfvars and any keyring entries.", v.Key)
@@ -772,10 +725,6 @@ func (w *Window) removeVariable(ws domain.Workspace, v domain.Variable) {
 	dlg.Present(&w.root.Window)
 }
 
-// deleteVariable forwards the actual delete to the backend (if it implements
-// variableDeleter) and refreshes the Variables tab on success. Mirrors
-// saveVariable's locking discipline: per-workspace lock acquired so an
-// in-flight run doesn't materialise vars mid-edit.
 func (w *Window) deleteVariable(ws domain.Workspace, v domain.Variable) {
 	backend := w.findBackend(ws.BackendID)
 	if backend == nil {

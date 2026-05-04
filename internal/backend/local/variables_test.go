@@ -12,10 +12,6 @@ import (
 	"github.com/raspbeguy/terrain/internal/domain"
 )
 
-// TestUpsertPlainVar_WritesOverridesNotProjectTfvars verifies the
-// 2026-05-03 behavior change: plain variable values terrain manages live
-// at $XDG_DATA_HOME/terrain/<backend>/<ws>/overrides.tfvars rather than
-// the user's project terraform.tfvars.
 func TestUpsertPlainVar_WritesOverridesNotProjectTfvars(t *testing.T) {
 	keyring.MockInit()
 	dataHome := t.TempDir()

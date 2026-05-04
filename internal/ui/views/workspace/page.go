@@ -66,9 +66,6 @@ type Page struct {
 	onOpenSettings      func(domain.Workspace)
 }
 
-// SetOnOpenSettings wires the toolbar gear button. The window opens the
-// workspace settings dialog when the user clicks it; this page just
-// forwards the click + current workspace.
 func (p *Page) SetOnOpenSettings(fn func(domain.Workspace)) {
 	p.onOpenSettings = fn
 }
@@ -216,8 +213,6 @@ func (p *Page) SetOnAddVariable(fn func(domain.Workspace)) {
 	p.onAddVar = fn
 }
 
-// SetOnRemoveVariable wires the per-row Remove kebab action. Window-side
-// shows a confirmation dialog before forwarding to the backend.
 func (p *Page) SetOnRemoveVariable(fn func(domain.Workspace, domain.Variable)) {
 	p.onRemoveVar = fn
 	if fn == nil {

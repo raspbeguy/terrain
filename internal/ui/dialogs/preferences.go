@@ -134,10 +134,6 @@ func (p *Preferences) bindBackends(backends []RemoteBackend) {
 	}
 }
 
-// bindContainerRuntime fills the four container-runtime rows from the
-// current config and persists changes back through Save() on each edit.
-// EntryRow's apply signal fires when the user commits a change (Enter or
-// focus-out), so we don't write on every keystroke.
 func (p *Preferences) bindContainerRuntime(cfg *config.Config) {
 	if cfg == nil {
 		return
@@ -179,8 +175,6 @@ func (p *Preferences) bindContainerRuntime(cfg *config.Config) {
 	})
 }
 
-// persist writes the config back to disk; logs but doesn't surface errors
-// — the dialog is transient and the user can retry by re-editing.
 func (p *Preferences) persist() {
 	if p.cfg == nil {
 		return
