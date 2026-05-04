@@ -74,11 +74,13 @@ nil-widget crashes, and missing gresource entries automatically.
 6. **Single tofu-invocation chokepoint**. Every `tofu` / `terraform` exec
    site routes through `internal/backend/local/sandbox.go:hostCommand`
    (which adds `flatpak-spawn --host` when sandboxed). The runtime layer
-   in `runtime.go` adds an opt-in container path: `containerRuntime`
-   wraps the same call site with `<runtimeBin> run --rm --init …` and
-   delegates back to `hostCommand` for the runtime binary itself, so the
-   Flatpak boundary still has exactly one crossing. **Do not** add new
-   exec sites for tofu/terraform/podman that bypass `hostCommand`.
+   in `runtime.go` adds two opt-in sandboxed paths: `containerRuntime`
+   (podman/docker `run --rm --init …` against an OCI image) and
+   `bubblewrapRuntime` (`bwrap` user-namespace sandbox around the host
+   binary, no image system). Both delegate back to `hostCommand` for
+   their runtime binary, so the Flatpak boundary still has exactly one
+   crossing. **Do not** add new exec sites for tofu/terraform/podman/
+   bwrap that bypass `hostCommand`.
 
 7. **Run mode lives per-workspace, not in `domain.Workspace.ExecutionMode`**.
    The TFE-mirror field is shared with the remote backend and has a fixed

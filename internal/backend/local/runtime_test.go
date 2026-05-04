@@ -1,9 +1,11 @@
 package local
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -160,6 +162,64 @@ func TestNewRuntime_HostByDefault(t *testing.T) {
 	}
 	if _, ok := rt.(hostRuntime); !ok {
 		t.Errorf("expected hostRuntime, got %T", rt)
+	}
+}
+
+func TestBubblewrapRuntime_CommandShape(t *testing.T) {
+	r := bubblewrapRuntime{
+		bwrapBin:        "/usr/bin/bwrap",
+		pluginCacheHost: "/var/cache/terrain/plugins",
+		runDirHost:      "/var/cache/terrain/run-1",
+	}
+	cmd := r.Command(context.Background(),
+		"/home/u/proj",
+		[]string{"NO_COLOR=1", "TF_VAR_region=us-east-1"},
+		"/usr/bin/tofu",
+		[]string{"plan", "-out=/var/cache/terrain/run-1/plan.tfplan"},
+		"terrain-run-1")
+	args := cmd.Args
+	if cmd.Path != "/usr/bin/bwrap" {
+		t.Errorf("wrong bwrap path: %q", cmd.Path)
+	}
+	joined := strings.Join(args, " ")
+	for _, want := range []string{
+		"--ro-bind /usr /usr",
+		"--ro-bind /etc /etc",
+		"--bind /home/u/proj /workspace",
+		"--bind /var/cache/terrain/run-1 /terrain/run",
+		"--bind /var/cache/terrain/plugins /terrain/plugins",
+		"--chdir /workspace",
+		"--unshare-pid",
+		"--die-with-parent",
+		"--clearenv",
+		"--setenv TF_PLUGIN_CACHE_DIR /terrain/plugins",
+		"--setenv NO_COLOR 1",
+		"--setenv TF_VAR_region us-east-1",
+		"-- /usr/bin/tofu plan",
+		// path translation should have rewritten the run-dir-prefixed
+		// -out= to its in-sandbox equivalent
+		"-out=/terrain/run/plan.tfplan",
+	} {
+		if !strings.Contains(joined, want) {
+			t.Errorf("missing %q in bwrap args:\n%s", want, joined)
+		}
+	}
+}
+
+func TestBubblewrapRuntime_BindsCustomBinary(t *testing.T) {
+	r := bubblewrapRuntime{
+		bwrapBin:        "/usr/bin/bwrap",
+		pluginCacheHost: "/cache/plugins",
+		runDirHost:      "/cache/run",
+	}
+	cmd := r.Command(context.Background(),
+		"/proj", nil,
+		"/opt/tofu-1.7/bin/tofu", // not under /usr/, must be bound explicitly
+		[]string{"plan"},
+		"terrain-r")
+	joined := strings.Join(cmd.Args, " ")
+	if !strings.Contains(joined, "--ro-bind /opt/tofu-1.7/bin/tofu /opt/tofu-1.7/bin/tofu") {
+		t.Errorf("custom binary not bound:\n%s", joined)
 	}
 }
 

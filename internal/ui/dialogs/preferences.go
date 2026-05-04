@@ -145,9 +145,12 @@ func (p *Preferences) bindContainerRuntime(cfg *config.Config) {
 	p.runtimePathRow.SetText(cfg.App.ContainerRuntimePath)
 	p.tofuImageRow.SetText(cfg.App.DefaultImageTofu)
 	p.terraformImageRow.SetText(cfg.App.DefaultImageTerraform)
-	if cfg.App.DefaultRunMode == "container" {
+	switch cfg.App.DefaultRunMode {
+	case "bubblewrap":
 		p.defaultRunModeRow.SetSelected(1)
-	} else {
+	case "container":
+		p.defaultRunModeRow.SetSelected(2)
+	default:
 		p.defaultRunModeRow.SetSelected(0)
 	}
 
@@ -164,9 +167,12 @@ func (p *Preferences) bindContainerRuntime(cfg *config.Config) {
 		p.persist()
 	})
 	p.defaultRunModeRow.Connect("notify::selected", func() {
-		if p.defaultRunModeRow.Selected() == 1 {
+		switch p.defaultRunModeRow.Selected() {
+		case 1:
+			cfg.App.DefaultRunMode = "bubblewrap"
+		case 2:
 			cfg.App.DefaultRunMode = "container"
-		} else {
+		default:
 			cfg.App.DefaultRunMode = "subprocess"
 		}
 		p.persist()

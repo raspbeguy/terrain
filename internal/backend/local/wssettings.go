@@ -29,6 +29,15 @@ const (
 	// RunModeContainer launches each run inside a container, bind-mounting
 	// the project dir + per-run cache dir. See runtime.go for the wiring.
 	RunModeContainer RunMode = "container"
+
+	// RunModeBubblewrap launches each run under bubblewrap (bwrap), the
+	// same low-level user-namespace sandboxer Flatpak uses internally.
+	// Uses the host's tofu/terraform binary (no image system) but
+	// confines its filesystem view to /usr + the explicitly-bound
+	// project/run/cache dirs. Lighter than container mode and starts in
+	// milliseconds; doesn't help with version-pin or CI-parity, just
+	// isolation. See runtime.go for the wiring.
+	RunModeBubblewrap RunMode = "bubblewrap"
 )
 
 // WorkspaceSettings is the per-workspace user preference set saved next to

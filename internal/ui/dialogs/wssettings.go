@@ -51,8 +51,10 @@ func NewWorkspaceSettings(backendID, workspaceID string) *WorkspaceSettings {
 	switch current.RunMode {
 	case local.RunModeSubprocess:
 		w.runModeRow.SetSelected(1)
-	case local.RunModeContainer:
+	case local.RunModeBubblewrap:
 		w.runModeRow.SetSelected(2)
+	case local.RunModeContainer:
+		w.runModeRow.SetSelected(3)
 	default:
 		w.runModeRow.SetSelected(0)
 	}
@@ -93,6 +95,8 @@ func (w *WorkspaceSettings) selectedRunMode() local.RunMode {
 	case 1:
 		return local.RunModeSubprocess
 	case 2:
+		return local.RunModeBubblewrap
+	case 3:
 		return local.RunModeContainer
 	}
 	return local.RunModeUnset

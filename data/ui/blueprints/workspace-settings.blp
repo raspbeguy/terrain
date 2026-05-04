@@ -12,14 +12,15 @@ Adw.PreferencesDialog ws_settings_dialog {
 
       Adw.ComboRow ws_run_mode_row {
         title: "Run mode";
+        subtitle: "Bubblewrap = host binary in a filesystem sandbox (light, isolation only). Container = OCI image (version pin + CI parity).";
 
         model: StringList {
-          strings ["Default", "Subprocess (host)", "Container"]
+          strings ["Default", "Subprocess (host)", "Bubblewrap", "Container"]
         };
       }
 
       Adw.EntryRow ws_image_row {
-        title: "Container image";
+        title: "Container image (used only in Container mode)";
       }
     }
   }

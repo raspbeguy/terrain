@@ -246,6 +246,119 @@ func translatePath(p string, mounts map[string]string) string {
 	return bestContainer + "/" + rest
 }
 
+// bubblewrapRuntime sandboxes the host's tofu/terraform binary inside a
+// bwrap user-namespace. Unlike containerRuntime there's no image system —
+// the binary itself is the host's, just confined to a curated filesystem
+// view. Strengths: starts in milliseconds, no daemon, available on every
+// Flatpak host. Tradeoff: no version pin and no CI image parity — only
+// the "isolation" motivation among the three the feature targets.
+//
+// Filesystem exposure (intentionally tight):
+//
+//   /usr             ro-bind from host (provides the binary + libs + CA certs)
+//   /etc             ro-bind from host (DNS, ssl certs, /etc/passwd for getuid)
+//   /lib /lib64      symlinked into /usr/lib{,64} for non-usrmerged distros
+//   /bin /sbin       symlinked into /usr/bin / /usr/sbin
+//   /proc            mounted procfs
+//   /dev             dev-bind (limited dev nodes)
+//   /tmp             tmpfs (per-run, gone on exit)
+//   /workspace       bind from project dir (RW; tofu writes .terraform/, state)
+//   /terrain/run     bind from per-run cache dir (RW; plan.tfplan, vars file)
+//   /terrain/plugins bind from per-mode plugin cache (RW; provider downloads)
+//
+// Network is intentionally NOT isolated — providers need to reach their
+// APIs. PID and UTS namespaces are unshared so the sandboxed process can't
+// see / signal host processes. --die-with-parent ensures cleanup on crash.
+type bubblewrapRuntime struct {
+	bwrapBin        string
+	pluginCacheHost string
+	runDirHost      string
+}
+
+const (
+	bwrapWorkdir   = "/workspace"
+	bwrapRunDir    = "/terrain/run"
+	bwrapPluginDir = "/terrain/plugins"
+)
+
+func (r bubblewrapRuntime) Command(ctx context.Context, workDir string, extraEnv []string, bin string, args []string, _ string) *exec.Cmd {
+	bwrapArgs := []string{
+		"--ro-bind", "/usr", "/usr",
+		"--ro-bind", "/etc", "/etc",
+		"--symlink", "usr/lib", "/lib",
+		"--symlink", "usr/lib64", "/lib64",
+		"--symlink", "usr/bin", "/bin",
+		"--symlink", "usr/sbin", "/sbin",
+		"--proc", "/proc",
+		"--dev", "/dev",
+		"--tmpfs", "/tmp",
+	}
+
+	// Make sure the binary is reachable inside the sandbox. /usr/bin/tofu
+	// is already covered by the /usr ro-bind; /usr/local/bin/tofu or a
+	// custom install path needs an explicit single-file bind.
+	if !strings.HasPrefix(bin, "/usr/") {
+		bwrapArgs = append(bwrapArgs, "--ro-bind", bin, bin)
+	}
+
+	bwrapArgs = append(bwrapArgs,
+		"--bind", workDir, bwrapWorkdir,
+		"--bind", r.runDirHost, bwrapRunDir,
+		"--bind", r.pluginCacheHost, bwrapPluginDir,
+		"--chdir", bwrapWorkdir,
+		"--unshare-pid",
+		"--unshare-uts",
+		"--new-session",
+		"--die-with-parent",
+
+		// Curated env. --clearenv wipes inherited host env; we re-set
+		// just what tofu/terraform need so secrets in the host shell
+		// (AWS_*, SSH_*, etc) don't leak into the sandbox unless the
+		// user explicitly added them to the workspace's env-category
+		// vars (which arrive via extraEnv below).
+		"--clearenv",
+		"--setenv", "PATH", "/usr/bin:/usr/sbin:/bin:/sbin",
+		"--setenv", "HOME", "/tmp",
+		"--setenv", "TF_PLUGIN_CACHE_DIR", bwrapPluginDir,
+		"--setenv", "TF_IN_AUTOMATION", "1",
+	)
+
+	for _, kv := range extraEnv {
+		eq := strings.Index(kv, "=")
+		if eq <= 0 {
+			continue
+		}
+		bwrapArgs = append(bwrapArgs, "--setenv", kv[:eq], kv[eq+1:])
+	}
+
+	bwrapArgs = append(bwrapArgs, "--", bin)
+
+	mounts := map[string]string{
+		workDir:      bwrapWorkdir,
+		r.runDirHost: bwrapRunDir,
+	}
+	bwrapArgs = append(bwrapArgs, translateArgs(args, mounts)...)
+
+	// bwrap itself runs through hostCommand so the Flatpak-->host
+	// boundary still has exactly one chokepoint, mirroring how
+	// containerRuntime invokes podman.
+	return hostCommand(ctx, "", nil, r.bwrapBin, bwrapArgs...)
+}
+
+// Cancel for bwrap: nothing to do out-of-band. bwrap was started with
+// --die-with-parent and inherits SIGINT via streamCommand's cmd.Cancel,
+// which propagates to the sandboxed child through bwrap's own signal
+// forwarding. No `kill --signal` equivalent needed.
+func (r bubblewrapRuntime) Cancel(_ context.Context, _ string) error {
+	return nil
+}
+
+// PullCommand: bwrap has no image system. Returns nil so the caller
+// skips the pre-pull step entirely.
+func (r bubblewrapRuntime) PullCommand(_ context.Context, _ string) *exec.Cmd {
+	return nil
+}
+
 // installRuntimeCancel installs a Cancel hook on cmd that asks the runtime
 // to deliver SIGINT to the named container before streamCommand falls
 // through to signalling the wrapper process. Belt-and-suspenders for
@@ -279,31 +392,44 @@ func currentUserSpec() string {
 }
 
 // newRuntime resolves the per-workspace settings + global config into a
-// concrete Runtime. Returns hostRuntime when the workspace prefers
-// subprocess mode (or no override + global default is subprocess);
-// containerRuntime otherwise. Errors when container mode is requested but
-// the runtime binary path doesn't resolve — no silent fallback.
+// concrete Runtime. Falls through to hostRuntime when the workspace
+// prefers subprocess mode (or no override + global default is subprocess);
+// returns containerRuntime / bubblewrapRuntime for the other modes. Errors
+// when a sandboxed mode is requested but its prerequisites (runtime binary
+// path, image) aren't satisfied — no silent fallback.
 func newRuntime(opt runtimeOptions) (Runtime, error) {
-	if opt.RunMode != RunModeContainer {
+	switch opt.RunMode {
+	case RunModeContainer:
+		if opt.RuntimeBin == "" {
+			return nil, errors.New("container run mode selected but ContainerRuntimePath is empty in Preferences")
+		}
+		bin, err := lookPath(opt.RuntimeBin)
+		if err != nil {
+			return nil, fmt.Errorf("container runtime %q not found: %w", opt.RuntimeBin, err)
+		}
+		if opt.Image == "" {
+			return nil, errors.New("container run mode selected but no image is configured (workspace setting or default for engine)")
+		}
+		return containerRuntime{
+			runtimeBin:      bin,
+			image:           opt.Image,
+			pluginCacheHost: opt.PluginCacheHost,
+			runDirHost:      opt.RunDirHost,
+			rootless:        detectRootlessPodman(bin),
+		}, nil
+	case RunModeBubblewrap:
+		bwrap, err := lookPath("bwrap")
+		if err != nil {
+			return nil, fmt.Errorf("bubblewrap (bwrap) not found on PATH: %w", err)
+		}
+		return bubblewrapRuntime{
+			bwrapBin:        bwrap,
+			pluginCacheHost: opt.PluginCacheHost,
+			runDirHost:      opt.RunDirHost,
+		}, nil
+	default:
 		return hostRuntime{}, nil
 	}
-	if opt.RuntimeBin == "" {
-		return nil, errors.New("container run mode selected but ContainerRuntimePath is empty in Preferences")
-	}
-	bin, err := lookPath(opt.RuntimeBin)
-	if err != nil {
-		return nil, fmt.Errorf("container runtime %q not found: %w", opt.RuntimeBin, err)
-	}
-	if opt.Image == "" {
-		return nil, errors.New("container run mode selected but no image is configured (workspace setting or default for engine)")
-	}
-	return containerRuntime{
-		runtimeBin:      bin,
-		image:           opt.Image,
-		pluginCacheHost: opt.PluginCacheHost,
-		runDirHost:      opt.RunDirHost,
-		rootless:        detectRootlessPodman(bin),
-	}, nil
 }
 
 // runtimeOptions bundles the inputs newRuntime needs. Keeps the
@@ -339,14 +465,39 @@ func (b *Backend) resolveRuntimeOptions(workspaceID, runID string) (runtimeOptio
 		switch RunMode(b.defaults.RunMode) {
 		case RunModeContainer:
 			mode = RunModeContainer
+		case RunModeBubblewrap:
+			mode = RunModeBubblewrap
 		default:
 			mode = RunModeSubprocess
 		}
 	}
 
-	if mode != RunModeContainer {
+	// Subprocess mode: no plugin cache or run-dir resolution needed; the
+	// host's tofu reads .terraform/ directly out of the project tree.
+	if mode == RunModeSubprocess {
 		return runtimeOptions{RunMode: mode}, nil
 	}
+
+	// Bubblewrap and container modes both need the plugin cache + run dir
+	// resolved up front so the runtime can plumb them through bind mounts.
+	pluginCache, err := containerPluginCacheDir(b.id, workspaceID)
+	if err != nil {
+		return runtimeOptions{}, fmt.Errorf("plugin cache dir: %w", err)
+	}
+	runDir, err := runArtifactsDir(b.id, domain.Workspace{ID: workspaceID}, runID)
+	if err != nil {
+		return runtimeOptions{}, fmt.Errorf("run artifacts dir: %w", err)
+	}
+
+	if mode == RunModeBubblewrap {
+		return runtimeOptions{
+			RunMode:         mode,
+			PluginCacheHost: pluginCache,
+			RunDirHost:      runDir,
+		}, nil
+	}
+
+	// Container mode: image resolution + runtime path on top of the above.
 
 	image := ws.Image
 	if image == "" {
@@ -356,15 +507,6 @@ func (b *Backend) resolveRuntimeOptions(workspaceID, runID string) (runtimeOptio
 		default:
 			image = b.defaults.ImageTofu
 		}
-	}
-
-	pluginCache, err := containerPluginCacheDir(b.id, workspaceID)
-	if err != nil {
-		return runtimeOptions{}, fmt.Errorf("plugin cache dir: %w", err)
-	}
-	runDir, err := runArtifactsDir(b.id, domain.Workspace{ID: workspaceID}, runID)
-	if err != nil {
-		return runtimeOptions{}, fmt.Errorf("run artifacts dir: %w", err)
 	}
 
 	return runtimeOptions{
