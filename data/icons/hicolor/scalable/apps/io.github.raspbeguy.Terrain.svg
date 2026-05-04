@@ -1,17 +1,22 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#5a7a52"/>
-      <stop offset="1" stop-color="#3a4a36"/>
+    <linearGradient id="terrain-bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3aa893"/>
+      <stop offset="1" stop-color="#1d6373"/>
+    </linearGradient>
+    <linearGradient id="terrain-sheen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.18"/>
+      <stop offset="0.55" stop-color="#ffffff" stop-opacity="0"/>
     </linearGradient>
   </defs>
-  <rect x="8" y="8" width="112" height="112" rx="20" fill="url(#bg)"/>
-  <g fill="none" stroke="#e8f0e2" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M24 88 L48 64 L72 80 L104 40"/>
-    <circle cx="24" cy="88" r="4" fill="#e8f0e2"/>
-    <circle cx="48" cy="64" r="4" fill="#e8f0e2"/>
-    <circle cx="72" cy="80" r="4" fill="#e8f0e2"/>
-    <circle cx="104" cy="40" r="4" fill="#e8f0e2"/>
+  <rect x="8" y="8" width="112" height="112" rx="22" ry="22" fill="url(#terrain-bg)"/>
+  <rect x="8" y="8" width="112" height="112" rx="22" ry="22" fill="url(#terrain-sheen)"/>
+  <g fill="none" stroke="#fdf6e3" stroke-linecap="round" stroke-linejoin="round">
+    <ellipse cx="66" cy="74" rx="40" ry="36" stroke-width="2.6" opacity="0.55"/>
+    <ellipse cx="74" cy="62" rx="28" ry="24" stroke-width="3" opacity="0.7"/>
+    <ellipse cx="80" cy="52" rx="18" ry="14" stroke-width="3.4" opacity="0.85"/>
+    <ellipse cx="84" cy="46" rx="10" ry="7" stroke-width="3.6"/>
   </g>
+  <ellipse cx="86" cy="42" rx="4" ry="2.6" fill="#fdf6e3"/>
 </svg>
