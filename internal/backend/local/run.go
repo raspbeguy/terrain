@@ -159,7 +159,41 @@ func runWorker(
 
 	setStatus(domain.StatusPending, "queued")
 
-	if err := writeRequestSnapshot(runDir, run, req); err != nil {
+	// Resolve runtime mode + image. Apply runs read these from the
+	// producing plan's snapshot — the user might have toggled the
+	// workspace's settings between plan and apply, but the apply still
+	// has to use the same mode/image because the plan file inside it
+	// references the producing run's container paths.
+	rtOpts, err := b.resolveRuntimeOptions(ws.ID, run.ID)
+	if err != nil {
+		finalErr = fmt.Errorf("resolve runtime: %w", err)
+		setStatus(domain.StatusErrored, finalErr.Error())
+		close(stream.events)
+		close(stream.logs)
+		close(stream.plan)
+		return
+	}
+	if req.Kind == domain.RunKindApply && req.PlanFile != "" {
+		producingRunDir := filepath.Dir(req.PlanFile)
+		if priorMode, priorImage, perr := readRequestSnapshot(producingRunDir); perr == nil {
+			rtOpts.RunMode = priorMode
+			if priorImage != "" {
+				rtOpts.Image = priorImage
+			}
+		}
+	}
+	rt, err := newRuntime(rtOpts)
+	if err != nil {
+		finalErr = fmt.Errorf("init runtime: %w", err)
+		setStatus(domain.StatusErrored, finalErr.Error())
+		close(stream.events)
+		close(stream.logs)
+		close(stream.plan)
+		return
+	}
+	cancelName := "terrain-" + run.ID
+
+	if err := writeRequestSnapshot(runDir, run, req, rtOpts.RunMode, rtOpts.Image); err != nil {
 		finalErr = fmt.Errorf("snapshot request: %w", err)
 		setStatus(domain.StatusErrored, finalErr.Error())
 		close(stream.events)
@@ -223,6 +257,25 @@ func runWorker(
 		}
 	}()
 
+	// Image pre-pull (container mode only). Streams progress through the
+	// same log pipeline so the user sees the pull happening rather than a
+	// frozen "Fetching" status pill. Skipped silently when the image is
+	// already local — both podman and docker short-circuit fast.
+	if pullCmd := rt.PullCommand(ctx, rtOpts.Image); pullCmd != nil {
+		setStatus(domain.StatusFetching,
+			fmt.Sprintf("pulling image %s", rtOpts.Image))
+		if pullErr := streamCommand(ctx, pullCmd, teedLogs); pullErr != nil {
+			close(teedLogs)
+			wg.Wait()
+			close(stream.logs)
+			finalErr = fmt.Errorf("image pull: %w", pullErr)
+			setStatus(domain.StatusErrored, finalErr.Error())
+			close(stream.events)
+			close(stream.plan)
+			return
+		}
+	}
+
 	// Init phase: plan/destroy runs always do `tofu init -input=false` first.
 	// Apply runs skip it because they replay a saved plan that's already
 	// gone through init at plan time. Init output streams into the same log
@@ -231,9 +284,10 @@ func runWorker(
 	if req.Kind == domain.RunKindPlan || req.Kind == domain.RunKindDestroy {
 		setStatus(domain.StatusFetching,
 			fmt.Sprintf("running `%s init -input=false`", bin.Name))
-		initCmd := hostCommand(ctx, ws.WorkingDirectory,
+		initCmd := rt.Command(ctx, ws.WorkingDirectory,
 			[]string{"NO_COLOR=1"},
-			bin.Path, "init", "-input=false", "-no-color")
+			bin.Path, []string{"init", "-input=false", "-no-color"}, cancelName+"-init")
+		installRuntimeCancel(initCmd, rt, cancelName+"-init")
 		if initErr := streamCommand(ctx, initCmd, teedLogs); initErr != nil {
 			close(teedLogs)
 			wg.Wait()
@@ -264,7 +318,8 @@ func runWorker(
 	}
 
 	extraEnv := append([]string{"NO_COLOR=1"}, rv.envEntries()...)
-	cmd := hostCommand(ctx, ws.WorkingDirectory, extraEnv, bin.Path, args...)
+	cmd := rt.Command(ctx, ws.WorkingDirectory, extraEnv, bin.Path, args, cancelName)
+	installRuntimeCancel(cmd, rt, cancelName)
 
 	cmdErr := streamCommand(ctx, cmd, teedLogs)
 	close(teedLogs)
@@ -468,10 +523,40 @@ func closeIfNonNil(f *os.File) {
 	}
 }
 
-func writeRequestSnapshot(runDir string, run domain.Run, req domain.RunRequest) error {
+func writeRequestSnapshot(runDir string, run domain.Run, req domain.RunRequest, mode RunMode, image string) error {
 	body := fmt.Sprintf(
-		"id=%s\nworkspace=%s\nkind=%s\ncreated_at=%s\nmessage=%s\n",
-		run.ID, run.WorkspaceID, run.Kind, run.CreatedAt.Format(time.RFC3339), req.Message,
+		"id=%s\nworkspace=%s\nkind=%s\ncreated_at=%s\nmessage=%s\nrun_mode=%s\nimage=%s\n",
+		run.ID, run.WorkspaceID, run.Kind, run.CreatedAt.Format(time.RFC3339), req.Message, mode, image,
 	)
 	return os.WriteFile(filepath.Join(runDir, "request.txt"), []byte(body), 0o644)
+}
+
+// readRequestSnapshot parses a previous run's request.txt to recover the
+// run-mode + image it executed under. Used by apply to bind itself to the
+// producing plan's mode (TFE-style: a run carries its own execution mode,
+// independent of the workspace's current settings). Missing fields default
+// to subprocess + empty image — preserves backward compatibility for run
+// snapshots written before the runtime layer existed.
+func readRequestSnapshot(runDir string) (mode RunMode, image string, err error) {
+	data, err := os.ReadFile(filepath.Join(runDir, "request.txt"))
+	if err != nil {
+		return RunModeSubprocess, "", err
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		eq := strings.Index(line, "=")
+		if eq <= 0 {
+			continue
+		}
+		key, val := line[:eq], line[eq+1:]
+		switch key {
+		case "run_mode":
+			mode = RunMode(val)
+		case "image":
+			image = val
+		}
+	}
+	if mode == RunModeUnset {
+		mode = RunModeSubprocess
+	}
+	return mode, image, nil
 }

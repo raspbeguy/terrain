@@ -55,6 +55,24 @@ func envIndexFile(backendID, workspaceID string) (string, error) {
 	return filepath.Join(dir, "env-vars.json"), nil
 }
 
+// containerPluginCacheDir is the per-workspace directory mounted into the
+// container as TF_PLUGIN_CACHE_DIR. Lives under XDG_CACHE_HOME (ephemeral —
+// safe to wipe; tofu will re-download providers on next init) and is kept
+// SEPARATE from the host subprocess's plugin cache because the container's
+// glibc / arch / lock-file hashes may not match the host's. Sharing one
+// cache between modes risks `terraform init` lock-file errors.
+func containerPluginCacheDir(backendID, workspaceID string) (string, error) {
+	cacheHome, err := os.UserCacheDir()
+	if err != nil {
+		return "", fmt.Errorf("cache dir: %w", err)
+	}
+	dir := filepath.Join(cacheHome, "terrain", backendID, sanitize(workspaceID), "plugins-container")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return "", fmt.Errorf("mkdir %s: %w", dir, err)
+	}
+	return dir, nil
+}
+
 // userDataDir resolves $XDG_DATA_HOME or its fallback. We don't use
 // os.UserConfigDir here because we want data semantics (durable user state,
 // survives reinstall) — config dir is for app preferences that re-derive

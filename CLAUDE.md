@@ -16,7 +16,7 @@ meson compile -C build
 ./build/terrain --version
 
 # Tests
-go test ./internal/...          # 44 tests across domain / local / runner / widgets
+go test ./internal/...          # ~80 tests across domain / local / config / hcl / runner / widgets
 go vet ./...
 meson test -C build             # 3 tests: validate-desktop, validate-metainfo, boot-smoke
 
@@ -71,6 +71,30 @@ nil-widget crashes, and missing gresource entries automatically.
    across versions; we re-render the structured stream into a coloured
    terminal-looking widget.
 
+6. **Single tofu-invocation chokepoint**. Every `tofu` / `terraform` exec
+   site routes through `internal/backend/local/sandbox.go:hostCommand`
+   (which adds `flatpak-spawn --host` when sandboxed). The runtime layer
+   in `runtime.go` adds an opt-in container path: `containerRuntime`
+   wraps the same call site with `<runtimeBin> run --rm --init …` and
+   delegates back to `hostCommand` for the runtime binary itself, so the
+   Flatpak boundary still has exactly one crossing. **Do not** add new
+   exec sites for tofu/terraform/podman that bypass `hostCommand`.
+
+7. **Run mode lives per-workspace, not in `domain.Workspace.ExecutionMode`**.
+   The TFE-mirror field is shared with the remote backend and has a fixed
+   vocabulary; subprocess vs container is a local-backend implementation
+   choice that lives in
+   `$XDG_DATA_HOME/terrain/<backend>/<ws>/settings.json`
+   (`local.LoadWorkspaceSettings` / `local.SaveWorkspaceSettings`).
+   Each run also persists its effective mode + image into its
+   `request.txt` snapshot so apply runs can reuse the producing plan's
+   mode regardless of whether the workspace setting changed in between.
+   State queries (`LoadState`, `snapshotState`) deliberately stay on
+   the host binary even when a workspace is in container mode — they're
+   short, synchronous, and forcing a container spin-up on every state-
+   tab refresh would hurt UX. Documented limitation; revisit only if
+   version-mismatch issues surface.
+
 ## Package layout
 
 ```
@@ -80,8 +104,15 @@ internal/
                             VariableSet, StateVersion, RunStream, etc.
                             NO gotk4 imports.
   backend/local/            tofu/terraform CLI runner. exec.go (subprocess
-                            line streaming + SIGINT cancel), run.go (run
-                            worker), variables.go (hcl + secrets), varsets.go
+                            line streaming + SIGINT cancel; Cancel hooks
+                            chain so the runtime layer can install a pre-
+                            cancel before SIGINT-to-wrapper), run.go (run
+                            worker), runtime.go (Runtime interface +
+                            hostRuntime + containerRuntime; path-translation
+                            of -out=/-var-file=/positional plan paths is a
+                            pure function `translateArgs`), wssettings.go
+                            (per-workspace settings.json: run_mode +
+                            image), variables.go (hcl + secrets), varsets.go
                             (per-set JSON manifest), snapshot.go (state
                             history + retention), materialize.go (TFE-style
                             var precedence), envindex.go (env-category index).
@@ -167,6 +198,16 @@ testdata/                   Fixtures used by integration tests.
   - `$XDG_DATA_HOME/terrain/<backend>/<ws>/env-vars.json` — env-category
     variable name index (names only; values in keyring). Same out-of-
     project rationale as overrides.tfvars.
+  - `$XDG_DATA_HOME/terrain/<backend>/<ws>/settings.json` — per-workspace
+    overrides for the runtime layer: `{run_mode: "subprocess"|"container",
+    image: "..."}`. Zero value = inherit `AppConfig.DefaultRunMode` /
+    `DefaultImageTofu` / `DefaultImageTerraform`. Edited via the gear
+    button in the workspace overview header.
+  - `$XDG_CACHE_HOME/terrain/<backend>/<ws>/plugins-container/` — provider
+    plugin cache mounted into the container as `TF_PLUGIN_CACHE_DIR`.
+    Kept separate from the host's `.terraform/` because container glibc /
+    arch may not match the host's, so lock-file hashes diverge. Safe to
+    wipe — tofu re-downloads on next init.
 
 - **Secrets**: never plaintext on disk if avoidable. Sensitive variable
   values + remote backend tokens go to the system keyring (libsecret on

@@ -25,6 +25,13 @@ type Preferences struct {
 	tofuRow             *adw.ActionRow
 	terraformRow        *adw.ActionRow
 	remoteBackendsGroup *adw.PreferencesGroup
+
+	runtimePathRow    *adw.EntryRow
+	defaultRunModeRow *adw.ComboRow
+	tofuImageRow      *adw.EntryRow
+	terraformImageRow *adw.EntryRow
+
+	cfg *config.Config
 }
 
 // RemoteBackend is the subset of capabilities the preferences dialog
@@ -48,12 +55,18 @@ func NewPreferences(cfg *config.Config, remoteBackends []RemoteBackend) *Prefere
 		tofuRow:             uihelpers.MustCast[*adw.ActionRow](builder, "tofu_row"),
 		terraformRow:        uihelpers.MustCast[*adw.ActionRow](builder, "terraform_row"),
 		remoteBackendsGroup: uihelpers.MustCast[*adw.PreferencesGroup](builder, "remote_backends_group"),
+		runtimePathRow:      uihelpers.MustCast[*adw.EntryRow](builder, "runtime_path_row"),
+		defaultRunModeRow:   uihelpers.MustCast[*adw.ComboRow](builder, "default_run_mode_row"),
+		tofuImageRow:        uihelpers.MustCast[*adw.EntryRow](builder, "tofu_image_row"),
+		terraformImageRow:   uihelpers.MustCast[*adw.EntryRow](builder, "terraform_image_row"),
+		cfg:                 cfg,
 	}
 
 	p.bindBinaries()
 	p.bindEngine(cfg)
 	p.bindTheme()
 	p.bindBackends(remoteBackends)
+	p.bindContainerRuntime(cfg)
 
 	return p
 }
@@ -118,6 +131,56 @@ func (p *Preferences) bindBackends(backends []RemoteBackend) {
 		row.AddSuffix(btn)
 
 		p.remoteBackendsGroup.Add(row)
+	}
+}
+
+// bindContainerRuntime fills the four container-runtime rows from the
+// current config and persists changes back through Save() on each edit.
+// EntryRow's apply signal fires when the user commits a change (Enter or
+// focus-out), so we don't write on every keystroke.
+func (p *Preferences) bindContainerRuntime(cfg *config.Config) {
+	if cfg == nil {
+		return
+	}
+	p.runtimePathRow.SetText(cfg.App.ContainerRuntimePath)
+	p.tofuImageRow.SetText(cfg.App.DefaultImageTofu)
+	p.terraformImageRow.SetText(cfg.App.DefaultImageTerraform)
+	if cfg.App.DefaultRunMode == "container" {
+		p.defaultRunModeRow.SetSelected(1)
+	} else {
+		p.defaultRunModeRow.SetSelected(0)
+	}
+
+	p.runtimePathRow.ConnectApply(func() {
+		cfg.App.ContainerRuntimePath = p.runtimePathRow.Text()
+		p.persist()
+	})
+	p.tofuImageRow.ConnectApply(func() {
+		cfg.App.DefaultImageTofu = p.tofuImageRow.Text()
+		p.persist()
+	})
+	p.terraformImageRow.ConnectApply(func() {
+		cfg.App.DefaultImageTerraform = p.terraformImageRow.Text()
+		p.persist()
+	})
+	p.defaultRunModeRow.Connect("notify::selected", func() {
+		if p.defaultRunModeRow.Selected() == 1 {
+			cfg.App.DefaultRunMode = "container"
+		} else {
+			cfg.App.DefaultRunMode = "subprocess"
+		}
+		p.persist()
+	})
+}
+
+// persist writes the config back to disk; logs but doesn't surface errors
+// — the dialog is transient and the user can retry by re-editing.
+func (p *Preferences) persist() {
+	if p.cfg == nil {
+		return
+	}
+	if err := p.cfg.Save(); err != nil {
+		slog.Error("save preferences", "err", err)
 	}
 }
 

@@ -1,0 +1,26 @@
+using Gtk 4.0;
+using Adw 1;
+
+Adw.PreferencesDialog ws_settings_dialog {
+  title: "Workspace Settings";
+  content-width: 480;
+
+  Adw.PreferencesPage {
+    Adw.PreferencesGroup {
+      title: "Run Mode";
+      description: "Choose whether tofu/terraform runs as a host subprocess or inside a container. \"Default\" follows the global setting from app Preferences.";
+
+      Adw.ComboRow ws_run_mode_row {
+        title: "Run mode";
+
+        model: StringList {
+          strings ["Default", "Subprocess (host)", "Container"]
+        };
+      }
+
+      Adw.EntryRow ws_image_row {
+        title: "Container image";
+      }
+    }
+  }
+}

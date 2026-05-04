@@ -30,6 +30,28 @@ type Config struct {
 type AppConfig struct {
 	// DefaultEngine is which CLI to prefer when both are installed.
 	DefaultEngine string `toml:"default_engine"`
+
+	// ContainerRuntimePath is the path to the container CLI binary used
+	// when a workspace is in container run-mode. Default "/usr/bin/podman";
+	// users can point at docker, nerdctl, finch, etc. Empty means
+	// container mode is unavailable (runs in container mode will error).
+	ContainerRuntimePath string `toml:"container_runtime_path"`
+
+	// DefaultRunMode is the run mode applied to workspaces that haven't
+	// set a per-workspace override. "subprocess" or "container". Empty
+	// (default) is treated as subprocess for backward compatibility — no
+	// existing user gets surprised by container mode after upgrading.
+	DefaultRunMode string `toml:"default_run_mode"`
+
+	// DefaultImageTofu is the container image template used when a
+	// workspace's chosen engine is opentofu and no per-workspace image
+	// override is set. Accepts a tag form ("ghcr.io/opentofu/opentofu:1.7")
+	// or digest-pinned form ("...@sha256:...").
+	DefaultImageTofu string `toml:"default_image_tofu"`
+
+	// DefaultImageTerraform is the container image template for the
+	// terraform engine. Same format rules as DefaultImageTofu.
+	DefaultImageTerraform string `toml:"default_image_terraform"`
 }
 
 // BackendConfig describes one entry in the registry. Local and remote share
@@ -96,6 +118,18 @@ func Load() (*Config, error) {
 	if c.App.DefaultEngine == "" {
 		c.App.DefaultEngine = "tofu"
 	}
+	if c.App.ContainerRuntimePath == "" {
+		c.App.ContainerRuntimePath = "/usr/bin/podman"
+	}
+	if c.App.DefaultImageTofu == "" {
+		c.App.DefaultImageTofu = "ghcr.io/opentofu/opentofu:latest"
+	}
+	if c.App.DefaultImageTerraform == "" {
+		c.App.DefaultImageTerraform = "hashicorp/terraform:latest"
+	}
+	// DefaultRunMode intentionally left as the empty string when unset —
+	// the resolver treats "" as subprocess, so existing users see no
+	// behaviour change after upgrading.
 	return c, nil
 }
 
@@ -277,6 +311,11 @@ func (c *Config) AddLocalProject(name, path string) (BackendConfig, ProjectConfi
 
 func defaultConfig() *Config {
 	return &Config{
-		App: AppConfig{DefaultEngine: "tofu"},
+		App: AppConfig{
+			DefaultEngine:         "tofu",
+			ContainerRuntimePath:  "/usr/bin/podman",
+			DefaultImageTofu:      "ghcr.io/opentofu/opentofu:latest",
+			DefaultImageTerraform: "hashicorp/terraform:latest",
+		},
 	}
 }

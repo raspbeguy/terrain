@@ -38,6 +38,7 @@ blueprint_sources = [
   'var-edit',
   'varsets',
   'state-diff',
+  'workspace-settings',
 ]
 
 blueprint_targets = []

@@ -28,6 +28,7 @@ type Page struct {
 	versionRow         *adw.ActionRow
 	resourcesRow       *adw.ActionRow
 	serialRow          *adw.ActionRow
+	settingsBtn        *gtk.Button
 	newPlanBtn         *gtk.Button
 	refreshStateBtn    *gtk.Button
 	compareStateBtn    *gtk.Button
@@ -62,6 +63,14 @@ type Page struct {
 	onEditVar           func(domain.Workspace, domain.Variable)
 	onAddVar            func(domain.Workspace)
 	onRemoveVar         func(domain.Workspace, domain.Variable)
+	onOpenSettings      func(domain.Workspace)
+}
+
+// SetOnOpenSettings wires the toolbar gear button. The window opens the
+// workspace settings dialog when the user clicks it; this page just
+// forwards the click + current workspace.
+func (p *Page) SetOnOpenSettings(fn func(domain.Workspace)) {
+	p.onOpenSettings = fn
 }
 
 // LineageWarning is returned by the load-state-versions callback when the
@@ -82,6 +91,7 @@ func New() *Page {
 		versionRow:      uihelpers.MustCast[*adw.ActionRow](builder, "workspace_version_row"),
 		resourcesRow:    uihelpers.MustCast[*adw.ActionRow](builder, "workspace_resources_row"),
 		serialRow:       uihelpers.MustCast[*adw.ActionRow](builder, "workspace_serial_row"),
+		settingsBtn:     uihelpers.MustCast[*gtk.Button](builder, "workspace_settings_button"),
 		newPlanBtn:      uihelpers.MustCast[*gtk.Button](builder, "workspace_new_plan_button"),
 		refreshStateBtn:    uihelpers.MustCast[*gtk.Button](builder, "workspace_refresh_state_button"),
 		compareStateBtn:    uihelpers.MustCast[*gtk.Button](builder, "workspace_compare_state_button"),
@@ -106,6 +116,12 @@ func New() *Page {
 		slog.Debug("new plan button clicked", "ws", p.current.ID)
 		if p.onNewPlan != nil && p.current.ID != "" {
 			p.onNewPlan(p.current)
+		}
+	})
+	p.settingsBtn.ConnectClicked(func() {
+		slog.Debug("workspace settings clicked", "ws", p.current.ID)
+		if p.onOpenSettings != nil && p.current.ID != "" {
+			p.onOpenSettings(p.current)
 		}
 	})
 	p.refreshStateBtn.ConnectClicked(func() {

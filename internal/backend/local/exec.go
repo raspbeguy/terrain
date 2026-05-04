@@ -43,11 +43,18 @@ func streamCommand(ctx context.Context, cmd *exec.Cmd, out chan<- domain.LogLine
 		return fmt.Errorf("stderr pipe: %w", err)
 	}
 
-	// Wire ctx → SIGINT → (after grace) SIGKILL. cmd.Cancel runs on its own
-	// goroutine when ctx is done; cmd.WaitDelay caps how long Wait will hang
-	// after Cancel before forcibly killing the process group.
+	// Wire ctx → (chained pre-cancel hook) → SIGINT → (after grace) SIGKILL.
+	// cmd.Cancel runs on its own goroutine when ctx is done; cmd.WaitDelay
+	// caps how long Wait will hang after Cancel before forcibly killing the
+	// process group. If the caller already installed a Cancel hook (e.g.
+	// the container runtime's `podman kill --signal INT <name>`), we run
+	// it first, then fall through to the SIGINT-to-wrapper-process belt-
+	// and-suspenders signal — that way both signal paths are tried.
+	priorCancel := cmd.Cancel
 	cmd.Cancel = func() error {
-		// Best-effort SIGINT. If the process is already gone, ignore the error.
+		if priorCancel != nil {
+			_ = priorCancel()
+		}
 		if cmd.Process == nil {
 			return nil
 		}

@@ -27,11 +27,43 @@ type Backend struct {
 	id       string
 	name     string
 	projects []Project
+	defaults RuntimeDefaults
+}
+
+// RuntimeDefaults captures the app-wide preferences the local backend
+// needs to resolve a workspace's run mode + image when the per-workspace
+// settings.json doesn't override them. Populated by the registry from
+// AppConfig at backend construction time.
+type RuntimeDefaults struct {
+	// Engine selects the default container image when a workspace doesn't
+	// pin one — "tofu" (default) maps to ImageTofu, "terraform" to
+	// ImageTerraform.
+	Engine string
+
+	// RuntimePath is the path to the container CLI binary (podman, docker,
+	// nerdctl, ...). Empty means container mode is unavailable.
+	RuntimePath string
+
+	// RunMode is the default for new workspaces ("subprocess" or
+	// "container"). Empty means subprocess.
+	RunMode string
+
+	// ImageTofu / ImageTerraform are the engine-specific image fallbacks
+	// when a workspace's settings.json has no Image override.
+	ImageTofu      string
+	ImageTerraform string
 }
 
 // New constructs a local backend with no projects yet.
 func New(id, name string) *Backend {
 	return &Backend{id: id, name: name}
+}
+
+// SetRuntimeDefaults snapshots the app-wide runtime preferences into the
+// backend so per-run resolution doesn't need to re-load config.toml on
+// every plan invocation. Call before the backend is published to UI code.
+func (b *Backend) SetRuntimeDefaults(d RuntimeDefaults) {
+	b.defaults = d
 }
 
 // AddProject registers a project. Not safe for concurrent use; call before

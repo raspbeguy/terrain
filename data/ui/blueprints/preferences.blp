@@ -33,6 +33,32 @@ Adw.PreferencesDialog preferences_dialog {
         };
       }
     }
+
+    Adw.PreferencesGroup {
+      title: "Container Runtime";
+      description: "Optional. Lets you launch runs inside a container instead of as a host subprocess — useful for pinning tofu/terraform versions per workspace or isolating provider plugins.";
+
+      Adw.EntryRow runtime_path_row {
+        title: "Runtime binary path";
+      }
+
+      Adw.ComboRow default_run_mode_row {
+        title: "Default for new workspaces";
+        subtitle: "Existing workspaces keep their per-workspace setting";
+
+        model: StringList {
+          strings ["Subprocess (host)", "Container"]
+        };
+      }
+
+      Adw.EntryRow tofu_image_row {
+        title: "Default OpenTofu image";
+      }
+
+      Adw.EntryRow terraform_image_row {
+        title: "Default Terraform image";
+      }
+    }
   }
 
   Adw.PreferencesPage {

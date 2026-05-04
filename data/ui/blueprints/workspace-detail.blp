@@ -32,6 +32,13 @@ Box workspace_detail_root {
           Adw.PreferencesGroup {
             title: "Configuration";
 
+            header-suffix: Button workspace_settings_button {
+              icon-name: "emblem-system-symbolic";
+              tooltip-text: "Workspace settings";
+
+              styles ["flat"]
+            };
+
             Adw.ActionRow workspace_path_row {
               title: "Working Directory";
               subtitle: "—";

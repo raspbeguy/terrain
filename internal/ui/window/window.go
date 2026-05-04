@@ -101,6 +101,7 @@ func New(app *adw.Application, backends []domain.Backend, locks *runner.Workspac
 	w.workspacePage.SetOnEditVariable(w.editVariable)
 	w.workspacePage.SetOnAddVariable(w.addVariable)
 	w.workspacePage.SetOnRemoveVariable(w.removeVariable)
+	w.workspacePage.SetOnOpenSettings(w.openWorkspaceSettings)
 	w.runPage.SetOnBack(w.showWorkspaceView)
 	w.runPage.SetOnStatus(func(status domain.RunStatus, _ string) {
 		w.contentTitle.SetSubtitle(string(status))
@@ -674,6 +675,20 @@ func (w *Window) loadVariables(ws domain.Workspace) ([]domain.Variable, error) {
 // Variables.Create/Update is wired.
 type variableUpserter interface {
 	UpsertVariable(ctx context.Context, workspaceID string, v domain.Variable) error
+}
+
+// openWorkspaceSettings shows the per-workspace run-mode + image dialog.
+// Local-only — remote workspaces don't have a runtime knob (TFE handles
+// execution mode server-side). For remote, the gear button in the
+// overview is currently a no-op; we silently return rather than show an
+// empty dialog.
+func (w *Window) openWorkspaceSettings(ws domain.Workspace) {
+	if !isLocalBackendID(w.backends, ws.BackendID) {
+		w.Toast("Workspace settings are local-backend only")
+		return
+	}
+	dlg := dialogs.NewWorkspaceSettings(ws.BackendID, ws.ID)
+	dlg.Present(w.GtkWindow())
 }
 
 // addVariable opens the Add Variable dialog for the workspace.
