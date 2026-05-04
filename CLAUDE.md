@@ -149,7 +149,7 @@ data/
   io.github.raspbeguy.Terrain.{desktop.in, metainfo.xml.in, gschema.xml,
                                 gresource.xml, svg}
 build-aux/
-  flatpak/                  Flatpak manifest. Targets GNOME 49 + golang
+  flatpak/                  Flatpak manifest. Targets GNOME 50 + golang
                             Sdk extension (any current branch); inherits
                             GOTOOLCHAIN=auto so go.mod's pinned version
                             gets fetched.
@@ -243,10 +243,11 @@ testdata/                   Fixtures used by integration tests.
   compile cache** for everything that transitively imports them — which
   includes gotk4. Adding dependencies that bump these is expensive.
 
-- **GNOME 47 is EOL** (since Oct 2025). The Flatpak manifest targets
-  GNOME 49+. The golang Sdk extension at branch 25.08+ (paired with
-  fdo SDK 25.08) ships Go 1.25.x; `GOTOOLCHAIN=auto` lets `go` fetch
-  the 1.26 toolchain pinned in go.mod when needed.
+- **GNOME 47 is EOL** (since Oct 2025); GNOME 49 is the previous-stable
+  cycle. The Flatpak manifest targets GNOME 50 (released March 2026,
+  current latest). The golang Sdk extension at branch 25.08+ (paired
+  with fdo SDK 25.08) ships Go 1.25.x; `GOTOOLCHAIN=auto` lets `go`
+  fetch the 1.26 toolchain pinned in go.mod when needed.
 
 - **flatpak-builder needs `--share=network` during build** (to fetch Go
   modules). Acceptable for personal builds; for Flathub submission, vendor
