@@ -164,6 +164,14 @@ testdata/                   Fixtures used by integration tests.
 
 ## Conventions
 
+- **Comments**: default to none. Add one only when the WHY is non-obvious
+  — a hidden invariant, a subtle constraint, a workaround for a specific
+  bug. One short line max; no multi-paragraph docstrings, no field-by-
+  field prose for self-explanatory names. Don't explain WHAT the code
+  does (names already do that). Don't reference the current task / fix /
+  commit date / "the user" ("verifies the 2026-05-03 change", "added for
+  the X flow") — that rots fast and belongs in commit messages or the PR.
+
 - **Blueprint vs Go**: static layouts (windows, dialogs, page skeletons)
   live in `.blp` files; dynamic content (list rows, dropdown contents,
   per-resource diff rows) is built in Go via `gtk.SignalListItemFactory`
@@ -287,3 +295,7 @@ testdata/                   Fixtures used by integration tests.
 - Don't store flatpak-builder cache (`.flatpak-builder/`),
   `build-flatpak/`, or `build-flatpak-repo/` in git. They're already in
   `.gitignore`; if you add new build artifacts, mirror that pattern.
+- Don't write multi-line docstrings or paragraph-long field/function
+  comments. See the Comments convention above — a comment that explains
+  WHAT the code does (rather than a non-obvious WHY) is noise to delete,
+  not preserve.
