@@ -160,6 +160,12 @@ func (b *Backend) Workspaces(ctx context.Context) ([]domain.Workspace, error) {
 	for {
 		opts := &tfe.WorkspaceListOptions{
 			ListOptions: tfe.ListOptions{PageNumber: page, PageSize: 100},
+			// Pull the project relation in the same request so the sidebar
+			// can show the workspace's project name without a per-workspace
+			// follow-up read. OTF supports the `project` include since
+			// v0.3.x; older deployments will return workspaces with a nil
+			// Project relation, and we fall back to the org name then.
+			Include: []tfe.WSIncludeOpt{tfe.WSProject},
 		}
 		list, err := b.client.Workspaces.List(ctx, b.organization, opts)
 		if err != nil {
@@ -176,9 +182,12 @@ func (b *Backend) Workspaces(ctx context.Context) ([]domain.Workspace, error) {
 	return out, nil
 }
 
-// Workspace looks up a single workspace by ID.
+// Workspace looks up a single workspace by ID. Uses the WithOptions variant
+// so the project relation is included — same rationale as the list call.
 func (b *Backend) Workspace(ctx context.Context, id string) (domain.Workspace, error) {
-	ws, err := b.client.Workspaces.ReadByID(ctx, id)
+	ws, err := b.client.Workspaces.ReadByIDWithOptions(ctx, id, &tfe.WorkspaceReadOptions{
+		Include: []tfe.WSIncludeOpt{tfe.WSProject},
+	})
 	if err != nil {
 		return domain.Workspace{}, fmt.Errorf("read workspace %s: %w", id, err)
 	}
@@ -277,11 +286,22 @@ func (b *Backend) LoadState(parent context.Context, workspaceID string) (*tfjson
 func (b *Backend) Close() error { return nil }
 
 func (b *Backend) toWorkspace(ws *tfe.Workspace) domain.Workspace {
+	// Prefer the workspace's TFE/OTF project name (e.g. "infra-prod"); fall
+	// back to the org name when the API didn't surface a project relation —
+	// older OTF versions, or workspaces left in the org's default project
+	// without an explicit project assignment.
+	projectName := b.organization
+	var projectID string
+	if ws.Project != nil && ws.Project.Name != "" {
+		projectName = ws.Project.Name
+		projectID = ws.Project.ID
+	}
 	return domain.Workspace{
 		ID:               ws.ID,
 		BackendID:        b.id,
 		Name:             ws.Name,
-		ProjectName:      b.organization,
+		ProjectName:      projectName,
+		ProjectID:        projectID,
 		WorkingDirectory: ws.WorkingDirectory,
 		TerraformVersion: ws.TerraformVersion,
 		ExecutionMode:    ws.ExecutionMode,
