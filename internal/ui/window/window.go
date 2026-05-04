@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
@@ -15,6 +16,7 @@ import (
 
 	"github.com/raspbeguy/terrain/internal/domain"
 	"github.com/raspbeguy/terrain/internal/runner"
+	"github.com/raspbeguy/terrain/internal/ui/bridge"
 	"github.com/raspbeguy/terrain/internal/ui/dialogs"
 	"github.com/raspbeguy/terrain/internal/ui/uihelpers"
 	"github.com/raspbeguy/terrain/internal/ui/views/run"
@@ -156,30 +158,90 @@ func (w *Window) Refresh(backends []domain.Backend) error {
 	return w.refreshFrom(backends)
 }
 
+// refreshFrom populates the sidebar from the supplied backend list. Local
+// backends (filesystem-only) are read synchronously so their rows show
+// immediately; remote backends are read on background goroutines and post
+// their workspaces back via bridge.OnMainThread, appending to the sidebar
+// when they arrive. This keeps window startup ms-fast even when an OTF /
+// HCP / TFE org has thousands of workspaces — the user gets an interactive
+// UI right away and remote rows fill in shortly after.
 func (w *Window) refreshFrom(backends []domain.Backend) error {
 	ctx := context.Background()
+	w.backends = backends
 
-	var all []domain.Workspace
+	var local []domain.Workspace
 	for _, b := range backends {
+		if b.Kind() != domain.BackendKindLocal {
+			continue
+		}
 		list, err := b.Workspaces(ctx)
 		if err != nil {
 			return fmt.Errorf("backend %q workspaces: %w", b.ID(), err)
 		}
-		all = append(all, list...)
+		local = append(local, list...)
 	}
-	w.backends = backends
-	w.workspaces = all
+	w.workspaces = local
+	w.rebuildSidebar()
 
+	for _, b := range backends {
+		if b.Kind() == domain.BackendKindLocal {
+			continue
+		}
+		go w.fetchRemoteWorkspaces(b)
+	}
+	return nil
+}
+
+// fetchRemoteWorkspaces is the background-goroutine half of remote workspace
+// loading. Bounded by a 30s timeout so a stuck API doesn't leave the
+// goroutine hanging forever; an error there surfaces as a toast on the
+// main thread.
+func (w *Window) fetchRemoteWorkspaces(b domain.Backend) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	list, err := b.Workspaces(ctx)
+	bridge.OnMainThread(func() {
+		if err != nil {
+			slog.Warn("fetch remote workspaces", "backend", b.ID(), "err", err)
+			w.ToastError("Couldn't load workspaces from " + b.DisplayName() + ": " + err.Error())
+			return
+		}
+		slog.Info("remote workspaces loaded", "backend", b.ID(), "count", len(list))
+		w.replaceBackendWorkspaces(b.ID(), list)
+	})
+}
+
+// replaceBackendWorkspaces drops any workspaces currently attributed to
+// backendID and replaces them with list, rebuilding the sidebar so row
+// order matches the flat workspaces slice. Used by fetchRemoteWorkspaces
+// to merge async-arriving remote rows into the sidebar without disturbing
+// the local rows already shown.
+func (w *Window) replaceBackendWorkspaces(backendID string, list []domain.Workspace) {
+	next := make([]domain.Workspace, 0, len(w.workspaces)+len(list))
+	for _, ws := range w.workspaces {
+		if ws.BackendID != backendID {
+			next = append(next, ws)
+		}
+	}
+	next = append(next, list...)
+	w.workspaces = next
+	w.rebuildSidebar()
+}
+
+// rebuildSidebar wipes and re-creates all sidebar rows from w.workspaces.
+// Cheap enough to run on every list-shape change (a few thousand widget
+// ops max); a future virtualized list view would let us skip the wipe.
+func (w *Window) rebuildSidebar() {
 	w.clearList()
 
-	if len(all) == 0 {
+	if len(w.workspaces) == 0 {
 		w.sidebarStack.SetVisibleChildName("empty")
 		w.contentStack.SetVisibleChildName("welcome")
-		return nil
+		return
 	}
 
 	w.sidebarStack.SetVisibleChildName("list")
-	for _, ws := range all {
+	for _, ws := range w.workspaces {
 		row := adw.NewActionRow()
 		row.SetTitle(ws.ProjectName)
 		row.SetSubtitle(ws.Name)
@@ -193,7 +255,7 @@ func (w *Window) refreshFrom(backends []domain.Backend) error {
 	// that no longer exists.
 	if w.current.ID != "" {
 		stillThere := false
-		for _, ws := range all {
+		for _, ws := range w.workspaces {
 			if ws.ID == w.current.ID {
 				stillThere = true
 				break
@@ -206,7 +268,6 @@ func (w *Window) refreshFrom(backends []domain.Backend) error {
 			w.contentTitle.SetSubtitle("")
 		}
 	}
-	return nil
 }
 
 // attachRowKebab adds a kebab menu (⋯) suffix to a sidebar row with one
