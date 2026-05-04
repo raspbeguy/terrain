@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
@@ -36,11 +37,16 @@ type Window struct {
 	toastOverlay  *adw.ToastOverlay
 	sidebarStack  *gtk.Stack
 	sidebarList   *gtk.ListBox
+	sidebarSearch *gtk.SearchEntry
 	contentStack  *gtk.Stack
 	contentTitle  *adw.WindowTitle
 	workspaceBin  *adw.Bin
 	workspacePage *workspace.Page
 	runPage       *run.Page
+
+	// searchFilter is the lowercased query the sidebar filter func reads.
+	// Empty means "show all rows". Updated on SearchEntry changes.
+	searchFilter string
 
 	// Flat list of workspaces in row order; index matches ListBoxRow.Index().
 	workspaces []domain.Workspace
@@ -82,6 +88,7 @@ func New(app *adw.Application, backends []domain.Backend, locks *runner.Workspac
 		toastOverlay:  uihelpers.MustCast[*adw.ToastOverlay](builder, "main_toast_overlay"),
 		sidebarStack:  uihelpers.MustCast[*gtk.Stack](builder, "sidebar_stack"),
 		sidebarList:   uihelpers.MustCast[*gtk.ListBox](builder, "sidebar_listbox"),
+		sidebarSearch: uihelpers.MustCast[*gtk.SearchEntry](builder, "sidebar_search_entry"),
 		contentStack:  uihelpers.MustCast[*gtk.Stack](builder, "content_stack"),
 		contentTitle:  uihelpers.MustCast[*adw.WindowTitle](builder, "content_title"),
 		workspaceBin:  uihelpers.MustCast[*adw.Bin](builder, "workspace_detail_container"),
@@ -109,6 +116,11 @@ func New(app *adw.Application, backends []domain.Backend, locks *runner.Workspac
 
 	w.sidebarList.ConnectRowActivated(w.onRowActivated)
 	w.sidebarList.SetHeaderFunc(w.sidebarHeaderFunc)
+	w.sidebarList.SetFilterFunc(w.sidebarFilter)
+	w.sidebarSearch.ConnectSearchChanged(func() {
+		w.searchFilter = strings.ToLower(strings.TrimSpace(w.sidebarSearch.Text()))
+		w.sidebarList.InvalidateFilter()
+	})
 
 	if err := w.refreshFrom(backends); err != nil {
 		slog.Warn("sidebar populate", "err", err)
@@ -341,6 +353,29 @@ func (w *Window) clearList() {
 		}
 		w.sidebarList.Remove(row)
 	}
+}
+
+// sidebarFilter is the GtkListBox filter func used by the search bar.
+// Empty query → all rows visible. Non-empty → row visible iff the
+// workspace's project name, workspace name, or backend display name
+// contains the (lowercased) query as a substring. Backends are looked up
+// by ID at filter time so a row from a since-removed backend silently
+// fails the lookup and gets hidden — that's acceptable because such a
+// row will be rebuilt out of existence on the next refresh.
+func (w *Window) sidebarFilter(row *gtk.ListBoxRow) bool {
+	if w.searchFilter == "" {
+		return true
+	}
+	idx := row.Index()
+	if idx < 0 || int(idx) >= len(w.workspaces) {
+		return false
+	}
+	ws := w.workspaces[idx]
+	hay := strings.ToLower(ws.ProjectName + " " + ws.Name)
+	if backend := w.findBackend(ws.BackendID); backend != nil {
+		hay += " " + strings.ToLower(backend.DisplayName())
+	}
+	return strings.Contains(hay, w.searchFilter)
 }
 
 // sidebarHeaderFunc inserts a section heading above the first workspace of

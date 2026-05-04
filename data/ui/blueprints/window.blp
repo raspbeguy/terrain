@@ -42,18 +42,25 @@ Adw.ApplicationWindow main_window {
   default-height: 640;
 
   content: Adw.ToastOverlay main_toast_overlay {
-    child: Adw.NavigationSplitView split_view {
-    min-sidebar-width: 220;
-    max-sidebar-width: 320;
-    sidebar-width-fraction: 0.3;
+    child: Adw.OverlaySplitView split_view {
+      min-sidebar-width: 220;
+      max-sidebar-width: 320;
+      sidebar-width-fraction: 0.3;
+      show-sidebar: bind sidebar_toggle_button.active bidirectional;
 
-    sidebar: Adw.NavigationPage {
-      title: "Workspaces";
-      tag: "sidebar";
-
-      child: Adw.ToolbarView {
+      sidebar: Adw.ToolbarView {
         [top]
         Adw.HeaderBar {
+          title-widget: Adw.WindowTitle {
+            title: "Workspaces";
+          };
+
+          [start]
+          ToggleButton search_toggle_button {
+            icon-name: "edit-find-symbolic";
+            tooltip-text: "Search workspaces";
+          }
+
           [end]
           MenuButton primary_menu_button {
             icon-name: "open-menu-symbolic";
@@ -68,6 +75,16 @@ Adw.ApplicationWindow main_window {
             tooltip-text: "Add project or backend";
             action-name: "app.add-local-project";
           }
+        }
+
+        [top]
+        SearchBar sidebar_search_bar {
+          search-mode-enabled: bind search_toggle_button.active bidirectional;
+          key-capture-widget: main_window;
+
+          child: SearchEntry sidebar_search_entry {
+            placeholder-text: "Filter workspaces";
+          };
         }
 
         content: ScrolledWindow {
@@ -105,15 +122,17 @@ Adw.ApplicationWindow main_window {
           };
         };
       };
-    };
 
-    content: Adw.NavigationPage {
-      title: "Terrain";
-      tag: "content";
-
-      child: Adw.ToolbarView content_toolbar {
+      content: Adw.ToolbarView content_toolbar {
         [top]
         Adw.HeaderBar content_header {
+          [start]
+          ToggleButton sidebar_toggle_button {
+            icon-name: "sidebar-show-symbolic";
+            tooltip-text: "Toggle sidebar";
+            active: true;
+          }
+
           title-widget: Adw.WindowTitle content_title {
             title: "Terrain";
           };
@@ -137,7 +156,6 @@ Adw.ApplicationWindow main_window {
           }
         };
       };
-    };
     };
   };
 }
