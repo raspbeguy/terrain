@@ -32,7 +32,7 @@ jobs:
       - name: Install Alpine deps
         run: apk add --no-cache ${{ env.APK_PACKAGES }}
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: go vet
         run: go vet ./...
@@ -51,7 +51,7 @@ jobs:
             blueprint-compiler desktop-file-utils appstream \
             meson samurai xvfb-run libxml2-utils
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: meson setup
         run: meson setup build
