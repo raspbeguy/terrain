@@ -19,7 +19,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            flatpak flatpak-builder
+            flatpak flatpak-builder elfutils
 
       # Cache the user-installed Flathub runtime + SDK + golang extension
       # (~1 GB). Keyed on the manifest's runtime line so a runtime bump
