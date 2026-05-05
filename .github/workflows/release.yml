@@ -1,0 +1,84 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  flatpak:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install flatpak + flatpak-builder
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            flatpak flatpak-builder
+
+      # Cache the user-installed Flathub runtime + SDK + golang extension
+      # (~1 GB). Keyed on the manifest's runtime line so a runtime bump
+      # busts the cache.
+      - name: Cache flatpak runtime
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/flatpak
+          key: flatpak-${{ runner.os }}-${{ hashFiles('build-aux/flatpak/io.github.raspbeguy.Terrain.yml') }}
+          restore-keys: |
+            flatpak-${{ runner.os }}-
+
+      # Cache flatpak-builder's own build dir (downloaded sources + ccache
+      # + intermediate cgo objects). Keyed on go.mod.yml so a Go-deps bump
+      # invalidates.
+      - name: Cache flatpak-builder
+        uses: actions/cache@v4
+        with:
+          path: .flatpak-builder
+          key: flatpak-builder-${{ runner.os }}-${{ hashFiles('build-aux/flatpak/go.mod.yml') }}
+          restore-keys: |
+            flatpak-builder-${{ runner.os }}-
+
+      - name: Add Flathub remote
+        run: |
+          flatpak remote-add --user --if-not-exists \
+            flathub https://flathub.org/repo/flathub.flatpakrepo
+
+      - name: Install runtime + SDK + golang extension
+        run: |
+          flatpak install -y --user --noninteractive flathub \
+            org.gnome.Platform//50 \
+            org.gnome.Sdk//50 \
+            org.freedesktop.Sdk.Extension.golang//25.08
+
+      - name: Build Flatpak bundle
+        run: |
+          flatpak-builder --user --force-clean --ccache \
+            --repo=build-flatpak-repo build-flatpak \
+            build-aux/flatpak/io.github.raspbeguy.Terrain.yml
+          flatpak build-bundle build-flatpak-repo \
+            terrain.flatpak io.github.raspbeguy.Terrain
+
+      - name: Smoke test the bundle
+        run: |
+          flatpak install --user --noninteractive --reinstall ./terrain.flatpak
+          flatpak run io.github.raspbeguy.Terrain --diagnose
+
+      - name: Upload bundle as workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: terrain-flatpak
+          path: terrain.flatpak
+          retention-days: 14
+
+      - name: Attach bundle to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: terrain.flatpak
+          generate_release_notes: true
+          fail_on_unmatched_files: true
