@@ -153,28 +153,26 @@ func TestStreamCommand_cancel(t *testing.T) {
 
 	out := make(chan domain.LogLine, 8)
 	collectDone := make(chan struct{})
+	started := make(chan struct{})
 	var collected []domain.LogLine
 	go func() {
+		sawStart := false
 		for l := range out {
 			collected = append(collected, l)
+			if !sawStart && strings.Contains(l.Text, "started") {
+				sawStart = true
+				close(started)
+			}
 		}
 		close(collectDone)
 	}()
 
-	// Cancel after we know the script has started. We watch for "started"
-	// in the collected lines via a small polling helper.
 	go func() {
-		deadline := time.Now().Add(5 * time.Second)
-		for time.Now().Before(deadline) {
-			for _, l := range collected {
-				if strings.Contains(l.Text, "started") {
-					cancel()
-					return
-				}
-			}
-			time.Sleep(20 * time.Millisecond)
+		select {
+		case <-started:
+		case <-time.After(5 * time.Second):
 		}
-		cancel() // bail out anyway
+		cancel()
 	}()
 
 	err := streamCommand(ctx, cmd, out)
