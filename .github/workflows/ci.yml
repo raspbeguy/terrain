@@ -10,10 +10,14 @@ permissions:
 
 # Run inside Alpine because it has current libadwaita (1.6+) needed by
 # gotk4-adwaita. Ubuntu LTS still ships 1.5. Mirrors the dev VM.
+#
+# GOTOOLCHAIN=auto overrides Alpine's distro default (local) so go.mod's
+# pinned 1.26 toolchain gets fetched on top of the package's 1.25.x.
 env:
   APK_PACKAGES: >-
     build-base git go gtk4.0-dev libadwaita-dev gobject-introspection-dev
     libsecret-dev pkgconf
+  GOTOOLCHAIN: auto
 
 jobs:
   go:
