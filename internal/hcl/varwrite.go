@@ -49,18 +49,6 @@ func DeleteTfvarFile(path, key string) error {
 	return os.WriteFile(path, f.Bytes(), 0o644)
 }
 
-func UpsertTfvar(projectDir, key string, value cty.Value) error {
-	return UpsertTfvarFile(filepath.Join(projectDir, "terraform.tfvars"), key, value)
-}
-
-func UpsertTfvarExpr(projectDir, key, expr string) error {
-	return UpsertTfvarFileExpr(filepath.Join(projectDir, "terraform.tfvars"), key, expr)
-}
-
-func DeleteTfvar(projectDir, key string) error {
-	return DeleteTfvarFile(filepath.Join(projectDir, "terraform.tfvars"), key)
-}
-
 func readOrEmpty(path string) (*hclwrite.File, error) {
 	src, err := os.ReadFile(path)
 	if err != nil && !os.IsNotExist(err) {

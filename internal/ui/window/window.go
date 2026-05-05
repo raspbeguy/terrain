@@ -46,8 +46,6 @@ type Window struct {
 	// workspaces is in row order; index matches ListBoxRow.Index().
 	workspaces []domain.Workspace
 	current    domain.Workspace
-	// lastPlanFile is captured between Plan and Apply.
-	lastPlanFile string
 
 	// onRemoveProject is invoked when the user confirms Remove on a
 	// sidebar row. The app handles the config mutation + Refresh.

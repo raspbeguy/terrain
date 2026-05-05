@@ -8,8 +8,6 @@ import (
 	"time"
 
 	tfjson "github.com/hashicorp/terraform-json"
-
-	"github.com/raspbeguy/terrain/internal/domain"
 )
 
 // LoadState runs `<binary> show -json` so the State tab can refresh without a run.
@@ -51,4 +49,3 @@ type stateBackend interface {
 }
 
 var _ stateBackend = (*Backend)(nil)
-var _ = domain.StatusPending

@@ -29,16 +29,6 @@ func (w *WorkspaceLocks) Acquire(workspaceID string) (release func()) {
 	return func() { once.Do(m.Unlock) }
 }
 
-// IsHeld is racy by definition; advisory only.
-func (w *WorkspaceLocks) IsHeld(workspaceID string) bool {
-	m := w.lockFor(workspaceID)
-	if m.TryLock() {
-		m.Unlock()
-		return false
-	}
-	return true
-}
-
 func (w *WorkspaceLocks) lockFor(workspaceID string) *sync.Mutex {
 	v, _ := w.locks.LoadOrStore(workspaceID, &sync.Mutex{})
 	return v.(*sync.Mutex)

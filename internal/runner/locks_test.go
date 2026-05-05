@@ -80,23 +80,6 @@ func TestWorkspaceLocks_ReleaseIsIdempotent(t *testing.T) {
 	}
 }
 
-func TestWorkspaceLocks_IsHeld(t *testing.T) {
-	t.Parallel()
-	w := NewWorkspaceLocks()
-
-	if w.IsHeld("ws-a") {
-		t.Fatal("expected free")
-	}
-	rel, _ := w.TryAcquire("ws-a")
-	if !w.IsHeld("ws-a") {
-		t.Fatal("expected held after TryAcquire")
-	}
-	rel()
-	if w.IsHeld("ws-a") {
-		t.Fatal("expected free after release")
-	}
-}
-
 func TestWorkspaceLocks_ConcurrentDifferentWorkspaces(t *testing.T) {
 	t.Parallel()
 	w := NewWorkspaceLocks()

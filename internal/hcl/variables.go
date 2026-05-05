@@ -24,10 +24,6 @@ type Variable struct {
 	SourceFile  string
 }
 
-func LoadVariables(projectDir string) ([]Variable, error) {
-	return LoadVariablesWithExtras(projectDir)
-}
-
 // LoadVariablesWithExtras layers extraPaths after the project's own tfvars
 // so later files win for the same key. Missing extras are skipped silently.
 func LoadVariablesWithExtras(projectDir string, extraPaths ...string) ([]Variable, error) {
