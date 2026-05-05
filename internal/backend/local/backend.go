@@ -1,7 +1,5 @@
-// Package local implements domain.Backend against a local Terraform/OpenTofu
-// working directory using the tofu/terraform CLI. M1 only supports listing
-// registered projects as workspaces; run execution lands in M2, variables and
-// state in M3.
+// Package local implements domain.Backend by shelling out to the tofu /
+// terraform CLI against a local working directory.
 package local
 
 import (
@@ -11,18 +9,13 @@ import (
 	"github.com/raspbeguy/terrain/internal/runner"
 )
 
-// Project is one registered local project — a directory containing .tf files.
 type Project struct {
 	ID   string
 	Name string
 	Path string
 }
 
-// Backend exposes one or more local projects as a single domain.Backend. The
-// rationale for grouping all local projects under a single backend rather
-// than one backend per project: in the sidebar we want all local projects
-// grouped together under a "Local" header — that maps cleanly to one Backend
-// with multiple workspaces.
+// Backend groups all local projects under one sidebar header: one Backend, many workspaces.
 type Backend struct {
 	id       string
 	name     string
@@ -30,13 +23,8 @@ type Backend struct {
 	defaults RuntimeDefaults
 }
 
-// RuntimeDefaults snapshots the AppConfig fields the local backend needs
-// to resolve runtime mode + image when a workspace has no override.
-// Populated by the registry at backend construction.
 type RuntimeDefaults struct {
-	// Engine is "tofu" or "terraform"; selects which image default to use.
-	Engine string
-	// RuntimePath is the container CLI binary; empty disables container mode.
+	Engine         string // "tofu" or "terraform"
 	RuntimePath    string
 	RunMode        string
 	ImageTofu      string
@@ -47,14 +35,12 @@ func New(id, name string) *Backend {
 	return &Backend{id: id, name: name}
 }
 
-// SetRuntimeDefaults must be called before the backend is published to
-// other goroutines.
+// SetRuntimeDefaults must be called before the backend is published.
 func (b *Backend) SetRuntimeDefaults(d RuntimeDefaults) {
 	b.defaults = d
 }
 
-// AddProject registers a project. Not safe for concurrent use; call before
-// the backend is published to other goroutines.
+// AddProject is not safe for concurrent use; call before publishing the backend.
 func (b *Backend) AddProject(p Project) {
 	b.projects = append(b.projects, p)
 }
@@ -67,8 +53,6 @@ func (b *Backend) Capabilities() domain.Capabilities {
 }
 func (b *Backend) Close() error { return nil }
 
-// Workspaces returns one workspace per registered project, named "default".
-// M2 will replace the hardcoded default with `tofu workspace list` output.
 func (b *Backend) Workspaces(_ context.Context) ([]domain.Workspace, error) {
 	out := make([]domain.Workspace, 0, len(b.projects))
 	for _, p := range b.projects {
@@ -85,8 +69,6 @@ func (b *Backend) Workspaces(_ context.Context) ([]domain.Workspace, error) {
 	return out, nil
 }
 
-// Workspace looks up a single workspace by ID. Returns domain.ErrNotFound if
-// the ID isn't recognised.
 func (b *Backend) Workspace(ctx context.Context, id string) (domain.Workspace, error) {
 	all, err := b.Workspaces(ctx)
 	if err != nil {
@@ -100,14 +82,10 @@ func (b *Backend) Workspace(ctx context.Context, id string) (domain.Workspace, e
 	return domain.Workspace{}, domain.ErrNotFound
 }
 
-// StartRun is the entry point for plan/apply execution against a local
-// project. Wired in run.go.
 func (b *Backend) StartRun(ctx context.Context, req domain.RunRequest) (domain.Run, domain.RunStream, domain.CancelFunc, error) {
 	return b.startRun(ctx, req)
 }
 
-// Runs returns past runs for a workspace, oldest first. Wired through the
-// optional `runListing` interface in the UI layer (see window.findRuns).
 func (b *Backend) Runs(_ context.Context, workspaceID string) ([]domain.Run, error) {
 	h, err := runner.NewHistory(b.id, workspaceID)
 	if err != nil {

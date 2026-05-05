@@ -10,14 +10,8 @@ import (
 	"github.com/zclconf/go-cty/cty"
 )
 
-// UpsertTfvarFile writes or replaces a single key=value entry in the tfvars
-// file at path. Preserves comments and ordering of unrelated attributes
-// (hclwrite round-trip). When the file doesn't exist it's created (and any
-// missing parent directories with it).
-//
-// value is treated as a literal: scalar Go types (string/int/bool) become
-// the obvious cty value; for HCL expression values (lists, objects, raw
-// HCL) callers should use UpsertTfvarFileExpr.
+// UpsertTfvarFile preserves comments and unrelated attributes via hclwrite
+// round-trip. For non-scalar/raw HCL values use UpsertTfvarFileExpr.
 func UpsertTfvarFile(path, key string, value cty.Value) error {
 	f, err := readOrEmpty(path)
 	if err != nil {
@@ -27,9 +21,7 @@ func UpsertTfvarFile(path, key string, value cty.Value) error {
 	return writeFile(path, f.Bytes())
 }
 
-// UpsertTfvarFileExpr is like UpsertTfvarFile but takes a raw HCL expression
-// string (e.g. `["a", "b"]` or `{ key = "v" }`). Used when the variable is
-// HCL=true.
+// UpsertTfvarFileExpr takes a raw HCL expression (`["a", "b"]`, `{ k = "v" }`).
 func UpsertTfvarFileExpr(path, key, expr string) error {
 	f, err := readOrEmpty(path)
 	if err != nil {
@@ -40,8 +32,7 @@ func UpsertTfvarFileExpr(path, key, expr string) error {
 	return writeFile(path, f.Bytes())
 }
 
-// DeleteTfvarFile removes a key from the tfvars file at path. Missing key
-// or missing file are not errors.
+// DeleteTfvarFile: missing key or file is a no-op.
 func DeleteTfvarFile(path, key string) error {
 	src, err := os.ReadFile(path)
 	if err != nil {
@@ -58,26 +49,18 @@ func DeleteTfvarFile(path, key string) error {
 	return os.WriteFile(path, f.Bytes(), 0o644)
 }
 
-// UpsertTfvar is the directory-based wrapper kept for callers that operate
-// on a project directory's terraform.tfvars (tests, legacy uses). New code
-// should prefer UpsertTfvarFile with an explicit absolute path.
 func UpsertTfvar(projectDir, key string, value cty.Value) error {
 	return UpsertTfvarFile(filepath.Join(projectDir, "terraform.tfvars"), key, value)
 }
 
-// UpsertTfvarExpr is the directory-based wrapper for UpsertTfvarFileExpr.
 func UpsertTfvarExpr(projectDir, key, expr string) error {
 	return UpsertTfvarFileExpr(filepath.Join(projectDir, "terraform.tfvars"), key, expr)
 }
 
-// DeleteTfvar is the directory-based wrapper for DeleteTfvarFile.
 func DeleteTfvar(projectDir, key string) error {
 	return DeleteTfvarFile(filepath.Join(projectDir, "terraform.tfvars"), key)
 }
 
-// readOrEmpty reads path as an hclwrite.File, returning an empty file when
-// path doesn't exist. Bubbles up parse errors verbatim so callers can
-// surface them to the user.
 func readOrEmpty(path string) (*hclwrite.File, error) {
 	src, err := os.ReadFile(path)
 	if err != nil && !os.IsNotExist(err) {
@@ -93,10 +76,7 @@ func readOrEmpty(path string) (*hclwrite.File, error) {
 	return f, nil
 }
 
-// writeFile creates parent directories as needed, then writes payload to
-// path with 0644 permissions. The mkdir-all means callers can target a
-// brand-new $XDG_DATA_HOME/terrain/.../overrides.tfvars without staging
-// directory creation themselves.
+// writeFile mkdir's parents; lets callers target fresh out-of-project paths.
 func writeFile(path string, payload []byte) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return fmt.Errorf("mkdir %s: %w", filepath.Dir(path), err)

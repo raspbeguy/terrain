@@ -1,7 +1,6 @@
 package dialogs
 
 import (
-	"context"
 	"log/slog"
 
 	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
@@ -15,16 +14,9 @@ import (
 
 const stateDiffResource = "/io/github/raspbeguy/Terrain/state-diff.ui"
 
-// StateDiffLoader is the subset of backend operations the dialog needs to
-// fetch state JSON for the two selected versions. Defined as a callback
-// type so the window can route to the appropriate backend without leaking
-// the backend type across the package boundary.
+// StateDiffLoader: empty versionID means "live state".
 type StateDiffLoader = func(versionID string) (*tfjson.State, error)
 
-// PresentStateDiff opens the compare-versions dialog. versions is the list
-// of available snapshots (newest first) plus a synthetic "Live" entry that
-// the loader handles for ID == "" (live state). loader is called every
-// time the user changes either combo to refetch and re-diff.
 func PresentStateDiff(parent *gtk.Window, versions []domain.StateVersion, loader StateDiffLoader) {
 	if loader == nil {
 		slog.Warn("state diff: no loader provided")
@@ -42,9 +34,9 @@ type stateDiffDialog struct {
 
 	diff *widgets.StateDiff
 
-	versions []domain.StateVersion // index 0 maps to combo index 1; combo 0 is "Live"
+	// versions[i] maps to combo index i+1; combo 0 is "Live".
+	versions []domain.StateVersion
 	loader   StateDiffLoader
-
 	suppress bool
 }
 
@@ -66,8 +58,6 @@ func newStateDiffDialog(versions []domain.StateVersion, loader StateDiffLoader) 
 	d.fromRow.Connect("notify::selected", func() { d.recompute() })
 	d.toRow.Connect("notify::selected", func() { d.recompute() })
 
-	// Default selection: Live (index 0) → most recent snapshot (index 1 if
-	// any). Triggers an initial compute when From flips.
 	d.suppress = true
 	d.fromRow.SetSelected(0)
 	if len(versions) > 0 {
@@ -110,8 +100,6 @@ func (d *stateDiffDialog) recompute() {
 
 func (d *stateDiffDialog) fetch(comboIndex int) (*tfjson.State, error) {
 	if comboIndex == 0 {
-		// Live entry — empty version ID signals "current state" to the
-		// loader.
 		return d.loader("")
 	}
 	idx := comboIndex - 1
@@ -121,8 +109,6 @@ func (d *stateDiffDialog) fetch(comboIndex int) (*tfjson.State, error) {
 	return d.loader(d.versions[idx].ID)
 }
 
-// intToStr is a tiny helper used by the version label format. Mirrors the
-// itoa in workspace.Page so we don't pull strconv into this file.
 func intToStr(n int64) string {
 	if n == 0 {
 		return "0"
@@ -144,6 +130,3 @@ func intToStr(n int64) string {
 	}
 	return string(b[i:])
 }
-
-// Compile-time check the loader signature matches the type alias.
-var _ context.Context = context.Background()

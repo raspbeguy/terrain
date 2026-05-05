@@ -21,9 +21,8 @@ import (
 	"github.com/raspbeguy/terrain/internal/domain"
 )
 
-// snapshotMeta is the on-disk shape we write next to state.tfstate /
-// state.json so the listing path can pull metadata without re-parsing the
-// state binary every time.
+// snapshotMeta sits next to state.tfstate / state.json so the listing
+// path can read metadata without re-parsing the state binary.
 type snapshotMeta struct {
 	ID          string    `json:"id"`
 	WorkspaceID string    `json:"workspace_id"`
@@ -35,17 +34,10 @@ type snapshotMeta struct {
 	SHA256      string    `json:"sha256,omitempty"`
 }
 
-// snapshotState writes a state-version directory after a successful apply.
-// Best-effort: failures are logged at the call site but don't fail the run
-// — the apply already finished. The snapshot directory layout is:
-//
-//	$XDG_DATA_HOME/terrain/<backend>/<workspace>/state-versions/<id>/
-//	  state.tfstate    raw binary (when readable from project dir)
-//	  state.json       tofu show -json output
-//	  meta.json        snapshotMeta
-//
-// id is time-prefixed hex so on-disk listings sort chronologically (newest
-// first when reversed).
+// snapshotState writes one state version under
+// $XDG_DATA_HOME/terrain/<backend>/<ws>/state-versions/<id>/{state.tfstate,
+// state.json, meta.json}. Best-effort: the apply already finished so
+// failures only log.
 func (b *Backend) snapshotState(ctx context.Context, ws domain.Workspace, runID string) error {
 	bin, err := DetectBinary()
 	if err != nil {
@@ -62,8 +54,7 @@ func (b *Backend) snapshotState(ctx context.Context, ws domain.Workspace, runID 
 	rawPath := filepath.Join(ws.WorkingDirectory, "terraform.tfstate")
 	rawData, rawErr := os.ReadFile(rawPath)
 	if rawErr != nil && !errors.Is(rawErr, fs.ErrNotExist) {
-		// Other read errors (permission etc.) get logged but we proceed —
-		// the JSON copy alone is still useful.
+		// Permission errors etc. — proceed with just the JSON copy.
 		slog.Warn("read raw tfstate", "path", rawPath, "err", rawErr)
 		rawData = nil
 	}
@@ -80,7 +71,6 @@ func (b *Backend) snapshotState(ctx context.Context, ws domain.Workspace, runID 
 	}
 
 	if rawData != nil {
-		// 0600 — same as the live state file's effective sensitivity.
 		if err := os.WriteFile(filepath.Join(dir, "state.tfstate"), rawData, 0o600); err != nil {
 			slog.Warn("persist raw state", "err", err)
 		}
@@ -108,18 +98,13 @@ func (b *Backend) snapshotState(ctx context.Context, ws domain.Workspace, runID 
 	}
 	slog.Info("state snapshot written", "ws", ws.ID, "id", id, "serial", serial, "lineage", lineage)
 
-	// Best-effort retention sweep: prune older snapshots so the dir doesn't
-	// grow without bound. Defaults match the plan: keep last 50 plus
-	// anything from the last 30 days.
+	// Retention: keep newest 50 plus anything from the last 30 days.
 	if err := b.pruneStateVersions(ws.ID, 50, 30*24*time.Hour); err != nil {
 		slog.Warn("state-versions prune", "ws", ws.ID, "err", err)
 	}
 	return nil
 }
 
-// LoadStateVersion reads a specific snapshot's state.json and returns the
-// parsed *tfjson.State. The caller already knows the version ID from a
-// previous StateVersions() call.
 func (b *Backend) LoadStateVersion(_ context.Context, workspaceID, versionID string) (*tfjson.State, error) {
 	dir, err := stateVersionDir(b.id, workspaceID, versionID)
 	if err != nil {
@@ -136,31 +121,27 @@ func (b *Backend) LoadStateVersion(_ context.Context, workspaceID, versionID str
 	return &state, nil
 }
 
-// pruneStateVersions enforces the retention policy: keep the newest `keep`
-// snapshots plus anything younger than maxAge. Older snapshots beyond both
-// thresholds are deleted (entire snapshot dir).
-//
-// Errors on individual deletes are logged + skipped so a partial cleanup
-// doesn't surface as a hard failure.
+// pruneStateVersions keeps the newest `keep` plus anything younger than
+// maxAge; per-snapshot delete failures are logged and skipped.
 func (b *Backend) pruneStateVersions(workspaceID string, keep int, maxAge time.Duration) error {
 	versions, err := b.StateVersions(context.Background(), workspaceID)
 	if err != nil {
 		return err
 	}
 	if len(versions) <= keep {
-		return nil // nothing to prune
+		return nil
 	}
 
+	// StateVersions returns newest-first, so indexes < keep are the
+	// most recent snapshots and never get pruned.
 	cutoff := time.Now().Add(-maxAge)
 	for i, v := range versions {
-		// Newest are at low indexes (StateVersions sorts newest first).
 		if i < keep {
 			continue
 		}
 		if v.CreatedAt.After(cutoff) {
 			continue
 		}
-		// Beyond keep AND older than cutoff → drop.
 		dir, err := stateVersionDir(b.id, workspaceID, v.ID)
 		if err != nil {
 			slog.Warn("compute prune dir", "id", v.ID, "err", err)
@@ -175,9 +156,8 @@ func (b *Backend) pruneStateVersions(workspaceID string, keep int, maxAge time.D
 	return nil
 }
 
-// StateVersions reads all snapshots for a workspace, newest first. Skips
-// directories with corrupt or missing meta.json — one bad snapshot
-// shouldn't hide the rest.
+// StateVersions skips dirs with missing/corrupt meta.json so a single
+// bad snapshot doesn't hide the rest.
 func (b *Backend) StateVersions(_ context.Context, workspaceID string) ([]domain.StateVersion, error) {
 	root, err := stateVersionsRoot(b.id, workspaceID)
 	if err != nil {
@@ -218,9 +198,7 @@ func (b *Backend) StateVersions(_ context.Context, workspaceID string) ([]domain
 			SHA256:      m.SHA256,
 		})
 	}
-	// Newest first. CreatedAt comes from time.Now() at write — if two
-	// snapshots happen in the same second (unlikely but possible), break
-	// ties by ID lexicographically.
+	// Newest first; same-second ties broken by ID lexicographically.
 	sort.Slice(out, func(i, j int) bool {
 		if !out[i].CreatedAt.Equal(out[j].CreatedAt) {
 			return out[i].CreatedAt.After(out[j].CreatedAt)
@@ -241,10 +219,8 @@ func runShowJSON(ctx context.Context, binPath, workDir string) ([]byte, error) {
 	return stdout.Bytes(), nil
 }
 
-// extractSerialLineage parses the raw .tfstate JSON to pull out the two
-// fields without unmarshalling the whole structure (which can be MB of
-// resource attributes). Returns zero values when the input is empty or
-// malformed.
+// extractSerialLineage avoids unmarshalling the multi-MB resource tree
+// just to read two scalar fields.
 func extractSerialLineage(raw []byte) (serial int64, lineage string) {
 	if len(raw) == 0 {
 		return 0, ""
@@ -265,10 +241,8 @@ func sha256Hex(data []byte) string {
 	return hex.EncodeToString(sum[:])
 }
 
-// stateVersionsRoot returns $XDG_DATA_HOME/terrain/<backend>/<ws>/state-versions/.
-// State versions live under XDG_DATA_HOME (durable) rather than
-// XDG_CACHE_HOME (where ephemeral runs go) — the snapshots are intended
-// to outlive cache cleanups.
+// stateVersionsRoot lives under XDG_DATA_HOME (durable) so snapshots
+// outlive cache cleanups.
 func stateVersionsRoot(backendID, workspaceID string) (string, error) {
 	home, err := dataHome()
 	if err != nil {
@@ -286,10 +260,6 @@ func stateVersionDir(backendID, workspaceID, snapshotID string) (string, error) 
 	return filepath.Join(root, snapshotID), nil
 }
 
-// dataHome returns $XDG_DATA_HOME or its default. We don't use os.UserDataDir
-// (added in Go 1.25) directly to keep build-time flexibility; the env var
-// + fallback covers Linux + BSD + macOS-with-XDG-set, which is everything
-// we ship on.
 func dataHome() (string, error) {
 	if v := os.Getenv("XDG_DATA_HOME"); v != "" {
 		return v, nil
@@ -301,9 +271,6 @@ func dataHome() (string, error) {
 	return filepath.Join(home, ".local", "share"), nil
 }
 
-// newSnapshotID returns a sortable, opaque identifier for one state
-// snapshot. Time-prefixed so listing reads chronological without an index.
 func newSnapshotID() string {
-	// Reuse the run-ID generator — same shape works for both purposes.
 	return newRunID()
 }

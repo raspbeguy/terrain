@@ -14,9 +14,6 @@ import (
 
 const preferencesResource = "/io/github/raspbeguy/Terrain/preferences.ui"
 
-// Preferences is the application preferences dialog. Wires the static
-// scaffolding: theme picker, default-engine picker, detected-binary display,
-// and a per-remote-backend re-probe button.
 type Preferences struct {
 	dialog *adw.PreferencesDialog
 
@@ -34,18 +31,12 @@ type Preferences struct {
 	cfg *config.Config
 }
 
-// RemoteBackend is the subset of capabilities the preferences dialog
-// needs to render the per-backend Re-probe button.
 type RemoteBackend interface {
 	ID() string
 	DisplayName() string
 	Probe(ctx context.Context)
 }
 
-// NewPreferences loads the dialog from gresource and pre-populates rows from
-// the current config and detected binaries. remoteBackends is the live list
-// of remote backends to populate the Backends page; pass nil if there are
-// none and the page will show an empty state.
 func NewPreferences(cfg *config.Config, remoteBackends []RemoteBackend) *Preferences {
 	builder := gtk.NewBuilderFromResource(preferencesResource)
 	p := &Preferences{
@@ -71,7 +62,6 @@ func NewPreferences(cfg *config.Config, remoteBackends []RemoteBackend) *Prefere
 	return p
 }
 
-// Present shows the preferences dialog as a child of parent.
 func (p *Preferences) Present(parent *gtk.Window) {
 	p.dialog.Present(parent)
 }
@@ -96,12 +86,8 @@ func (p *Preferences) bindEngine(cfg *config.Config) {
 	} else {
 		p.engineRow.SetSelected(0)
 	}
-	// M1 doesn't persist the selection back — gschema wiring is in M3 polish.
 }
 
-// bindBackends populates the Backends page with one row per remote backend,
-// each with a Re-probe button that calls backend.Probe in a goroutine
-// (network call). Empty list shows a placeholder.
 func (p *Preferences) bindBackends(backends []RemoteBackend) {
 	if len(backends) == 0 {
 		empty := adw.NewActionRow()

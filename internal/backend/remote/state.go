@@ -13,13 +13,8 @@ import (
 	"github.com/raspbeguy/terrain/internal/domain"
 )
 
-// StateVersions returns the workspace's state-version history from TFE.
-// Mirrors local.Backend.StateVersions: newest first, populated metadata.
-//
-// TFE's StateVersions.List endpoint filters by org + workspace **name**,
-// not ID, so we do an extra ReadByID to resolve the name. The cost is one
-// API round-trip per call; the workspace metadata is small enough that
-// caching it isn't worth the invalidation complexity yet.
+// StateVersions: TFE's List filters by workspace name, not ID, so we
+// resolve via ReadByID first.
 func (b *Backend) StateVersions(parent context.Context, workspaceID string) ([]domain.StateVersion, error) {
 	ctx, cancel := context.WithTimeout(parent, 15*time.Second)
 	defer cancel()
@@ -48,14 +43,10 @@ func (b *Backend) StateVersions(parent context.Context, workspaceID string) ([]d
 		}
 		page = list.NextPage
 	}
-	// TFE returns newest-first already, but be defensive — if a future API
-	// change reorders, the on-disk shape we expose is "newest first".
 	return out, nil
 }
 
-// LoadStateVersion fetches one state version by ID and returns its parsed
-// JSON. Prefers the JSON download URL (Terraform 1.3+); falls back to the
-// raw .tfstate URL otherwise.
+// LoadStateVersion prefers the JSON URL (TF 1.3+); falls back to the raw .tfstate URL.
 func (b *Backend) LoadStateVersion(parent context.Context, _ string, versionID string) (*tfjson.State, error) {
 	ctx, cancel := context.WithTimeout(parent, 30*time.Second)
 	defer cancel()
@@ -95,8 +86,5 @@ func (b *Backend) toStateVersion(sv *tfe.StateVersion, workspaceID string) domai
 		WorkspaceID: workspaceID,
 		Serial:      int64(sv.Serial),
 		CreatedAt:   sv.CreatedAt,
-		// Lineage / RawPath / JSONPath / RunID are populated lazily — for
-		// the listing path the UI only displays Serial + CreatedAt. If we
-		// need run linkage we'll add a ReadWithOptions(Include: RunRel).
 	}
 }

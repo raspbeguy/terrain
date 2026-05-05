@@ -14,9 +14,6 @@ import (
 
 const varsetsResource = "/io/github/raspbeguy/Terrain/varsets.ui"
 
-// VarsetsBackend is the subset of backend operations the dialog needs.
-// Defined as an interface here (rather than imported from internal/backend)
-// to keep the package boundary clean and to make the dialog testable.
 type VarsetsBackend interface {
 	VariableSets(ctx context.Context) ([]domain.VariableSet, error)
 	VariableSet(ctx context.Context, setID string) (domain.VariableSet, error)
@@ -27,12 +24,12 @@ type VarsetsBackend interface {
 	DeleteVariableSetVar(ctx context.Context, setID, key string) error
 }
 
-// ProjectChoice is re-exported from domain.ProjectChoice so callers can
-// reference dialogs.ProjectChoice without dragging the domain import along.
+// ProjectChoice re-exports domain.ProjectChoice so callers don't need
+// to import domain just for the type.
 type ProjectChoice = domain.ProjectChoice
 
-// VarsetsDialog hosts the cross-workspace variable set management page. One
-// instance per opening; pass a backend at construction time, present, dispose.
+// VarsetsDialog hosts the variable-set management page (one instance
+// per opening).
 type VarsetsDialog struct {
 	dialog *adw.Dialog
 	nav    *adw.NavigationView
@@ -49,31 +46,18 @@ type VarsetsDialog struct {
 	detailAddVar     *gtk.Button
 	detailDeleteBt   *gtk.Button
 
-	// projects caches the local-backend projects so the project combo can
-	// translate selected index → project ID without re-querying.
-	projects []ProjectChoice
-
-	// workspaces is the full list of local workspaces, used to render the
-	// per-workspace attachment switches. Cached so toggling doesn't refetch.
+	projects   []ProjectChoice
 	workspaces []domain.Workspace
-
-	// wsRows tracks the AdwSwitchRow widgets we built for the workspace
-	// attachment group; we rebuild on each openDetail rather than diff.
+	// wsRows is rebuilt on each openDetail rather than diffed.
 	wsRows []*adw.SwitchRow
-
-	// suppressNotify guards combo / entry change handlers during programmatic
-	// updates (when we're populating the form from the loaded set).
+	// suppressNotify gates the autosave handlers while we populate the
+	// form programmatically.
 	suppressNotify bool
 
 	backend VarsetsBackend
-
-	// Set currently shown on the detail page; empty when on the list.
 	current domain.VariableSet
 }
 
-// PresentVarsets builds the dialog and shows it parented to parent. projects
-// populates the project-scope picker, workspaces drives the workspace-scope
-// attachment switches. Pass nil for either if there are none registered.
 func PresentVarsets(parent *gtk.Window, backend VarsetsBackend, projects []ProjectChoice, workspaces []domain.Workspace) {
 	if backend == nil {
 		slog.Warn("variable sets: backend not available (no local backend in registry)")
@@ -103,9 +87,8 @@ func newVarsetsDialog(backend VarsetsBackend, projects []ProjectChoice, workspac
 		workspaces:       workspaces,
 	}
 
-	// Pre-populate the project picker once: we don't refresh it because
-	// adding projects mid-dialog would require listening for backend
-	// registry changes.
+	// Project picker is populated once; mid-dialog registry changes
+	// aren't observed.
 	d.projects = projects
 	projectStrings := gtk.NewStringList(nil)
 	for _, p := range d.projects {
@@ -117,8 +100,7 @@ func newVarsetsDialog(backend VarsetsBackend, projects []ProjectChoice, workspac
 	d.detailAddVar.ConnectClicked(d.onAddVar)
 	d.detailDeleteBt.ConnectClicked(d.onDelete)
 
-	// Edit handlers — autosave on change. Guarded by suppressNotify during
-	// the initial population so we don't bounce-write on dialog open.
+	// Autosave on change; suppressNotify guards initial population.
 	d.detailNameRow.ConnectChanged(d.saveMeta)
 	d.detailDescRow.ConnectChanged(d.saveMeta)
 	d.detailScopeRow.Connect("notify::selected", func() {
@@ -130,7 +112,6 @@ func newVarsetsDialog(backend VarsetsBackend, projects []ProjectChoice, workspac
 	return d
 }
 
-// refreshList rebuilds the global sets list.
 func (d *VarsetsDialog) refreshList() {
 	clearGroup(d.listGroup)
 	sets, err := d.backend.VariableSets(context.Background())
@@ -171,7 +152,6 @@ func buildVarsetRow(set domain.VariableSet) *adw.ActionRow {
 	return row
 }
 
-// openDetail pushes the detail page with set's contents.
 func (d *VarsetsDialog) openDetail(set domain.VariableSet) {
 	d.current = set
 	d.suppressNotify = true
@@ -186,18 +166,12 @@ func (d *VarsetsDialog) openDetail(set domain.VariableSet) {
 	d.nav.PushByTag("detail")
 }
 
-// updateScopeVisibility shows the project picker only for project-scope and
-// the workspace-attachment list only for workspace-scope.
 func (d *VarsetsDialog) updateScopeVisibility() {
 	idx := d.detailScopeRow.Selected()
 	d.detailProjectRow.SetVisible(idx == 1)
 	d.detailWsGrp.SetVisible(idx == 2)
 }
 
-// populateWorkspaceSwitches rebuilds the per-workspace attachment switches
-// to reflect set.Workspaces. Switches read the latest set state on each open
-// rather than diff-update, since the list is small (low-tens at most for
-// local backends).
 func (d *VarsetsDialog) populateWorkspaceSwitches(set domain.VariableSet) {
 	for _, r := range d.wsRows {
 		d.detailWsGrp.Remove(r)
@@ -214,9 +188,6 @@ func (d *VarsetsDialog) populateWorkspaceSwitches(set domain.VariableSet) {
 		empty.SetTitle("No workspaces")
 		empty.SetSubtitle("Add a local project to populate this list.")
 		empty.AddCSSClass("dim-label")
-		// Track as a SwitchRow placeholder so cleanup works uniformly —
-		// actually it's an ActionRow; we'd need a wider type. Skip cleanup
-		// for the empty-state row; it gets replaced on next open anyway.
 		d.detailWsGrp.Add(empty)
 		return
 	}
@@ -237,8 +208,6 @@ func (d *VarsetsDialog) populateWorkspaceSwitches(set domain.VariableSet) {
 	}
 }
 
-// toggleWorkspace flips one workspace's attachment in the current set and
-// persists. No-op when populating (suppressNotify) or no current set.
 func (d *VarsetsDialog) toggleWorkspace(workspaceID string, attached bool) {
 	if d.suppressNotify || d.current.ID == "" {
 		return
@@ -262,9 +231,6 @@ func (d *VarsetsDialog) toggleWorkspace(workspaceID string, attached bool) {
 	d.saveMeta()
 }
 
-// saveMeta is the autosave handler for name/description/scope/project
-// changes. Does nothing when populating the form (suppressNotify) or when
-// no set is currently displayed.
 func (d *VarsetsDialog) saveMeta() {
 	if d.suppressNotify || d.current.ID == "" {
 		return
@@ -273,7 +239,7 @@ func (d *VarsetsDialog) saveMeta() {
 		Name:        d.detailNameRow.Text(),
 		Description: d.detailDescRow.Text(),
 		Scope:       indexToScope(d.detailScopeRow.Selected()),
-		Workspaces:  d.current.Workspaces, // preserve — UI doesn't edit these yet
+		Workspaces:  d.current.Workspaces,
 		ProjectID:   d.selectedProjectID(),
 		Priority:    d.current.Priority,
 	}
@@ -281,13 +247,10 @@ func (d *VarsetsDialog) saveMeta() {
 		slog.Warn("update varset meta", "id", d.current.ID, "err", err)
 		return
 	}
-	// Reflect the persisted state in our cache so subsequent edits build on
-	// the right baseline.
 	d.current.Name = meta.Name
 	d.current.Description = meta.Description
 	d.current.Scope = meta.Scope
 	d.current.ProjectID = meta.ProjectID
-	// Refresh the list view subtitle without re-pushing.
 	d.refreshList()
 }
 
@@ -380,8 +343,7 @@ func buildSetVarRow(v domain.Variable) *adw.ActionRow {
 }
 
 func (d *VarsetsDialog) onCreate() {
-	// Quick-create with a default name; the user can rename in the detail
-	// page. Avoids a second prompt for the simplest path.
+	// Quick-create with a placeholder name; the user renames in detail.
 	set, err := d.backend.CreateVariableSet(context.Background(), "Untitled Set", "")
 	if err != nil {
 		slog.Error("create varset", "err", err)
@@ -413,7 +375,6 @@ func (d *VarsetsDialog) saveVar(v domain.Variable) {
 		slog.Error("upsert varset var", "set", d.current.ID, "key", v.Key, "err", err)
 		return
 	}
-	// Reload the set to pick up the new value.
 	updated, err := d.backend.VariableSet(context.Background(), d.current.ID)
 	if err == nil {
 		d.current = updated

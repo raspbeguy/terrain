@@ -15,24 +15,16 @@ import (
 	"github.com/raspbeguy/terrain/internal/domain"
 )
 
-// graceWindow is how long we wait between SIGINT and SIGKILL when cancelling.
-// 5s gives tofu/terraform time to release locks and write state cleanly;
-// longer than that and the user starts wondering whether Cancel "did" anything.
+// graceWindow is the SIGINT→SIGKILL delay; long enough for tofu to
+// release locks and write state, short enough that Cancel feels alive.
 const graceWindow = 5 * time.Second
 
-// streamCommand starts cmd, drains stdout/stderr line-by-line into out,
-// and waits for the process to exit. On ctx cancel, the command receives
-// SIGINT; if it hasn't exited within graceWindow, exec.Cmd will SIGKILL it
-// via WaitDelay.
+// streamCommand drains stdout/stderr into out and waits for cmd to
+// exit. Caller owns + closes out (we may push synthetic events after
+// streamCommand returns).
 //
-// The caller owns the out channel and is responsible for closing it after
-// streamCommand returns (we don't close inside because the caller may want
-// to push synthetic events on the same channel before signaling completion).
-//
-// Return value:
-//   - nil if cmd exited cleanly with status 0
-//   - *exec.ExitError if cmd exited with a non-zero status (errored or canceled)
-//   - other errors for setup failures (pipe creation, Start)
+// Return: nil on exit 0; *exec.ExitError for non-zero / cancel; other
+// errors for setup failures.
 func streamCommand(ctx context.Context, cmd *exec.Cmd, out chan<- domain.LogLine) error {
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
@@ -43,13 +35,9 @@ func streamCommand(ctx context.Context, cmd *exec.Cmd, out chan<- domain.LogLine
 		return fmt.Errorf("stderr pipe: %w", err)
 	}
 
-	// Wire ctx → (chained pre-cancel hook) → SIGINT → (after grace) SIGKILL.
-	// cmd.Cancel runs on its own goroutine when ctx is done; cmd.WaitDelay
-	// caps how long Wait will hang after Cancel before forcibly killing the
-	// process group. If the caller already installed a Cancel hook (e.g.
-	// the container runtime's `podman kill --signal INT <name>`), we run
-	// it first, then fall through to the SIGINT-to-wrapper-process belt-
-	// and-suspenders signal — that way both signal paths are tried.
+	// Cancel chain: prior hook (e.g. runtime.Cancel for container kill)
+	// runs first, then SIGINT to the wrapper. WaitDelay caps Wait at
+	// graceWindow before exec.Cmd issues SIGKILL.
 	priorCancel := cmd.Cancel
 	cmd.Cancel = func() error {
 		if priorCancel != nil {
@@ -77,22 +65,14 @@ func streamCommand(ctx context.Context, cmd *exec.Cmd, out chan<- domain.LogLine
 		scanLines(stderr, domain.StreamStderr, out)
 	}()
 
-	// Wait for both readers to drain (process closes pipes when it exits).
 	wg.Wait()
-
-	// cmd.Wait reaps the process and reports exit status.
 	return cmd.Wait()
 }
 
-// scanLines reads r line-by-line and pushes a LogLine for each. JSON parsing
-// is attempted on stdout (where `-json` ndjson lives); failures fall through
-// silently with line.JSON == nil so the UI can render the raw Text.
-//
-// We bump the scanner buffer to 1 MB because tofu plan -json's
-// `planned_change` events for large resources can produce single lines well
-// past the default 64 KB cap.
+// scanLines: 1 MB buffer because tofu plan -json's planned_change for
+// large resources can blow past the 64 KB default.
 func scanLines(r io.Reader, stream domain.Stream, out chan<- domain.LogLine) {
-	const maxLine = 1 << 20 // 1 MB
+	const maxLine = 1 << 20
 	scanner := bufio.NewScanner(r)
 	scanner.Buffer(make([]byte, 64*1024), maxLine)
 
@@ -111,9 +91,9 @@ func scanLines(r io.Reader, stream domain.Stream, out chan<- domain.LogLine) {
 		}
 		out <- line
 	}
-	// Scanner errors after EOF (broken pipe on cancellation, oversize line)
-	// surface as a synthetic stderr line so the UI sees them. ErrClosedPipe
-	// and io.EOF are not surfaced — those are normal termination.
+	// Scanner errors that aren't normal termination (oversize line,
+	// post-cancel pipe error other than EOF/ClosedPipe) surface to the
+	// log so the UI can show them.
 	if err := scanner.Err(); err != nil &&
 		!errors.Is(err, io.EOF) &&
 		!errors.Is(err, io.ErrClosedPipe) {
@@ -125,9 +105,8 @@ func scanLines(r io.Reader, stream domain.Stream, out chan<- domain.LogLine) {
 	}
 }
 
-// exitCodeOf extracts the process exit code from cmd.Wait's error. Returns 0
-// if the run terminated cleanly, the actual exit code on a non-zero exit,
-// and -1 on contexts where we can't determine it (signal kill).
+// exitCodeOf returns -1 when the exit code is unknown (signal kill,
+// non-ExitError failures).
 func exitCodeOf(err error) int {
 	if err == nil {
 		return 0

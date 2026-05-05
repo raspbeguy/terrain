@@ -1,6 +1,4 @@
-// Package window owns the main AdwApplicationWindow and its sidebar. The
-// window is loaded from the embedded gresource bundle (window.ui, compiled
-// from window.blp by the meson pipeline).
+// Package window owns the main AdwApplicationWindow and its sidebar.
 package window
 
 import (
@@ -26,8 +24,6 @@ import (
 
 const uiResource = "/io/github/raspbeguy/Terrain/window.ui"
 
-// Window wraps the gresource-loaded AdwApplicationWindow with the live
-// references we mutate from Go (sidebar list, content stack, etc.).
 type Window struct {
 	app      *adw.Application
 	backends []domain.Backend
@@ -62,9 +58,8 @@ func (w *Window) SetOnRemoveProject(fn func(domain.Workspace)) {
 	w.onRemoveProject = fn
 }
 
-// New loads the window from gresource and populates the sidebar from
-// backends. Pass the app-shared lock registry so per-workspace lock state
-// is consistent across the UI.
+// New populates the sidebar from backends. Pass the app-shared lock
+// registry so per-workspace state stays consistent across the UI.
 func New(app *adw.Application, backends []domain.Backend, locks *runner.WorkspaceLocks) (*Window, error) {
 	if locks == nil {
 		locks = runner.NewWorkspaceLocks()
@@ -124,17 +119,13 @@ func New(app *adw.Application, backends []domain.Backend, locks *runner.Workspac
 	return w, nil
 }
 
-// Present shows the window. Mirrors AdwApplicationWindow.Present but exposes
-// it through the wrapper so callers don't need to reach into root.
 func (w *Window) Present() { w.root.Present() }
 
-// GtkWindow returns the underlying *gtk.Window — used to parent transient
-// dialogs (GtkFileDialog, AdwAlertDialog, etc.).
+// GtkWindow returns the underlying *gtk.Window for parenting dialogs.
 func (w *Window) GtkWindow() *gtk.Window { return &w.root.Window }
 
-// Toast surfaces a transient message in the main window. Safe to call from
-// the GTK main thread; route through bridge.PumpRun if a domain goroutine
-// needs to toast.
+// Toast must be called on the GTK main thread. Domain goroutines route
+// through bridge.OnMainThread first.
 func (w *Window) Toast(message string) {
 	if w.toastOverlay == nil {
 		return
@@ -144,8 +135,6 @@ func (w *Window) Toast(message string) {
 	w.toastOverlay.AddToast(t)
 }
 
-// ToastError is a Toast variant marked for the error styling (longer
-// timeout, no priority for the success-style fade).
 func (w *Window) ToastError(message string) {
 	if w.toastOverlay == nil {
 		return
@@ -156,8 +145,6 @@ func (w *Window) ToastError(message string) {
 	w.toastOverlay.AddToast(t)
 }
 
-// Refresh reloads the sidebar from a fresh backend list — call after
-// Add Local Project completes, etc.
 func (w *Window) Refresh(backends []domain.Backend) error {
 	return w.refreshFrom(backends)
 }
@@ -238,9 +225,8 @@ func (w *Window) rebuildSidebar() {
 		w.sidebarList.Append(row)
 	}
 
-	// If the active workspace was removed in this refresh, fall back to the
-	// welcome view so we don't leave a stale detail pane bound to a workspace
-	// that no longer exists.
+	// Active workspace removed → revert to welcome view to avoid a
+	// stale detail pane.
 	if w.current.ID != "" {
 		stillThere := false
 		for _, ws := range w.workspaces {
@@ -395,10 +381,9 @@ func (w *Window) onRowActivated(row *gtk.ListBoxRow) {
 	w.contentStack.SetVisibleChildName("workspace")
 }
 
-// startPlan is the callback fired by the workspace page's "New Plan" button.
-// Resolves the backend, acquires the per-workspace lock (refusing
-// concurrent runs on the same workspace), kicks StartRun, swaps to the run
-// detail view, pumps events, releases the lock when the stream closes.
+// startPlan acquires the per-workspace lock (refusing concurrent runs),
+// kicks StartRun, swaps to the run detail view, pumps events, releases
+// the lock when the stream closes.
 func (w *Window) startPlan(ws domain.Workspace) {
 	slog.Info("start plan", "ws", ws.ID, "backend", ws.BackendID)
 	backend := w.findBackend(ws.BackendID)
@@ -442,9 +427,8 @@ func (w *Window) startPlan(ws domain.Workspace) {
 	)
 }
 
-// startApply consumes a successful plan's file path and starts a new apply
-// run that consumes it. The apply binds to the same run page, replacing the
-// plan's stream.
+// startApply binds the apply to the same run page as the producing plan,
+// replacing its stream.
 func (w *Window) startApply(ws domain.Workspace, plan *domain.PlanResult) {
 	if plan == nil || plan.File == "" {
 		slog.Warn("apply skipped: no plan file")
@@ -507,22 +491,15 @@ func (w *Window) findBackend(id string) domain.Backend {
 	return nil
 }
 
-// stateLoader is the optional capability the local backend exposes for the
-// State tab. Remote backends will satisfy it via go-tfe in M4.
+// stateLoader is the optional capability for backends that can return
+// current state.
 type stateLoader interface {
 	LoadState(ctx context.Context, workspaceID string) (*tfjson.State, error)
 }
 
-// loadState bridges the workspace State tab refresh button to the backend's
-// state-loading capability. Returns a clean error if the backend doesn't
-// support state introspection so the UI can show a helpful message.
-//
-// Acquires the per-workspace lock non-blocking: a `tofu show -json` call
-// contends with an in-flight `tofu plan/apply` for the state-lock file.
-// If we just block, the UI freezes. If we just call show-json regardless,
-// terraform errors out with "Error acquiring the state lock" which is also
-// fine but harder to localize. TryAcquire + bail with a clear message is
-// the kindest path.
+// loadState uses TryAcquire (non-blocking) so a state refresh during an
+// in-flight run reports cleanly instead of freezing or hitting tofu's
+// own state-lock error.
 func (w *Window) loadState(ws domain.Workspace) (*tfjson.State, error) {
 	backend := w.findBackend(ws.BackendID)
 	if backend == nil {
@@ -542,19 +519,15 @@ func (w *Window) loadState(ws domain.Workspace) (*tfjson.State, error) {
 	return loader.LoadState(context.Background(), ws.ID)
 }
 
-// stateVersionLister is the optional capability for backends that persist
-// state-version snapshots. Local satisfies it via the snapshot directory;
-// remote backends can satisfy it via TFE's state-versions API in a future
-// session.
+// stateVersionLister is the optional capability for backends with
+// persisted state-version history.
 type stateVersionLister interface {
 	StateVersions(ctx context.Context, workspaceID string) ([]domain.StateVersion, error)
 	LoadStateVersion(ctx context.Context, workspaceID, versionID string) (*tfjson.State, error)
 }
 
-// loadStateVersions returns the snapshot list plus a lineage warning if
-// the most recent snapshot has a different lineage from the previous one.
-// Returns (nil, nil, nil) cleanly when the backend doesn't satisfy the
-// optional interface — the UI just shows "Live" with no snapshots.
+// loadStateVersions returns (nil, nil, nil) cleanly when the backend
+// doesn't satisfy the optional interface.
 func (w *Window) loadStateVersions(ws domain.Workspace) ([]domain.StateVersion, *workspace.LineageWarning, error) {
 	backend := w.findBackend(ws.BackendID)
 	if backend == nil {
@@ -571,9 +544,8 @@ func (w *Window) loadStateVersions(ws domain.Workspace) ([]domain.StateVersion, 
 	return versions, lineageWarn(versions), nil
 }
 
-// lineageWarn detects a lineage change between the most recent snapshot
-// and the one before it (StateVersions returns newest-first). Returns
-// nil when there's no change or fewer than two snapshots.
+// lineageWarn flags a lineage change between the latest two snapshots.
+// StateVersions returns newest-first; nil when fewer than two snapshots.
 func lineageWarn(versions []domain.StateVersion) *workspace.LineageWarning {
 	if len(versions) < 2 {
 		return nil
@@ -618,8 +590,6 @@ func (w *Window) compareStates(ws domain.Workspace, versions []domain.StateVersi
 	dialogs.PresentStateDiff(w.GtkWindow(), versions, loader)
 }
 
-// runListing is the optional capability for backends that can return past
-// runs from local persistence (or, for remote backends, the API).
 type runListing interface {
 	Runs(ctx context.Context, workspaceID string) ([]domain.Run, error)
 }
@@ -631,14 +601,13 @@ func (w *Window) loadRuns(ws domain.Workspace) ([]domain.Run, error) {
 	}
 	listing, ok := backend.(runListing)
 	if !ok {
-		return nil, nil // empty list is fine; backend just doesn't support history
+		return nil, nil
 	}
 	return listing.Runs(context.Background(), ws.ID)
 }
 
-// openRun navigates to the run detail page for a historical run, loading
-// log + plan artifacts from disk read-only. No live stream is bound; the
-// action buttons stay hidden until the user kicks a new run.
+// openRun loads a historical run from disk. No live stream is bound;
+// action buttons stay hidden until the user starts a new run.
 func (w *Window) openRun(ws domain.Workspace, r domain.Run) {
 	slog.Info("open historical run", "id", r.ID, "kind", r.Kind, "status", r.Status, "ws", ws.ID)
 	w.workspaceBin.SetChild(w.runPage.Root())
@@ -646,16 +615,10 @@ func (w *Window) openRun(ws domain.Workspace, r domain.Run) {
 	w.runPage.LoadHistory(r)
 }
 
-// variableLoader is the optional capability for backends that can return
-// the variables of a workspace. Local satisfies it via hcl + libsecret;
-// remote satisfies it via go-tfe.
 type variableLoader interface {
 	VariablesForWorkspace(ctx context.Context, workspaceID string) ([]domain.Variable, error)
 }
 
-// loadVariables fetches the workspace's variables. Returns an empty slice
-// when the backend doesn't implement the capability rather than an error,
-// so the Variables tab shows the empty placeholder cleanly.
 func (w *Window) loadVariables(ws domain.Workspace) ([]domain.Variable, error) {
 	backend := w.findBackend(ws.BackendID)
 	if backend == nil {
@@ -668,9 +631,6 @@ func (w *Window) loadVariables(ws domain.Workspace) ([]domain.Variable, error) {
 	return loader.VariablesForWorkspace(context.Background(), ws.ID)
 }
 
-// variableUpserter is the optional capability for backends that can save a
-// variable. Local backends implement it; remote support lands when go-tfe's
-// Variables.Create/Update is wired.
 type variableUpserter interface {
 	UpsertVariable(ctx context.Context, workspaceID string, v domain.Variable) error
 }
@@ -686,13 +646,11 @@ func (w *Window) openWorkspaceSettings(ws domain.Workspace) {
 	dlg.Present(w.GtkWindow())
 }
 
-// addVariable opens the Add Variable dialog for the workspace.
 func (w *Window) addVariable(ws domain.Workspace) {
 	dialogs.EditVariable(w.GtkWindow(), dialogs.VarEditAdd, domain.Variable{},
 		func(v domain.Variable) { w.saveVariable(ws, v) })
 }
 
-// editVariable opens the dialog with an existing variable's values.
 func (w *Window) editVariable(ws domain.Workspace, v domain.Variable) {
 	dialogs.EditVariable(w.GtkWindow(), dialogs.VarEditEdit, v,
 		func(saved domain.Variable) { w.saveVariable(ws, saved) })
@@ -749,14 +707,9 @@ func (w *Window) deleteVariable(ws domain.Workspace, v domain.Variable) {
 	w.workspacePage.RefreshVariables()
 }
 
-// saveVariable forwards the dialog's payload to the backend (if it
-// implements variableUpserter) and refreshes the Variables tab on success.
-//
-// Acquires the per-workspace lock for the duration of the write so a run
-// in flight doesn't materialise variables mid-edit (`hclwrite` does a
-// read-modify-write on terraform.tfvars). Acquire blocks; the typical
-// hclwrite round-trip is sub-millisecond, but if a run is reading the
-// file it'll wait for materialise to finish — acceptable.
+// saveVariable acquires the per-workspace lock so an in-flight run
+// can't materialise vars mid-edit. hclwrite is read-modify-write on
+// terraform.tfvars; concurrent access would race.
 func (w *Window) saveVariable(ws domain.Workspace, v domain.Variable) {
 	backend := w.findBackend(ws.BackendID)
 	if backend == nil {

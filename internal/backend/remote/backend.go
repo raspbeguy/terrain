@@ -1,12 +1,6 @@
-// Package remote implements domain.Backend against the Terraform Enterprise
-// API surface (HCP Terraform, self-hosted TFE, and OTF). All three flavors
-// share the same JSON-API contract, so we drive them through a single
-// hashicorp/go-tfe client and differentiate on capability probing.
-//
-// M4 ships listing only — StartRun returns ErrNotImplemented because remote
-// run execution requires a polling/SSE bridge that's substantial enough to
-// warrant its own session. State and run history reads will follow the same
-// pattern as listing once StartRun lands.
+// Package remote implements domain.Backend against the TFE-API family
+// (HCP Terraform, self-hosted TFE, OTF) — one go-tfe client, capability
+// differences resolved at runtime via Probe().
 package remote
 
 import (
@@ -25,11 +19,8 @@ import (
 	"github.com/raspbeguy/terrain/internal/domain"
 )
 
-// tfjsonState aliases to keep the LoadState signature short and consistent
-// with terraform-json's own naming.
 type tfjsonState = tfjson.State
 
-// Flavor names the sub-family of TFE-API-compatible backend.
 type Flavor string
 
 const (
@@ -38,19 +29,17 @@ const (
 	FlavorOTF Flavor = "otf" // leg100/otf
 )
 
-// Config is what callers pass to New. Endpoint may be empty for HCP (we
-// default to https://app.terraform.io); OTF and TFE require an explicit URL.
+// Config is the input to New. Endpoint defaults to app.terraform.io for
+// HCP; required for OTF and TFE. Token falls back to TFE_TOKEN env.
 type Config struct {
 	ID           string
 	Name         string
 	Flavor       Flavor
 	Endpoint     string
 	Organization string
-	// Token may be empty; New falls back to TFE_TOKEN env var.
-	Token string
+	Token        string
 }
 
-// Backend is the live remote-backend implementation.
 type Backend struct {
 	id           string
 	name         string
@@ -59,16 +48,12 @@ type Backend struct {
 
 	client *tfe.Client
 
-	// Capabilities are seeded optimistically per flavor at New() and
-	// refined by Probe() (called as part of TestConnection). Reads after
-	// probe see the refined value.
+	// caps starts at optimisticCaps(flavor) and is refined by Probe()
+	// against the live API.
 	capsMu sync.RWMutex
 	caps   domain.Capabilities
 }
 
-// New constructs a Backend from cfg. Returns errors for missing organization
-// or unresolvable token; the caller surfaces these to the user (typically
-// via the Add Remote Backend dialog's "Test Connection" button).
 func New(cfg Config) (*Backend, error) {
 	if cfg.Organization == "" {
 		return nil, errors.New("organization required")
@@ -110,9 +95,7 @@ func New(cfg Config) (*Backend, error) {
 	return b, nil
 }
 
-// optimisticCaps returns the assumed capability bitmask for a flavor before
-// any probing — what we display when the network is slow or the user hasn't
-// hit Test Connection yet. Probe() refines this from the actual API.
+// optimisticCaps is the assumed bitmask before Probe() refines it.
 func optimisticCaps(flavor Flavor) domain.Capabilities {
 	caps := domain.CapPlan | domain.CapApply | domain.CapVarSets |
 		domain.CapState | domain.CapVCS | domain.CapRunQueue
@@ -138,33 +121,25 @@ func (b *Backend) Kind() domain.BackendKind {
 	return domain.BackendKindHCP
 }
 
-// DisplayName is the user-facing label shown in the sidebar group header.
 func (b *Backend) DisplayName() string { return b.name }
 
-// Capabilities returns the cached bitmask. Initial value comes from
-// optimisticCaps(flavor); Probe() refines it once the API has been hit.
-// Reads are guarded by a RWMutex so concurrent UI queries don't race
-// against an in-flight probe.
 func (b *Backend) Capabilities() domain.Capabilities {
 	b.capsMu.RLock()
 	defer b.capsMu.RUnlock()
 	return b.caps
 }
 
-// Workspaces lists every workspace in the configured organization. Pages are
-// flattened into one slice; M4's typical organizations have low-thousands of
-// workspaces — we'll add lazy pagination if that becomes an issue.
+// Workspaces lists every workspace in the org, flattening pages.
 func (b *Backend) Workspaces(ctx context.Context) ([]domain.Workspace, error) {
 	var out []domain.Workspace
 	page := 1
 	for {
 		opts := &tfe.WorkspaceListOptions{
 			ListOptions: tfe.ListOptions{PageNumber: page, PageSize: 100},
-			// Pull the project relation in the same request so the sidebar
-			// can show the workspace's project name without a per-workspace
-			// follow-up read. OTF supports the `project` include since
-			// v0.3.x; older deployments will return workspaces with a nil
-			// Project relation, and we fall back to the org name then.
+			// Include the project relation in the same call so the
+			// sidebar can show project names without per-workspace
+			// reads. OTF before v0.3 returns nil Project; we fall back
+			// to the org name then.
 			Include: []tfe.WSIncludeOpt{tfe.WSProject},
 		}
 		list, err := b.client.Workspaces.List(ctx, b.organization, opts)
@@ -182,8 +157,6 @@ func (b *Backend) Workspaces(ctx context.Context) ([]domain.Workspace, error) {
 	return out, nil
 }
 
-// Workspace looks up a single workspace by ID. Uses the WithOptions variant
-// so the project relation is included — same rationale as the list call.
 func (b *Backend) Workspace(ctx context.Context, id string) (domain.Workspace, error) {
 	ws, err := b.client.Workspaces.ReadByIDWithOptions(ctx, id, &tfe.WorkspaceReadOptions{
 		Include: []tfe.WSIncludeOpt{tfe.WSProject},
@@ -194,11 +167,8 @@ func (b *Backend) Workspace(ctx context.Context, id string) (domain.Workspace, e
 	return b.toWorkspace(ws), nil
 }
 
-// StartRun is implemented in run.go.
-
-// Runs returns past runs for one workspace, oldest first. Wired through the
-// runListing interface in the UI; the local backend implements the same
-// contract from the on-disk ndjson history.
+// Runs returns past runs for a workspace, oldest first (matches the
+// local backend's history shape).
 func (b *Backend) Runs(ctx context.Context, workspaceID string) ([]domain.Run, error) {
 	var out []domain.Run
 	page := 1
@@ -239,16 +209,12 @@ func (b *Backend) toRun(r *tfe.Run, workspaceID string) domain.Run {
 		Status:      status,
 		Message:     r.Message,
 		CreatedAt:   r.CreatedAt,
-		UpdatedAt:   r.CreatedAt, // TFE doesn't expose updated-at on the list payload
+		UpdatedAt:   r.CreatedAt, // TFE list payload doesn't expose updated-at
 	}
 }
 
-// LoadState fetches the workspace's current state version, prefers the
-// JSON download URL (Terraform 1.3+) and falls back to the binary state
-// download. Returns *tfjson.State so the State tab widget renders unchanged.
-//
-// Implements the same `stateLoader` interface the local backend type-asserts
-// against — see internal/ui/window/window.go.
+// LoadState prefers the JSON download URL (Terraform 1.3+) and falls
+// back to the binary state download.
 func (b *Backend) LoadState(parent context.Context, workspaceID string) (*tfjsonState, error) {
 	ctx, cancel := context.WithTimeout(parent, 30*time.Second)
 	defer cancel()
@@ -281,15 +247,11 @@ func (b *Backend) LoadState(parent context.Context, workspaceID string) (*tfjson
 	return &state, nil
 }
 
-// Close is a no-op — *tfe.Client uses pooled net/http and has nothing to
-// release.
 func (b *Backend) Close() error { return nil }
 
 func (b *Backend) toWorkspace(ws *tfe.Workspace) domain.Workspace {
-	// Prefer the workspace's TFE/OTF project name (e.g. "infra-prod"); fall
-	// back to the org name when the API didn't surface a project relation —
-	// older OTF versions, or workspaces left in the org's default project
-	// without an explicit project assignment.
+	// Older OTF or default-project workspaces have nil Project; fall
+	// back to the org name then.
 	projectName := b.organization
 	var projectID string
 	if ws.Project != nil && ws.Project.Name != "" {

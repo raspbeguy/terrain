@@ -8,22 +8,12 @@ import (
 	tfjson "github.com/hashicorp/terraform-json"
 )
 
-// StateTree renders a parsed Terraform/OpenTofu state. Each resource is an
-// AdwExpanderRow titled by its address; expanding shows its attributes as
-// child action rows. Modules nest under their parent.
-//
-// Like PlanDiff, this is a simple AdwPreferencesPage rather than a
-// virtualized GtkColumnView — fine for the typical low-thousands resource
-// counts we expect locally.
 type StateTree struct {
 	scroller *gtk.ScrolledWindow
 	body     *gtk.Box
-
-	status *adw.StatusPage
+	status   *adw.StatusPage
 }
 
-// NewStateTree creates an empty state tree showing a placeholder until the
-// first Bind call.
 func NewStateTree() *StateTree {
 	body := gtk.NewBox(gtk.OrientationVertical, 0)
 	body.SetHExpand(true)
@@ -48,11 +38,8 @@ func NewStateTree() *StateTree {
 	}
 }
 
-// Root returns the top-level widget for embedding.
 func (st *StateTree) Root() *gtk.ScrolledWindow { return st.scroller }
 
-// Bind replaces the current view with a tree built from state. nil shows
-// the empty placeholder; an empty state shows the "no resources" page.
 func (st *StateTree) Bind(state *tfjson.State) {
 	st.clear()
 
@@ -91,9 +78,6 @@ func (st *StateTree) Bind(state *tfjson.State) {
 	st.body.Append(page)
 }
 
-// SetError shows an error message in place of the tree. Used when loading
-// state fails (e.g. tofu show -json fails because the backend isn't
-// initialized).
 func (st *StateTree) SetError(message string) {
 	st.clear()
 	st.status.SetTitle("Couldn't load state")

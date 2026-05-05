@@ -1,6 +1,4 @@
-// Package widgets holds reusable GTK composites that need too much logic to
-// live in Blueprint. The log view, plan diff (M3), and state tree (M3) all
-// land here.
+// Package widgets holds GTK composites with too much logic for Blueprint.
 package widgets
 
 import (
@@ -12,25 +10,16 @@ import (
 	"github.com/raspbeguy/terrain/internal/domain"
 )
 
-// LogView is a read-only, monospaced log pane with autoscroll-to-bottom
-// behaviour. Pairs with bridge.PumpRun on the consumer side: each LogLine
-// arriving on the GTK main thread is appended via Append.
-//
-// Coloring uses Pango markup spans embedded in the buffer (red errors, amber
-// warnings, dimmed debug) — gotk4's TextTag property surface is awkward, and
-// markup gives equivalent results at a fraction of the code.
+// LogView: read-only monospaced log pane that autoscrolls when the
+// viewport is at the tail. Coloring uses Pango markup (TextTag would work
+// but is awkward in gotk4).
 type LogView struct {
-	scroller *gtk.ScrolledWindow
-	view     *gtk.TextView
-	buf      *gtk.TextBuffer
-
-	// stickToBottom tracks whether the viewport sits at the tail. When true,
-	// Append scrolls back to the bottom; when false (user pulled away), we
-	// don't fight their scroll position.
+	scroller      *gtk.ScrolledWindow
+	view          *gtk.TextView
+	buf           *gtk.TextBuffer
 	stickToBottom bool
 }
 
-// NewLogView builds an empty log view ready to embed.
 func NewLogView() *LogView {
 	view := gtk.NewTextView()
 	view.SetEditable(false)
@@ -63,11 +52,9 @@ func NewLogView() *LogView {
 	return lv
 }
 
-// Root returns the top-level widget for embedding.
 func (lv *LogView) Root() *gtk.ScrolledWindow { return lv.scroller }
 
-// Append adds one log line, formatting it based on the parsed JSON metadata
-// when available. Must be called on the GTK main thread.
+// Append must be called on the GTK main thread.
 func (lv *LogView) Append(line domain.LogLine) {
 	markup, ok := renderLine(line)
 	if !ok {
@@ -84,14 +71,12 @@ func (lv *LogView) Append(line domain.LogLine) {
 	}
 }
 
-// Clear empties the buffer.
 func (lv *LogView) Clear() {
 	start, end := lv.buf.Bounds()
 	lv.buf.Delete(start, end)
 }
 
-// renderLine formats a LogLine as Pango markup. Returns false for empty
-// lines we want to skip entirely.
+// renderLine returns false for lines that should be skipped.
 func renderLine(line domain.LogLine) (string, bool) {
 	text := pickDisplay(line)
 	if text == "" {

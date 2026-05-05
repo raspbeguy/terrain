@@ -1,6 +1,5 @@
-// Package ui hosts the GTK-side of Terrain. The boundary rule: this package
-// (and its subpackages) is the only place allowed to import gotk4. Domain
-// and backend code stays headless.
+// Package ui hosts the GTK-side of terrain. Boundary rule: ui (and
+// subpackages) is the only place allowed to import gotk4.
 package ui
 
 import (
@@ -18,12 +17,8 @@ import (
 	"github.com/raspbeguy/terrain/internal/ui/window"
 )
 
-// AppID is the reverse-DNS application identifier registered with the
-// session bus and matched against the .desktop file.
 const AppID = "io.github.raspbeguy.Terrain"
 
-// App owns the AdwApplication and the live state derived from the on-disk
-// config (backends, window). One App per process.
 type App struct {
 	app *adw.Application
 
@@ -33,8 +28,6 @@ type App struct {
 	locks    *runner.WorkspaceLocks
 }
 
-// NewApp constructs the application but does not run the main loop. Call
-// Run to start.
 func NewApp() *App {
 	return &App{
 		app:   adw.NewApplication(AppID, gio.ApplicationFlagsNone),
@@ -42,17 +35,16 @@ func NewApp() *App {
 	}
 }
 
-// Run blocks until the application exits. Returns the GApplication exit code.
+// Run blocks until the application exits.
 func (a *App) Run(args []string) int {
 	a.app.ConnectActivate(a.onActivate)
 	a.registerActions()
 	return a.app.Run(args)
 }
 
-// registerActions wires the global "app." actions referenced from the
-// Blueprint definitions. Activate handlers may run before onActivate (e.g.
-// from the command line via `gapplication action`) so they must not assume
-// the window exists.
+// registerActions wires "app.*" actions referenced from Blueprint.
+// Handlers may fire before onActivate (e.g. via `gapplication action`)
+// so they must not assume the window exists.
 func (a *App) registerActions() {
 	addLocal := gio.NewSimpleAction("add-local-project", nil)
 	addLocal.ConnectActivate(func(_ *glib.Variant) {
@@ -84,10 +76,6 @@ func (a *App) registerActions() {
 	})
 	a.app.AddAction(quit)
 
-	// Keyboard shortcuts. <Primary> is Ctrl on Linux/X, Cmd on macOS — gtk
-	// resolves it per platform. We bind the basics that have analogues in
-	// every GNOME app; per-tab shortcuts (F5 to refresh active tab, etc.)
-	// can come once we have a focus tracker.
 	a.app.SetAccelsForAction("app.quit", []string{"<Primary>q"})
 	a.app.SetAccelsForAction("app.preferences", []string{"<Primary>comma"})
 	a.app.SetAccelsForAction("app.add-local-project", []string{"<Primary>n"})
@@ -99,13 +87,11 @@ func (a *App) onActivate() {
 	cfg, err := config.Load()
 	if err != nil {
 		slog.Error("load config", "err", err)
-		// Fall through with defaults — first-run state is fine without a config
 		cfg = &config.Config{}
 	}
 	a.cfg = cfg
 
-	// One-shot migration: if any backend still has a plaintext token, move
-	// it into the keyring. Idempotent — no-op when nothing to do.
+	// Idempotent migration: any plaintext tokens move to the keyring.
 	if n, err := cfg.MigrateTokens(); err != nil {
 		slog.Warn("token migration", "err", err)
 	} else if n > 0 {
@@ -115,15 +101,11 @@ func (a *App) onActivate() {
 	backends, err := config.BuildBackends(cfg)
 	if err != nil {
 		slog.Error("build backends", "err", err)
-		// Continue with empty backend list; user sees first-run state
 		backends = nil
 	}
 	a.backends = backends
 
-	// Best-effort cleanup of orphan vars.auto.tfvars.json files left from
-	// runs that didn't shut down cleanly. The local backend is the only
-	// kind that writes them; we type-assert to the interface so this stays
-	// future-compatible if other backends ever do similar.
+	// Sweep orphan vars files from runs that didn't shut down cleanly.
 	for _, b := range backends {
 		if cleaner, ok := b.(interface{ CleanupOrphanArtifacts() }); ok {
 			cleaner.CleanupOrphanArtifacts()
@@ -140,9 +122,6 @@ func (a *App) onActivate() {
 	w.Present()
 }
 
-// removeLocalProject is the sidebar kebab "Remove project" callback. Drops
-// the project from the on-disk config, rebuilds the backend registry, and
-// refreshes the sidebar.
 func (a *App) removeLocalProject(ws domain.Workspace) {
 	if a.cfg == nil || a.window == nil {
 		return
@@ -177,9 +156,6 @@ func (a *App) onAddLocalProject() {
 	)
 }
 
-// completeAddLocal persists the picked project to the config and refreshes
-// the sidebar. Runs synchronously on the GTK main thread because it's the
-// continuation of a FileDialog callback (already main-thread).
 func (a *App) completeAddLocal(p dialogs.LocalProject) {
 	if a.cfg == nil {
 		cfg, err := config.Load()
@@ -221,9 +197,6 @@ func (a *App) onPreferences() {
 	prefs.Present(a.window.GtkWindow())
 }
 
-// remoteBackends returns the registered remote backends adapted to the
-// dialogs.RemoteBackend interface. Local backends are filtered out — they
-// have no API to probe.
 func (a *App) remoteBackends() []dialogs.RemoteBackend {
 	var out []dialogs.RemoteBackend
 	for _, b := range a.backends {
@@ -237,10 +210,8 @@ func (a *App) remoteBackends() []dialogs.RemoteBackend {
 	return out
 }
 
-// onVariableSets opens the Variable Sets management dialog. We pick the
-// first local backend in the registry — global varsets aren't tied to any
-// specific local backend, but the dialog needs *some* backend for the CRUD
-// operations (the local backend's varset storage is the canonical store).
+// onVariableSets uses the first local backend (the canonical varset
+// store) since global varsets aren't tied to any specific backend.
 func (a *App) onVariableSets() {
 	if a.window == nil {
 		return
@@ -253,9 +224,6 @@ func (a *App) onVariableSets() {
 	dialogs.PresentVarsets(a.window.GtkWindow(), backend, projects, a.localWorkspaces())
 }
 
-// localWorkspaces returns the flat list of all local workspaces across the
-// registered backends. Used by the variable-sets dialog to populate the
-// workspace-scope attachment list.
 func (a *App) localWorkspaces() []domain.Workspace {
 	var out []domain.Workspace
 	for _, b := range a.backends {
@@ -272,10 +240,9 @@ func (a *App) localWorkspaces() []domain.Workspace {
 	return out
 }
 
-// firstLocalBackend returns the first registered local backend cast to the
-// VarsetsBackend interface, plus its registered projects. Variable sets are
-// local-only for now; remote backends (TFE/HCP/OTF) have their own server-
-// side varsets.
+// firstLocalBackend returns the first registered local backend, the
+// only kind that satisfies VarsetsBackend (remote backends have their
+// own server-side varsets).
 func (a *App) firstLocalBackend() (dialogs.VarsetsBackend, []dialogs.ProjectChoice) {
 	for _, b := range a.backends {
 		if b.Kind() != domain.BackendKindLocal {
@@ -303,9 +270,6 @@ func (a *App) onAddRemoteBackend() {
 	dialogs.AddRemote(a.window.GtkWindow(), a.completeAddRemote)
 }
 
-// completeAddRemote persists the new remote backend and refreshes the
-// sidebar. Listing the remote workspaces happens lazily on the first sidebar
-// row click — the API call could take seconds on a large org.
 func (a *App) completeAddRemote(form dialogs.RemoteForm) {
 	if a.cfg == nil {
 		cfg, err := config.Load()

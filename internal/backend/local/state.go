@@ -12,15 +12,7 @@ import (
 	"github.com/raspbeguy/terrain/internal/domain"
 )
 
-// LoadState runs `<binary> show -json` (no plan file) against the workspace's
-// working directory and decodes the result into *tfjson.State. Used by the
-// State tab in the workspace view; M3 ships this via a direct method on
-// Backend rather than baked into the StartRun stream so the UI can refresh
-// state without triggering a run.
-//
-// The Backend interface itself stays minimal — this is a method on the
-// local backend that the UI uses by type-asserting. M4 adds the equivalent
-// for remote backends via go-tfe's StateVersions.Read.
+// LoadState runs `<binary> show -json` so the State tab can refresh without a run.
 func (b *Backend) LoadState(parent context.Context, workspaceID string) (*tfjson.State, error) {
 	wsCtx, cancel := context.WithTimeout(parent, 5*time.Second)
 	defer cancel()
@@ -54,16 +46,9 @@ func (b *Backend) LoadState(parent context.Context, workspaceID string) (*tfjson
 	return &state, nil
 }
 
-// stateBackend is the optional capability extension we'd promote to the
-// domain.Backend interface in M4 once both local and remote support it.
-// For M3, callers type-assert to this:
 type stateBackend interface {
 	LoadState(ctx context.Context, workspaceID string) (*tfjson.State, error)
 }
 
-// ensure local.Backend satisfies the local-only capability.
 var _ stateBackend = (*Backend)(nil)
-
-// hint to keep domain import used (avoids "imported and not used" if state.go
-// is the only file that doesn't reference it).
 var _ = domain.StatusPending

@@ -13,19 +13,7 @@ import (
 	"github.com/raspbeguy/terrain/internal/secrets"
 )
 
-// secretSentinel is the literal placeholder we write into terraform.tfvars
-// for sensitive variables. The runner detects it at run-materialisation time
-// and resolves the real value from the keyring.
-//
-// Format note: we write a string `null` so terraform parses it as null
-// (effectively absent), with a trailing comment carrying the marker. The
-// hclwrite serializer doesn't preserve trailing comments on simple values
-// reliably across versions, so we also key the keyring lookup off the
-// variable name itself — the comment is informational, not load-bearing.
-const secretSentinel = "@terrain:secret"
-
-// secretKey is the keyring key under which a sensitive workspace variable
-// is stored. Format: var/<backend>/<workspace>/<name>.
+// secretKey: var/<backend>/<workspace>/<name>.
 func secretKey(backendID, workspaceID, name string) string {
 	return "var/" + backendID + "/" + sanitize(workspaceID) + "/" + name
 }
@@ -34,12 +22,8 @@ func sanitize(s string) string {
 	return strings.NewReplacer("/", "_", ":", "_").Replace(s)
 }
 
-// VariablesForWorkspace returns the discovered variables of a workspace,
-// merged with any current overrides in terraform.tfvars. Sensitive values
-// are masked here — the actual plaintext stays in the keyring until a run
-// materialises.
-//
-// This wraps internal/hcl.LoadVariables and adapts to domain.Variable.
+// VariablesForWorkspace masks sensitive values; plaintext stays in the
+// keyring until run-materialise time.
 func (b *Backend) VariablesForWorkspace(_ context.Context, workspaceID string) ([]domain.Variable, error) {
 	ws, err := b.Workspace(context.Background(), workspaceID)
 	if err != nil {
@@ -47,33 +31,28 @@ func (b *Backend) VariablesForWorkspace(_ context.Context, workspaceID string) (
 	}
 	overrides, _ := overridesPath(b.id, workspaceID)
 	hvars, err := hcl.LoadVariablesWithExtras(ws.WorkingDirectory, overrides)
-	if err != nil {
-		// Diagnostics aren't fatal — the loader returns whatever it could
-		// parse alongside the error. We propagate the error so the UI can
-		// surface a banner, but still bind whatever we got.
-	}
+	// LoadVariablesWithExtras returns partial results alongside err so
+	// the UI can show what parsed even if some files didn't.
 	out := make([]domain.Variable, 0, len(hvars))
 	for _, v := range hvars {
 		dv := domain.Variable{
 			Key:         v.Name,
 			Description: v.Description,
 			Category:    domain.VarCategoryTerraform,
-			// SourceFile is set by the HCL loader only when the variable was
-			// found in a `variable "<name>" {}` block — entries that exist
-			// only in terraform.tfvars come back with SourceFile="".
+			// Declared = found in a `variable "<name>" {}` block; tfvars-
+			// only entries come back with SourceFile="".
 			Declared: v.SourceFile != "",
 		}
-		// Best-effort sensitivity flag: the .tfvars value being our sentinel
-		// or a corresponding keyring entry existing both indicate sensitive.
 		if v.Sensitive {
 			dv.Sensitive = true
 		}
+		// Keyring entry implies sensitive even when source didn't say so.
 		if _, kerr := secrets.Get(secretKey(b.id, workspaceID, v.Name)); kerr == nil {
 			dv.Sensitive = true
 		}
 		switch {
 		case dv.Sensitive:
-			dv.Value = "" // never expose
+			dv.Value = ""
 		case v.Override != nil:
 			dv.Value = ctyToString(*v.Override)
 		case v.Default != nil:
@@ -84,19 +63,9 @@ func (b *Backend) VariablesForWorkspace(_ context.Context, workspaceID string) (
 	return out, err
 }
 
-// UpsertVariable writes a workspace variable. Storage by category:
-//
-//   - Plain terraform var: written to the per-workspace overrides tfvars
-//     under $XDG_DATA_HOME/terrain/<backend>/<ws>/overrides.tfvars, NOT the
-//     project's own terraform.tfvars. This keeps terrain-managed values out
-//     of the user's source tree where they could be accidentally committed.
-//   - Sensitive terraform var: keyring only. No on-disk placeholder needed
-//     anymore now that overrides aren't intermingled with the project's
-//     own tfvars; the run materialiser pulls the resolved value from the
-//     keyring and writes it into a 0600 vars.auto.tfvars.json that lives
-//     in the per-run cache dir.
-//   - Env-category var: keyring (with name-only index in env-vars.json).
-//     Exported into the run subprocess env, never written to any tfvars.
+// UpsertVariable routes by category: plain terraform → overrides.tfvars
+// in XDG_DATA_HOME (out of the project tree); sensitive → keyring only,
+// resolved at run time; env → keyring + env-vars.json index.
 func (b *Backend) UpsertVariable(ctx context.Context, workspaceID string, v domain.Variable) error {
 	if _, err := b.Workspace(ctx, workspaceID); err != nil {
 		return err
@@ -107,10 +76,8 @@ func (b *Backend) UpsertVariable(ctx context.Context, workspaceID string, v doma
 		return err
 	}
 
-	// Defensive cleanup: clear keyring entries for the OTHER namespace and
-	// any prior overrides-file entry so a category transition (env↔terraform,
-	// sensitive↔plain) doesn't leave a stale value behind. Idempotent — all
-	// targets accept "missing" gracefully.
+	// Clear all prior storage namespaces so a category transition
+	// (env↔terraform, sensitive↔plain) doesn't leave a stale value.
 	_ = secrets.Delete(secretKey(b.id, workspaceID, v.Key))
 	_ = secrets.Delete(envKey(b.id, workspaceID, v.Key))
 	_ = removeEnvVar(b.id, workspaceID, v.Key)
@@ -130,17 +97,14 @@ func (b *Backend) UpsertVariable(ctx context.Context, workspaceID string, v doma
 		return nil
 	}
 
-	// Plain variable: write the literal to the overrides file.
 	if v.HCL {
 		return hcl.UpsertTfvarFileExpr(overrides, v.Key, v.Value)
 	}
 	return hcl.UpsertTfvarFile(overrides, v.Key, cty.StringVal(v.Value))
 }
 
-// DeleteVariable removes a variable from terrain's overrides file and clears
-// any keyring + env-index entry. Idempotent. Project's own terraform.tfvars
-// is intentionally left alone — terrain doesn't write there, so it shouldn't
-// delete from there either.
+// DeleteVariable is idempotent and never touches the project's own
+// terraform.tfvars (terrain doesn't write there).
 func (b *Backend) DeleteVariable(ctx context.Context, workspaceID, key string) error {
 	if _, err := b.Workspace(ctx, workspaceID); err != nil {
 		return err
@@ -159,9 +123,8 @@ func envKey(backendID, workspaceID, name string) string {
 	return "env/" + backendID + "/" + sanitize(workspaceID) + "/" + name
 }
 
-// ctyToString collapses a cty.Value to its string display. Mirrors the UI
-// helper but lives here so backend-side rendering doesn't depend on the
-// widgets package. Kept best-effort: complex types are JSON-encoded.
+// ctyToString renders a cty.Value as a single-line string. Complex
+// types fall through to canonical HCL via hclwrite.
 func ctyToString(v cty.Value) string {
 	if !v.IsKnown() || v.IsNull() {
 		return ""
@@ -177,8 +140,7 @@ func ctyToString(v cty.Value) string {
 	case cty.Number:
 		return v.AsBigFloat().Text('g', 12)
 	}
-	// Complex types (objects, maps, tuples, lists): serialize as canonical
-	// HCL via hclwrite.TokensForValue, then trim. The result reads like the
-	// user wrote it — `{"a" = "b"}` rather than `cty.ObjectVal(...)`.
+	// hclwrite serialises complex types as canonical HCL — readable
+	// rather than cty.GoString's representation.
 	return strings.TrimSpace(string(hclwrite.TokensForValue(v).Bytes()))
 }

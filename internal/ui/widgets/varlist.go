@@ -9,21 +9,14 @@ import (
 	"github.com/raspbeguy/terrain/internal/domain"
 )
 
-// VarList renders the discovered variables of a workspace as a list of
-// AdwActionRow widgets. Rows are activatable when an OnActivate callback is
-// installed — clicking opens the edit dialog upstream. A kebab suffix adds
-// per-row actions (Remove) when OnRemove is installed.
 type VarList struct {
-	scroller *gtk.ScrolledWindow
-	body     *gtk.Box
-
-	status *adw.StatusPage
-
+	scroller   *gtk.ScrolledWindow
+	body       *gtk.Box
+	status     *adw.StatusPage
 	onActivate func(domain.Variable)
 	onRemove   func(domain.Variable)
 }
 
-// NewVarList builds the widget showing an empty placeholder until Bind.
 func NewVarList() *VarList {
 	body := gtk.NewBox(gtk.OrientationVertical, 0)
 	body.SetHExpand(true)
@@ -44,18 +37,10 @@ func NewVarList() *VarList {
 	return &VarList{scroller: scroller, body: body, status: status}
 }
 
-// Root returns the top-level widget for embedding.
-func (vl *VarList) Root() *gtk.ScrolledWindow { return vl.scroller }
-
-// SetOnActivate registers the callback fired when the user clicks a row.
-// Pass nil to make the list non-interactive.
+func (vl *VarList) Root() *gtk.ScrolledWindow              { return vl.scroller }
 func (vl *VarList) SetOnActivate(fn func(domain.Variable)) { vl.onActivate = fn }
+func (vl *VarList) SetOnRemove(fn func(domain.Variable))   { vl.onRemove = fn }
 
-// SetOnRemove installs the kebab Remove callback; nil hides the kebab.
-func (vl *VarList) SetOnRemove(fn func(domain.Variable)) { vl.onRemove = fn }
-
-// Bind replaces the current view with the supplied list of variables. Empty
-// list shows the placeholder.
 func (vl *VarList) Bind(vars []domain.Variable) {
 	vl.clear()
 	if len(vars) == 0 {
@@ -87,8 +72,6 @@ func (vl *VarList) buildActivatableRow(v domain.Variable) *adw.ActionRow {
 	return row
 }
 
-// buildVarRowKebab returns a MenuButton with a popover offering Remove
-// (or "Reset to default" for source-declared variables).
 func buildVarRowKebab(v domain.Variable, onRemove func(domain.Variable)) *gtk.MenuButton {
 	popover := gtk.NewPopover()
 	popover.SetHasArrow(true)
@@ -115,7 +98,6 @@ func buildVarRowKebab(v domain.Variable, onRemove func(domain.Variable)) *gtk.Me
 	return menu
 }
 
-// SetError replaces the view with an error placeholder.
 func (vl *VarList) SetError(message string) {
 	vl.clear()
 	vl.status.SetIconName("dialog-error-symbolic")
@@ -161,8 +143,7 @@ func buildVarRow(v domain.Variable) *adw.ActionRow {
 		envBadge.SetVAlign(gtk.AlignCenter)
 		row.AddSuffix(envBadge)
 	}
-	// Ad-hoc: tfvars entry with no matching `variable` block in source.
-	// Env-category gets the "env" pill instead, so don't double-flag.
+	// "ad-hoc" = tfvars entry with no matching `variable` block; env category already has its own pill.
 	if !v.Declared && v.Category != domain.VarCategoryEnvironment {
 		adhoc := gtk.NewLabel("ad-hoc")
 		adhoc.AddCSSClass("pill")
@@ -173,9 +154,6 @@ func buildVarRow(v domain.Variable) *adw.ActionRow {
 	return row
 }
 
-// varDisplay returns the row's suffix label: bullets for sensitive, a
-// truncated single-line render for plain (HCL multi-line literals get
-// flattened to one line first), dash for empty.
 func varDisplay(v domain.Variable) string {
 	switch {
 	case v.Sensitive:

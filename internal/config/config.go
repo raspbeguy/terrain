@@ -1,9 +1,6 @@
-// Package config loads and persists Terrain's user-level registry — the list
-// of backends and (for local backends) projects the GUI knows about. Stored
-// at $XDG_CONFIG_HOME/terrain/config.toml.
-//
-// Credentials never live here: secrets are stored in libsecret keyed by
-// "terrain/<backend-id>/<varset-id>/<key>" or similar.
+// Package config loads and persists $XDG_CONFIG_HOME/terrain/config.toml
+// — the registry of backends and projects. Credentials live in
+// libsecret, not here.
 package config
 
 import (
@@ -19,8 +16,6 @@ import (
 	"github.com/raspbeguy/terrain/internal/secrets"
 )
 
-// Config is the on-disk shape. Field names are TOML-tagged; struct field
-// names follow Go conventions.
 type Config struct {
 	App      AppConfig       `toml:"app"`
 	Backends []BackendConfig `toml:"backend"`
@@ -45,40 +40,31 @@ type AppConfig struct {
 	DefaultImageTerraform string `toml:"default_image_terraform"`
 }
 
-// BackendConfig describes one entry in the registry. Local and remote share
-// the same struct because we want users to add either kind through the same
-// flow; unused fields stay empty.
+// BackendConfig is a single registry entry; local and remote share the
+// struct, unused fields stay empty.
 type BackendConfig struct {
 	ID   string `toml:"id"`
 	Type string `toml:"type"` // "local" or "remote"
 	Name string `toml:"name"`
 
-	// Local-only:
 	Projects []ProjectConfig `toml:"projects,omitempty"`
 
-	// Remote-only:
 	Endpoint     string `toml:"endpoint,omitempty"`
 	Organization string `toml:"organization,omitempty"`
 	Flavor       string `toml:"flavor,omitempty"` // "otf", "hcp", "tfe"
 
-	// Token is the API credential. Preferred storage is the system keyring
-	// (libsecret on Linux); if the keyring is unavailable AddRemoteBackend
-	// falls back to writing this field plaintext, with a warning logged so
-	// the user knows. Empty here AND no keyring entry means we'll try the
-	// TFE_TOKEN env var at backend-construction time.
+	// Token plaintext is a fallback when libsecret is unreachable;
+	// AddRemoteBackend writes this with a logged warning. Resolve via
+	// ResolveToken (keyring first); empty + no keyring → try TFE_TOKEN.
 	Token string `toml:"token,omitempty"`
 }
 
-// ProjectConfig is a registered local project — a directory containing .tf
-// files. M1 ships one workspace ("default") per project; M2 will discover
-// real workspace lists via `tofu workspace list`.
 type ProjectConfig struct {
 	ID   string `toml:"id"`
 	Name string `toml:"name"`
 	Path string `toml:"path"`
 }
 
-// Path returns the full path to the config file, honouring XDG_CONFIG_HOME.
 func Path() (string, error) {
 	base, err := os.UserConfigDir()
 	if err != nil {
@@ -87,8 +73,7 @@ func Path() (string, error) {
 	return filepath.Join(base, "terrain", "config.toml"), nil
 }
 
-// Load reads the config from disk. Returns a default Config when the file
-// doesn't exist yet (first run); other read/parse errors propagate.
+// Load returns a default Config when the file doesn't exist (first run).
 func Load() (*Config, error) {
 	path, err := Path()
 	if err != nil {
@@ -123,8 +108,7 @@ func Load() (*Config, error) {
 	return c, nil
 }
 
-// Save writes the config back to disk, creating $XDG_CONFIG_HOME/terrain/ if
-// needed. Atomic via write-rename.
+// Save writes via temp-file + rename.
 func (c *Config) Save() error {
 	path, err := Path()
 	if err != nil {
@@ -154,14 +138,9 @@ func (c *Config) Save() error {
 	return nil
 }
 
-// AddRemoteBackend appends a new remote backend (OTF/HCP/TFE) and persists.
-// Each call creates a distinct backend entry — users can register multiple
-// remote backends (e.g. an OTF dev instance and a separate prod TFE).
-//
-// Token storage prefers the system keyring; on keyring failure it logs a
-// warning and falls back to writing the token plaintext into config.toml so
-// the workflow still works on minimal/headless setups (CI, containers
-// without D-Bus).
+// AddRemoteBackend prefers libsecret for token storage; on keyring
+// failure it falls back to plaintext in config.toml with a logged
+// warning so headless/CI setups still work.
 func (c *Config) AddRemoteBackend(name, flavor, endpoint, organization, token string) (BackendConfig, error) {
 	bc := BackendConfig{
 		ID:           "remote-" + newID(),
@@ -182,9 +161,8 @@ func (c *Config) AddRemoteBackend(name, flavor, endpoint, organization, token st
 	return bc, c.Save()
 }
 
-// ResolveToken returns the token for one backend, preferring keyring storage
-// over plaintext. Returns "" if neither has a value (caller falls back to
-// env var or rejects the backend).
+// ResolveToken prefers keyring over plaintext; "" means the caller
+// should try TFE_TOKEN env or reject the backend.
 func (bc BackendConfig) ResolveToken() string {
 	if v, err := secrets.Get(secrets.TokenKey(bc.ID)); err == nil && v != "" {
 		return v
@@ -192,18 +170,9 @@ func (bc BackendConfig) ResolveToken() string {
 	return bc.Token
 }
 
-// MigrateTokens walks the backends and, for any with a non-empty plaintext
-// Token field, tries to move that value into the system keyring. On success
-// the plaintext is cleared from the in-memory config and persisted, leaving
-// the keyring as the sole source.
-//
-// Idempotent: backends without a plaintext token are skipped; backends
-// that already have a keyring entry get the keyring entry refreshed
-// (defensive, in case of partial earlier migrations).
-//
-// Failures are non-fatal — if the keyring is unreachable we leave the
-// plaintext in place and log a warning. Returns the number of tokens
-// successfully migrated.
+// MigrateTokens moves plaintext tokens into the keyring and clears them
+// from config.toml. Idempotent and best-effort: keyring failures leave
+// the plaintext in place with a logged warning.
 func (c *Config) MigrateTokens() (int, error) {
 	if c == nil {
 		return 0, nil
@@ -238,12 +207,9 @@ func (c *Config) MigrateTokens() (int, error) {
 	return migrated, nil
 }
 
-// RemoveLocalProject removes the project with the given ID from the local
-// backend in the config and persists. If removal leaves the local backend
-// with no projects, the local backend itself is dropped from the registry.
-// Returns domain-style sentinel ErrProjectNotFound if no matching project
-// exists. Does NOT touch on-disk artifacts (cache, state versions, keyring)
-// — those persist so re-adding the same path keeps run history visible.
+// RemoveLocalProject drops the local backend entirely if its last
+// project is removed. On-disk artifacts (cache, state versions,
+// keyring) are NOT touched — re-adding the same path keeps history.
 func (c *Config) RemoveLocalProject(projectID string) error {
 	for bi, bc := range c.Backends {
 		if bc.Type != "local" {
@@ -263,14 +229,12 @@ func (c *Config) RemoveLocalProject(projectID string) error {
 	return ErrProjectNotFound
 }
 
-// ErrProjectNotFound is returned by RemoveLocalProject when the project ID
-// isn't registered. Distinct from a save error so callers can distinguish a
-// stale UI request from a disk failure.
+// ErrProjectNotFound distinguishes a stale UI request from a disk
+// failure in RemoveLocalProject.
 var ErrProjectNotFound = errors.New("project not found")
 
-// AddLocalBackend appends a new local backend with one project, persisting
-// immediately. If a local backend already exists in the config, the project
-// is appended to it (one local backend per registry).
+// AddLocalProject reuses the existing local backend if any (one local
+// backend per registry); creates one otherwise.
 func (c *Config) AddLocalProject(name, path string) (BackendConfig, ProjectConfig, error) {
 	abs, err := filepath.Abs(path)
 	if err != nil {

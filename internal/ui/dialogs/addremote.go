@@ -16,8 +16,6 @@ import (
 
 const addRemoteResource = "/io/github/raspbeguy/Terrain/add-remote.ui"
 
-// RemoteForm is the validated payload returned to the caller after the user
-// hits Add. Callers persist it via config.AddRemoteBackend.
 type RemoteForm struct {
 	Name         string
 	Flavor       remote.Flavor
@@ -26,8 +24,6 @@ type RemoteForm struct {
 	Token        string
 }
 
-// AddRemote presents the Add Remote Backend dialog. onSubmitted runs once
-// the user accepts. Cancellation drops silently.
 func AddRemote(parent *gtk.Window, onSubmitted func(RemoteForm)) {
 	builder := gtk.NewBuilderFromResource(addRemoteResource)
 
@@ -42,20 +38,17 @@ func AddRemote(parent *gtk.Window, onSubmitted func(RemoteForm)) {
 	cancelBtn := uihelpers.MustCast[*gtk.Button](builder, "add_remote_cancel_button")
 	addBtn := uihelpers.MustCast[*gtk.Button](builder, "add_remote_add_button")
 
-	// Endpoint visibility is driven by flavor: HCP has a fixed endpoint;
-	// TFE/OTF require an explicit URL.
+	// HCP has a fixed endpoint; TFE/OTF need an explicit URL.
 	updateEndpointVisibility := func() {
 		switch flavorIndex(flavorRow) {
-		case 0: // HCP
+		case 0:
 			endpointRow.SetVisible(false)
-		default: // TFE, OTF
+		default:
 			endpointRow.SetVisible(true)
 		}
 	}
 	updateEndpointVisibility()
 
-	// Form completeness check — Add button enabled only when minimal fields
-	// are populated.
 	updateAddSensitivity := func() {
 		ok := strings.TrimSpace(nameRow.Text()) != "" &&
 			strings.TrimSpace(orgRow.Text()) != "" &&
@@ -130,8 +123,6 @@ func AddRemote(parent *gtk.Window, onSubmitted func(RemoteForm)) {
 				resultMsg = "✓ connected to " + form.Organization
 				slog.Info("remote test connection ok", "org", form.Organization)
 			}
-			// Marshal back to UI thread — but we're not pumping through bridge
-			// for one-off async UI updates. Use glib.IdleAdd directly here.
 			updateStatus(statusRow, resultMsg)
 		}()
 	})
@@ -168,22 +159,8 @@ func flavorFromIndex(i uint) remote.Flavor {
 	return remote.FlavorHCP
 }
 
-// updateStatus marshals a string update to the GTK main thread. We don't
-// route through bridge here because this is a one-shot interaction (Test
-// Connection's reply) rather than a streaming domain event.
+// updateStatus marshals to the GTK main thread; one-shot, doesn't fit bridge's stream shape.
 func updateStatus(row *adw.ActionRow, msg string) {
-	// We need glib.IdleAdd from within an async closure. The bridge package
-	// would be the canonical place; for a single update we inline rather
-	// than expanding bridge's surface for non-domain events.
-	idleSetSubtitle(row, msg)
-}
-
-func idleSetSubtitle(row *adw.ActionRow, msg string) {
-	// Use the gotk4 glib package directly. Imported via blank to avoid
-	// pulling glib symbols into this file's namespace; the bridge package
-	// is the only "approved" location, but this is a contained one-off.
 	glibIdleAdd(func() { row.SetSubtitle(msg) })
 }
-
-// glibIdleAdd is wired in addremote_idle.go to keep the import isolated.
 

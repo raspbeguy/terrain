@@ -8,25 +8,9 @@ import (
 	"path/filepath"
 )
 
-// CleanupOrphanArtifacts walks this backend's run-artifact directory and
-// deletes any leftover sensitive files from runs that didn't complete
-// cleanly (app crashed, OOM kill, SIGKILL).
-//
-// Specifically: every `vars.auto.tfvars` (or its old `.json` sibling
-// from before the HCL switch) under
-// $XDG_CACHE_HOME/terrain/<backend>/<workspace>/runs/<run>/ — these are
-// written 0600 with materialised secret values and normally deleted via
-// `defer os.Remove` when the run worker exits. If the process dies before
-// the defer runs, the file lingers.
-//
-// Called once at app startup per local backend. Best-effort: failures are
-// logged but never propagated; we never want a stale-file-cleanup to block
-// the app from launching.
-//
-// Single-instance assumption: this app isn't designed to run two copies
-// concurrently. If it ever needs to, replace this with per-pid tracking
-// (write a sibling .pid file at materialise time, only delete files whose
-// pid is no longer alive).
+// CleanupOrphanArtifacts deletes leftover materialized vars files from runs
+// killed before their `defer os.Remove` ran. Best-effort startup pass;
+// assumes single-instance — concurrent app copies would need pid tracking.
 func (b *Backend) CleanupOrphanArtifacts() {
 	cacheHome, err := os.UserCacheDir()
 	if err != nil {
@@ -34,7 +18,7 @@ func (b *Backend) CleanupOrphanArtifacts() {
 	}
 	root := filepath.Join(cacheHome, "terrain", b.id)
 	if _, err := os.Stat(root); errors.Is(err, fs.ErrNotExist) {
-		return // nothing to clean
+		return
 	}
 
 	patterns := []string{

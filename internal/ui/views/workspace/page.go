@@ -1,6 +1,5 @@
-// Package workspace owns the per-workspace detail view: tabs for Overview,
-// Runs, Variables, and State. Each tab is mostly empty in M1 — content fills
-// in at M2 (runs), M3 (variables, state).
+// Package workspace owns the per-workspace detail view (Overview / Runs
+// / Variables / State tabs).
 package workspace
 
 import (
@@ -17,9 +16,7 @@ import (
 
 const uiResource = "/io/github/raspbeguy/Terrain/workspace-detail.ui"
 
-// Page is the workspace detail widget. Bind() updates it from a Workspace
-// model; the same Page instance is reused as the user clicks between
-// workspaces.
+// Page is reused across workspaces; Bind() updates it.
 type Page struct {
 	root *gtk.Box
 
@@ -43,12 +40,10 @@ type Page struct {
 	stateTree *widgets.StateTree
 	varList   *widgets.VarList
 
-	// stateVersions holds the currently displayed list, indexed by combo
-	// position (0 = live; 1+ = snapshot in display order). Cached so the
-	// version-changed handler can look up by index.
+	// stateVersions index matches the combo position (0 = live; 1+ =
+	// snapshots in display order).
 	stateVersions []domain.StateVersion
-
-	// runs holds the current displayed list — index matches ListBoxRow.Index().
+	// runs index matches ListBoxRow.Index().
 	runs []domain.Run
 
 	current             domain.Workspace
@@ -70,15 +65,13 @@ func (p *Page) SetOnOpenSettings(fn func(domain.Workspace)) {
 	p.onOpenSettings = fn
 }
 
-// LineageWarning is returned by the load-state-versions callback when the
-// most recent snapshot's lineage differs from the previous one — typically
-// the result of a `tofu init -reconfigure` or state surgery.
+// LineageWarning flags a state-tree replacement (state rm + import,
+// `tofu init -reconfigure`).
 type LineageWarning struct {
 	From string
 	To   string
 }
 
-// New loads the workspace detail layout from gresource.
 func New() *Page {
 	builder := gtk.NewBuilderFromResource(uiResource)
 	p := &Page{
@@ -158,57 +151,36 @@ func New() *Page {
 	return p
 }
 
-// SetOnNewPlan wires the callback for the "New Plan" button. Window owns
-// run lifecycle, so it sets this once after New().
 func (p *Page) SetOnNewPlan(fn func(domain.Workspace)) { p.onNewPlan = fn }
 
-// SetOnLoadState wires the callback the State tab uses to fetch the current
-// state. The callback runs synchronously and may take seconds; we accept
-// that for now since `tofu show -json` is fast on local backends.
 func (p *Page) SetOnLoadState(fn func(domain.Workspace) (*tfjson.State, error)) {
 	p.onLoadState = fn
 }
 
-// SetOnLoadStateVersions wires the callback that returns the available
-// state-version snapshots for a workspace, plus an optional lineage
-// warning when the most recent snapshot's lineage differs from its
-// predecessor.
 func (p *Page) SetOnLoadStateVersions(fn func(domain.Workspace) ([]domain.StateVersion, *LineageWarning, error)) {
 	p.onLoadStateVersions = fn
 }
 
-// SetOnLoadStateVersion wires the callback that fetches one specific
-// snapshot's state JSON. Called when the user picks a non-Live entry from
-// the version combo.
 func (p *Page) SetOnLoadStateVersion(fn func(domain.Workspace, string) (*tfjson.State, error)) {
 	p.onLoadStateVersion = fn
 }
 
-// SetOnCompareStates wires the "Compare…" button. Window opens the
-// compare-versions dialog with the given workspace + already-loaded
-// version list.
 func (p *Page) SetOnCompareStates(fn func(domain.Workspace, []domain.StateVersion)) {
 	p.onCompareStates = fn
 }
 
-// SetOnLoadRuns wires the callback used to populate the Runs tab.
 func (p *Page) SetOnLoadRuns(fn func(domain.Workspace) ([]domain.Run, error)) {
 	p.onLoadRuns = fn
 }
 
-// SetOnLoadVariables wires the callback the Variables tab uses to read
-// declared variables and current overrides.
 func (p *Page) SetOnLoadVariables(fn func(domain.Workspace) ([]domain.Variable, error)) {
 	p.onLoadVars = fn
 }
 
-// SetOnEditVariable wires the row-click callback for the Variables list.
-// The window opens the edit dialog and routes the save through the backend.
 func (p *Page) SetOnEditVariable(fn func(domain.Workspace, domain.Variable)) {
 	p.onEditVar = fn
 }
 
-// SetOnAddVariable wires the "Add Variable" button.
 func (p *Page) SetOnAddVariable(fn func(domain.Workspace)) {
 	p.onAddVar = fn
 }
@@ -226,11 +198,8 @@ func (p *Page) SetOnRemoveVariable(fn func(domain.Workspace, domain.Variable)) {
 	})
 }
 
-// RefreshVariables exposes the internal refresh hook so callers (window)
-// can re-pull the list after a save without touching unexported state.
 func (p *Page) RefreshVariables() { p.refreshVariables() }
 
-// SetOnOpenRun wires the callback fired when the user clicks a run row.
 func (p *Page) SetOnOpenRun(fn func(domain.Workspace, domain.Run)) {
 	p.onOpenRun = fn
 }
@@ -255,12 +224,8 @@ func (p *Page) refreshState() {
 	p.stateTree.Bind(state)
 }
 
-// refreshStateVersionList rebuilds the version combo's StringList from the
-// backend's snapshot list. Always puts "Live" at index 0, snapshots at 1+.
-// Updates the lineage banner based on the warning the loader returns.
 func (p *Page) refreshStateVersionList() {
 	if p.onLoadStateVersions == nil {
-		// No loader → just expose Live as the only option, hide banner.
 		p.stateVersions = nil
 		p.populateStateVersionCombo(nil)
 		p.stateBanner.SetRevealed(false)
@@ -301,8 +266,7 @@ func (p *Page) populateStateVersionCombo(versions []domain.StateVersion) {
 func (p *Page) onStateVersionChanged() {
 	idx := int(p.stateVersionCombo.Selected())
 	if idx <= 0 {
-		// Live: re-fetch via the live loader so the user sees the freshest
-		// state, not the cached version.
+		// Live: re-fetch so the freshest state shows, not a cached one.
 		if p.onLoadState != nil && p.current.ID != "" {
 			state, err := p.onLoadState(p.current)
 			if err != nil {
@@ -330,8 +294,7 @@ func (p *Page) onStateVersionChanged() {
 	p.stateTree.Bind(state)
 }
 
-// intToString is a tiny formatter so we don't drag strconv just for a
-// status row; same idea as the dialog's local itoa.
+// intToString avoids dragging in strconv just for a status-row formatter.
 func intToString(n int64) string {
 	if n == 0 {
 		return "0"
@@ -386,10 +349,9 @@ func (p *Page) refreshVariables() {
 	p.varList.Bind(vars)
 }
 
-// bindRuns populates the Runs list. Newest first (history is appended in
-// chronological order, so we reverse on display).
+// bindRuns reverses the chronological list (newest at top) and tags
+// plan rows whose plan file was consumed by an apply.
 func (p *Page) bindRuns(runs []domain.Run) {
-	// Reverse the chronological list so newest is at top.
 	reversed := make([]domain.Run, len(runs))
 	for i, r := range runs {
 		reversed[len(runs)-1-i] = r
@@ -405,14 +367,10 @@ func (p *Page) bindRuns(runs []domain.Run) {
 		return
 	}
 
-	// Cross-index: which plan files were consumed by an apply run?
-	// Successful AND errored applies both count as "the user attempted to
-	// apply this plan" — the plan stops being a pure dry-run inspection.
-	// Lets us mark plan rows that aren't just hypothetical changes.
+	// runs is oldest-first, so the latest apply attempt wins.
 	appliedPlans := map[string]domain.RunStatus{}
 	for _, r := range runs {
 		if r.Kind == domain.RunKindApply && r.PlanFile != "" {
-			// Latest apply attempt wins — runs comes in oldest-first.
 			appliedPlans[r.PlanFile] = r.Status
 		}
 	}
@@ -434,13 +392,8 @@ func (p *Page) onRunRowActivated(row *gtk.ListBoxRow) {
 	}
 }
 
-// buildRunRow renders one history entry as an AdwActionRow with status
-// glyph, run kind, age, and (if errored) the error message as subtitle.
-//
-// appliedPlans maps PlanFile path → terminal status of the apply run that
-// consumed it. Plan/destroy rows whose plan file was applied get a
-// "→ applied" or "→ apply errored" suffix badge so users can tell at a
-// glance which plans turned into real changes.
+// buildRunRow attaches an outcome badge (→ applied / errored / canceled)
+// when r's plan file was consumed by a later apply.
 func buildRunRow(r domain.Run, appliedPlans map[string]domain.RunStatus) *adw.ActionRow {
 	row := adw.NewActionRow()
 	row.SetTitle(string(r.Kind) + " · " + r.ID[:min(12, len(r.ID))])
@@ -466,9 +419,6 @@ func buildRunRow(r domain.Run, appliedPlans map[string]domain.RunStatus) *adw.Ac
 	return row
 }
 
-// planOutcomeBadge renders the short label shown on a plan row indicating
-// the outcome of the apply that consumed it. Errored / canceled apply rows
-// still get a marker so the user knows the plan wasn't a passive inspection.
 func planOutcomeBadge(applyStatus domain.RunStatus) string {
 	switch applyStatus {
 	case domain.StatusApplied:
@@ -533,19 +483,14 @@ func min(a, b int) int {
 	return b
 }
 
-// Root returns the top-level widget for embedding into a parent container.
 func (p *Page) Root() *gtk.Box { return p.root }
 
-// Bind populates the view from a Workspace. Called every time the user
-// navigates to a different workspace. Refreshes the Runs list eagerly so the
-// user sees past runs when they open a workspace.
 func (p *Page) Bind(ws domain.Workspace) {
 	slog.Debug("workspace bind", "id", ws.ID, "project", ws.ProjectName)
 	p.current = ws
 	p.pathRow.SetSubtitle(displayOrDash(ws.WorkingDirectory))
 	p.engineRow.SetSubtitle(displayOrDash(ws.ExecutionMode))
 	p.versionRow.SetSubtitle(displayOrDash(ws.TerraformVersion))
-	// Resources / serial fill in once we have state — M3.
 	p.refreshRuns()
 	p.refreshVariables()
 }

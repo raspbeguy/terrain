@@ -16,14 +16,9 @@ import (
 	"github.com/raspbeguy/terrain/internal/secrets"
 )
 
-// varsetManifest is the on-disk shape of a variable set. One file per set
-// at $XDG_CONFIG_HOME/terrain/varsets/<id>.json. We store names + values
-// inline; sensitive values get the @secret sentinel and the real value lives
-// in libsecret keyed by varsetSecretKey().
-//
-// Keeping each set in its own file (rather than one omnibus index file)
-// keeps manual edits / deletes / renames simple, and limits blast radius
-// when one file gets corrupted.
+// varsetManifest is one file per set at
+// $XDG_CONFIG_HOME/terrain/varsets/<id>.json — easier to edit/delete by
+// hand than an omnibus index, and one corrupt file doesn't break the rest.
 type varsetManifest struct {
 	ID          string            `json:"id"`
 	Name        string            `json:"name"`
@@ -72,10 +67,8 @@ func varsetPath(id string) (string, error) {
 	return filepath.Join(dir, id+".json"), nil
 }
 
-// VariableSets returns all global variable sets the local backend knows
-// about. We scan the varsets directory; corrupt files are skipped silently
-// (with a warning logged in the runner) so one bad file doesn't break the
-// management page.
+// VariableSets skips corrupt manifests so one bad file doesn't break
+// the management page.
 func (b *Backend) VariableSets(_ context.Context) ([]domain.VariableSet, error) {
 	dir, err := varsetsDir()
 	if err != nil {
@@ -105,7 +98,6 @@ func (b *Backend) VariableSets(_ context.Context) ([]domain.VariableSet, error) 
 	return out, nil
 }
 
-// VariableSet returns a single set by ID, populated with its variables.
 func (b *Backend) VariableSet(_ context.Context, setID string) (domain.VariableSet, error) {
 	path, err := varsetPath(setID)
 	if err != nil {
@@ -118,13 +110,11 @@ func (b *Backend) VariableSet(_ context.Context, setID string) (domain.VariableS
 	return m.toDomain(b.id), nil
 }
 
-// CreateVariableSet writes a new manifest with a generated ID. Returns the
-// created set so the UI can link to it. Persists immediately.
 func (b *Backend) CreateVariableSet(_ context.Context, name, description string) (domain.VariableSet, error) {
 	if strings.TrimSpace(name) == "" {
 		return domain.VariableSet{}, errors.New("name is required")
 	}
-	id := "vs-" + newRunID() // reuse the time-prefixed hex helper
+	id := "vs-" + newRunID()
 	now := time.Now()
 	m := varsetManifest{
 		ID:          id,
@@ -140,10 +130,7 @@ func (b *Backend) CreateVariableSet(_ context.Context, name, description string)
 	return m.toDomain(b.id), nil
 }
 
-// UpdateVariableSetMeta applies a metadata change to an existing set without
-// touching its variables. Used by the management dialog when the user edits
-// name / description / scope / attachments. Atomic write-rename on the
-// manifest.
+// UpdateVariableSetMeta touches metadata only (not Vars).
 func (b *Backend) UpdateVariableSetMeta(_ context.Context, setID string, meta domain.VariableSet) error {
 	path, err := varsetPath(setID)
 	if err != nil {
@@ -167,10 +154,8 @@ func (b *Backend) UpdateVariableSetMeta(_ context.Context, setID string, meta do
 	return writeVarsetManifest(m)
 }
 
-// ListProjects returns the registered local projects so the varsets dialog
-// can populate a project combo for the project-scoped varset case. Local-
-// only — remote backends model "projects" differently (TFE projects are
-// API objects).
+// ListProjects feeds the project-scoped varset combo. Local-only;
+// remote backends model projects as API objects.
 func (b *Backend) ListProjects(_ context.Context) []domain.ProjectChoice {
 	out := make([]domain.ProjectChoice, 0, len(b.projects))
 	for _, p := range b.projects {
@@ -179,8 +164,7 @@ func (b *Backend) ListProjects(_ context.Context) []domain.ProjectChoice {
 	return out
 }
 
-// DeleteVariableSet removes the manifest and any associated keyring entries
-// for sensitive / env vars in the set.
+// DeleteVariableSet also clears keyring entries for sensitive / env vars.
 func (b *Backend) DeleteVariableSet(_ context.Context, setID string) error {
 	path, err := varsetPath(setID)
 	if err != nil {
@@ -188,7 +172,7 @@ func (b *Backend) DeleteVariableSet(_ context.Context, setID string) error {
 	}
 	m, err := readVarsetManifest(path)
 	if err != nil {
-		// File missing or corrupt — just remove the path entry too.
+		// Corrupt or missing — best-effort path remove and exit.
 		_ = os.Remove(path)
 		return nil
 	}
@@ -203,9 +187,8 @@ func (b *Backend) DeleteVariableSet(_ context.Context, setID string) error {
 	return os.Remove(path)
 }
 
-// UpsertVariableSetVar adds or replaces a variable inside a set. Sensitive
-// values route to libsecret with a sentinel placeholder in the manifest;
-// env-category vars route to libsecret too (different keyring namespace).
+// UpsertVariableSetVar routes sensitive + env vars to libsecret (in
+// distinct keyring namespaces); plain values stay in the manifest.
 func (b *Backend) UpsertVariableSetVar(_ context.Context, setID string, v domain.Variable) error {
 	if strings.TrimSpace(v.Key) == "" {
 		return errors.New("key is required")
@@ -230,16 +213,13 @@ func (b *Backend) UpsertVariableSetVar(_ context.Context, setID string, v domain
 		rec.Category = string(domain.VarCategoryTerraform)
 	}
 
-	// Defensive cleanup: clear ALL prior keyring entries for this key
-	// before writing the new one, so a category transition (env→terraform,
-	// sensitive→plain, etc.) doesn't leave a stale value in the other
-	// namespace. Idempotent — Delete on a missing key is a no-op.
+	// Clear all prior keyring entries so a category transition doesn't
+	// leave a stale value in the other namespace.
 	_ = secrets.Delete(varsetSecretKey(setID, v.Key))
 	_ = secrets.Delete(varsetEnvKey(setID, v.Key))
 
 	switch {
 	case rec.Category == string(domain.VarCategoryEnvironment):
-		// Env vars always route to keyring; manifest stores a sentinel.
 		if err := secrets.Set(varsetEnvKey(setID, v.Key), v.Value); err != nil {
 			return fmt.Errorf("store env value: %w", err)
 		}
@@ -253,7 +233,6 @@ func (b *Backend) UpsertVariableSetVar(_ context.Context, setID string, v domain
 		rec.Value = v.Value
 	}
 
-	// Replace existing entry by key, else append.
 	replaced := false
 	for i, existing := range m.Vars {
 		if existing.Key == v.Key {
@@ -269,7 +248,6 @@ func (b *Backend) UpsertVariableSetVar(_ context.Context, setID string, v domain
 	return writeVarsetManifest(m)
 }
 
-// DeleteVariableSetVar removes one variable from a set. Idempotent.
 func (b *Backend) DeleteVariableSetVar(_ context.Context, setID, key string) error {
 	path, err := varsetPath(setID)
 	if err != nil {
@@ -366,11 +344,8 @@ func (m varsetManifest) toDomain(backendID string) domain.VariableSet {
 		if v.Category == "" {
 			v.Category = domain.VarCategoryTerraform
 		}
-		// Sensitive vars have their plaintext in the keyring; the manifest
-		// holds a sentinel placeholder. Always blank the value before
-		// returning so the UI never displays the sentinel — even if a
-		// non-sensitive var coincidentally matched the sentinel string,
-		// `r.Sensitive=false` keeps its real value here.
+		// Sensitive plaintext lives in the keyring; the manifest's
+		// sentinel must never reach the UI.
 		if v.Sensitive {
 			v.Value = ""
 		}

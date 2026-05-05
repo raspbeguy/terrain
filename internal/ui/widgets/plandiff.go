@@ -10,27 +10,17 @@ import (
 	tfjson "github.com/hashicorp/terraform-json"
 )
 
-// PlanDiff renders the per-resource changes of a parsed plan. Each resource
-// gets an AdwExpanderRow with an action badge (+/~/-/-/+) in the title; the
-// expanded body shows attribute-level before/after pairs.
-//
-// Backed by an AdwPreferencesPage rather than a virtualized list because
-// the typical plan touches under a thousand resources and the simpler
-// AdwExpanderRow tree gives us free keyboard navigation and theming.
-// If we ever see real-world plans with 10k+ changes we'll migrate to
-// GtkColumnView + GtkTreeListModel.
+// PlanDiff renders parsed plan changes as expander rows. Built on
+// AdwPreferencesPage rather than a virtualized list — fine up to ~1k
+// resources; revisit if real plans get bigger.
 type PlanDiff struct {
-	scroller *gtk.ScrolledWindow
-	body     *gtk.Box
-
-	// stack toggles between an empty-state status page and the populated
-	// diff. We track the live group so Bind can replace it cleanly.
+	scroller   *gtk.ScrolledWindow
+	body       *gtk.Box
 	status     *adw.StatusPage
 	currentGrp *adw.PreferencesGroup
 	page       *adw.PreferencesPage
 }
 
-// NewPlanDiff builds an empty diff view.
 func NewPlanDiff() *PlanDiff {
 	page := adw.NewPreferencesPage()
 
@@ -59,11 +49,9 @@ func NewPlanDiff() *PlanDiff {
 	}
 }
 
-// Root returns the top-level widget for embedding.
 func (pd *PlanDiff) Root() *gtk.ScrolledWindow { return pd.scroller }
 
-// Bind replaces the current view with the diff of the provided plan. Pass
-// nil (or a plan with no changes) to show the empty state.
+// Bind replaces the current view; nil or no-change plans show the empty state.
 func (pd *PlanDiff) Bind(plan *tfjson.Plan) {
 	pd.clear()
 	if plan == nil {
@@ -106,7 +94,6 @@ func (pd *PlanDiff) clear() {
 	}
 }
 
-// buildResourceRow renders one resource change as an expander row.
 func buildResourceRow(rc *tfjson.ResourceChange) *adw.ExpanderRow {
 	row := adw.NewExpanderRow()
 	row.SetTitle(escapeMarkup(rc.Address))
@@ -120,17 +107,13 @@ func buildResourceRow(rc *tfjson.ResourceChange) *adw.ExpanderRow {
 	badge.SetVAlign(gtk.AlignCenter)
 	row.AddSuffix(badge)
 
-	// Populate inner rows for the attribute diffs we can extract.
 	for _, attrRow := range buildAttributeRows(rc) {
 		row.AddRow(attrRow)
 	}
 	return row
 }
 
-// buildAttributeRows produces an AdwActionRow per top-level attribute that
-// changed between Before and After. We use top-level only because
-// recursively rendering nested HCL/JSON values reasonably is a separate
-// concern (lands when we have a proper diff library or cty.Value walker).
+// buildAttributeRows: top-level attributes only; nested values need a real diff walker.
 func buildAttributeRows(rc *tfjson.ResourceChange) []*adw.ActionRow {
 	before, _ := rc.Change.Before.(map[string]any)
 	after, _ := rc.Change.After.(map[string]any)
@@ -159,15 +142,12 @@ func buildAttributeRows(rc *tfjson.ResourceChange) []*adw.ActionRow {
 			sub = truncate(jsonOf(bv), 48) + "  →  " + truncate(jsonOf(av), 48)
 		}
 		row.SetSubtitle(escapeMarkup(sub))
-		// AdwActionRow doesn't theme its subtitle by default; we use a tiny
-		// monospace badge style for the value pairs.
 		row.AddCSSClass("property")
 		rows = append(rows, row)
 	}
 	return rows
 }
 
-// tallyActions returns (add, change, destroy) counts across the plan.
 func tallyActions(plan *tfjson.Plan) (add, change, destroy int) {
 	for _, rc := range plan.ResourceChanges {
 		switch {
@@ -198,7 +178,6 @@ func isNoOp(actions tfjson.Actions) bool {
 	return len(actions) == 1 && actions[0] == tfjson.ActionNoop
 }
 
-// actionSymbol picks a single-character glyph for the resource header.
 func actionSymbol(actions tfjson.Actions) string {
 	switch {
 	case has(actions, tfjson.ActionCreate) && has(actions, tfjson.ActionDelete):
@@ -215,7 +194,6 @@ func actionSymbol(actions tfjson.Actions) string {
 	return ""
 }
 
-// actionCSSClass picks the libadwaita-themed colour class for the badge.
 func actionCSSClass(actions tfjson.Actions) string {
 	switch {
 	case has(actions, tfjson.ActionCreate) && has(actions, tfjson.ActionDelete):
@@ -242,13 +220,11 @@ func mergedKeys(a, b map[string]any) []string {
 	for k := range seen {
 		out = append(out, k)
 	}
-	// stable order so the row layout doesn't shuffle on rebuild
 	sortStrings(out)
 	return out
 }
 
 func sortStrings(s []string) {
-	// tiny insertion sort to avoid pulling in sort just for this
 	for i := 1; i < len(s); i++ {
 		for j := i; j > 0 && s[j-1] > s[j]; j-- {
 			s[j-1], s[j] = s[j], s[j-1]
@@ -280,8 +256,7 @@ func truncate(s string, n int) string {
 	return s[:n-1] + "…"
 }
 
-// escapeMarkup hides Pango markup metacharacters in user-controlled strings;
-// resource addresses can in theory contain `<` etc.
+// escapeMarkup hides Pango metacharacters; resource addresses can contain `<`.
 func escapeMarkup(s string) string {
 	return strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;").Replace(s)
 }

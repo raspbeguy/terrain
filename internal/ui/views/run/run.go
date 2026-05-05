@@ -1,10 +1,4 @@
-// Package run owns the run detail view: log view as primary content,
-// Cancel/Apply/Discard/Back actions in a footer bar wired to the run lifecycle.
-//
-// The run detail is a plain Box rather than an Adw.NavigationPage because the
-// main window's content side already lives inside an Adw.NavigationPage in
-// the split view; we swap children of an Adw.Bin instead of pushing a second
-// nav level for M2's flat structure.
+// Package run owns the run detail view (log + Cancel/Apply/Discard/Back).
 package run
 
 import (
@@ -27,14 +21,11 @@ import (
 	"github.com/raspbeguy/terrain/internal/ui/widgets"
 )
 
-// tfjsonPlan is an alias used in a single type assertion below; aliasing
-// keeps the import name consistent across files.
 type tfjsonPlan = tfjson.Plan
 
 const uiResource = "/io/github/raspbeguy/Terrain/run-detail.ui"
 
-// Page is the run-detail view. One instance is reused across multiple runs;
-// Start() binds a fresh run and rewires the action buttons.
+// Page is reused across runs; Start() rebinds and rewires the buttons.
 type Page struct {
 	root       *gtk.Box
 	cancelBtn  *gtk.Button
@@ -51,12 +42,10 @@ type Page struct {
 	onBack     func()
 	onStatus   func(domain.RunStatus, string)
 
-	// latestPlan is captured from PlanResult so onApply can pass the file
-	// path back to the caller.
+	// latestPlan is captured so onApply can forward the plan file path.
 	latestPlan *domain.PlanResult
 }
 
-// New loads the layout from gresource and embeds the empty log + plan views.
 func New() *Page {
 	builder := gtk.NewBuilderFromResource(uiResource)
 	p := &Page{
@@ -91,18 +80,13 @@ func New() *Page {
 	return p
 }
 
-// Root returns the top-level Box for embedding in the main window.
 func (p *Page) Root() *gtk.Box { return p.root }
 
-// SetOnBack registers the callback for the Back button. Set once after New().
 func (p *Page) SetOnBack(fn func()) { p.onBack = fn }
 
-// SetOnStatus registers a callback fired on every status transition. Used by
-// the main window to keep the outer header title in sync.
 func (p *Page) SetOnStatus(fn func(domain.RunStatus, string)) { p.onStatus = fn }
 
-// Start binds a fresh run to this page: clears the log, resets buttons,
-// pumps events. Safe to call repeatedly — replaces the previous binding.
+// Start replaces any previous run binding; safe to call repeatedly.
 func (p *Page) Start(
 	run domain.Run,
 	stream domain.RunStream,
@@ -174,13 +158,9 @@ func (p *Page) requestCancel() {
 	}
 }
 
-// LoadHistory binds a finished run from disk artifacts. Read-only: no
-// stream is pumped, all action buttons except Back stay hidden, the log is
-// loaded from stdout.log/stderr.log and the plan diff from plan.json.
-//
-// run.RunDir must be set; runs from backends that don't persist artifacts
-// locally (remote) are not yet replayable here — that would require fetching
-// from the API on the fly, which is M4 territory.
+// LoadHistory replays a finished run from disk artifacts (stdout.log /
+// stderr.log / plan.json). Read-only — only Back stays visible. Requires
+// r.RunDir; remote backends that don't persist locally aren't replayable.
 func (p *Page) LoadHistory(r domain.Run) {
 	p.log.Clear()
 	p.plan.Bind(nil)
@@ -197,7 +177,6 @@ func (p *Page) LoadHistory(r domain.Run) {
 	p.discardBtn.SetVisible(false)
 
 	if r.RunDir == "" {
-		// No artifacts to load — show a placeholder line.
 		p.log.Append(domain.LogLine{
 			At:     time.Now(),
 			Stream: domain.StreamStdout,
@@ -212,10 +191,8 @@ func (p *Page) LoadHistory(r domain.Run) {
 	p.loadPlanJSON(r.RunDir)
 }
 
-// loadLogFiles streams stdout.log and stderr.log into the log view as
-// LogLines. Doesn't try to interleave by timestamp — stdout first, then
-// stderr — because we don't store per-line timestamps. Good enough for
-// replay; the live stream remains the canonical view.
+// loadLogFiles concatenates stdout then stderr; we don't store per-line
+// timestamps, so true interleaving isn't possible.
 func (p *Page) loadLogFiles(runDir string) error {
 	stdoutPath := filepath.Join(runDir, "stdout.log")
 	stderrPath := filepath.Join(runDir, "stderr.log")
@@ -234,8 +211,8 @@ func (p *Page) loadLogFiles(runDir string) error {
 	return nil
 }
 
-// streamLogFile opens path and appends each line to the log view. Missing
-// files are not errors (a plan that crashed early may not have stderr.log).
+// streamLogFile treats a missing file as empty (a crashed-early plan
+// may not have stderr.log).
 func streamLogFile(path string, stream domain.Stream, log *widgets.LogView) error {
 	f, err := os.Open(path)
 	if err != nil {
@@ -254,7 +231,7 @@ func streamLogFile(path string, stream domain.Stream, log *widgets.LogView) erro
 			Stream: stream,
 			Text:   text,
 		}
-		// Try JSON parsing for stdout to pick up @level styling.
+		// JSON-parse stdout so @level styling carries through.
 		if stream == domain.StreamStdout && len(text) > 0 && text[0] == '{' {
 			var parsed map[string]any
 			if err := json.Unmarshal([]byte(text), &parsed); err == nil {
@@ -266,8 +243,7 @@ func streamLogFile(path string, stream domain.Stream, log *widgets.LogView) erro
 	return scanner.Err()
 }
 
-// loadPlanJSON reads <runDir>/plan.json and binds the diff view. Missing
-// file is fine (apply runs don't have one).
+// loadPlanJSON treats a missing plan.json as expected (apply runs).
 func (p *Page) loadPlanJSON(runDir string) {
 	data, err := os.ReadFile(filepath.Join(runDir, "plan.json"))
 	if err != nil {

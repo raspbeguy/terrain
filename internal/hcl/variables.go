@@ -1,7 +1,5 @@
-// Package hcl wraps hashicorp/hcl/v2 with helpers focused on Terrain's needs:
-// extracting variable declarations from .tf files and current values from
-// .tfvars files. The wrapper exists so the rest of the codebase doesn't need
-// to learn HCL's two-pass parse model just to do simple lookups.
+// Package hcl wraps hashicorp/hcl/v2 for variable extraction from .tf
+// and .tfvars files.
 package hcl
 
 import (
@@ -16,44 +14,22 @@ import (
 	"github.com/zclconf/go-cty/cty"
 )
 
-// Variable is a parsed `variable "<name>" { ... }` block from a .tf file.
 type Variable struct {
 	Name        string
 	Description string
-	Type        string // textual, e.g. "string", "list(string)" — best-effort
+	Type        string
 	Default     *cty.Value
 	Sensitive   bool
-
-	// Override is the current value from a .tfvars file or env, if found.
-	// nil if the user hasn't set anything.
-	Override *cty.Value
-
-	// SourceFile is the path of the .tf file the variable was declared in.
-	SourceFile string
+	Override    *cty.Value
+	SourceFile  string
 }
 
-// LoadVariables walks projectDir for top-level .tf files, parses every
-// `variable "<name>" {}` block, and merges in current values from
-// terraform.tfvars / *.auto.tfvars. Returns variables sorted by name.
-//
-// Errors during parsing of one file don't abort the load; we collect what we
-// can and surface aggregate diagnostics through the returned error.
-//
-// Recursion: only the top-level directory is scanned. Modules under
-// subdirectories aren't surfaced — that's a future enhancement when we have
-// a richer "module variables" UI section.
 func LoadVariables(projectDir string) ([]Variable, error) {
 	return LoadVariablesWithExtras(projectDir)
 }
 
-// LoadVariablesWithExtras is like LoadVariables but also reads value
-// overrides from the additional tfvars files at extraPaths (after the
-// project's own tfvars files, so later wins for the same key). Used by the
-// local backend to layer a terrain-managed overrides file that lives
-// outside the project directory on top of the project's own tfvars.
-//
-// Missing extra paths are silently ignored — the file is created lazily on
-// first write.
+// LoadVariablesWithExtras layers extraPaths after the project's own tfvars
+// so later files win for the same key. Missing extras are skipped silently.
 func LoadVariablesWithExtras(projectDir string, extraPaths ...string) ([]Variable, error) {
 	parser := hclparse.NewParser()
 
@@ -92,8 +68,7 @@ func LoadVariablesWithExtras(projectDir string, extraPaths ...string) ([]Variabl
 	for name, val := range overrides {
 		v, ok := vars[name]
 		if !ok {
-			// Variable set in tfvars but never declared — surface it anyway
-			// so the user can spot stale entries.
+			// Surface tfvars entries with no matching declaration so stale keys are visible.
 			val := val
 			vars[name] = &Variable{Name: name, Override: &val}
 			continue
@@ -162,9 +137,6 @@ func parseFile(parser *hclparse.Parser, path string) (*hclsyntax.Body, hcl.Diagn
 	return body, diags
 }
 
-// extractVariables fills out vars from `variable "<name>" {}` blocks. Type,
-// default, sensitive are best-effort; Terraform's actual type expression
-// language is more flexible than what we render.
 func extractVariables(path string, body *hclsyntax.Body, vars map[string]*Variable) {
 	for _, b := range body.Blocks {
 		if b.Type != "variable" || len(b.Labels) != 1 {
@@ -183,11 +155,6 @@ func extractVariables(path string, body *hclsyntax.Body, vars map[string]*Variab
 			case "type":
 				v.Type = sourceText(attr.Expr.Range())
 			case "default":
-				if !val.IsNull() {
-					v := val
-					vars[name] = &Variable{}
-					_ = v // populated via copy below
-				}
 				v2 := val
 				v.Default = &v2
 			case "sensitive":
@@ -200,7 +167,6 @@ func extractVariables(path string, body *hclsyntax.Body, vars map[string]*Variab
 	}
 }
 
-// extractTfvars reads top-level `key = value` pairs from a .tfvars body.
 func extractTfvars(body *hclsyntax.Body, out map[string]cty.Value) {
 	for name, attr := range body.Attributes {
 		val, _ := attr.Expr.Value(nil)
@@ -209,9 +175,6 @@ func extractTfvars(body *hclsyntax.Body, out map[string]cty.Value) {
 }
 
 func sourceText(_ hcl.Range) string {
-	// Reading source bytes between two ranges requires the original source.
-	// Skip for now — type display can show a placeholder until M5 polish
-	// when we keep the source byte slice around.
 	return ""
 }
 

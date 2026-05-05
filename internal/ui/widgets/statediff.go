@@ -1,7 +1,6 @@
 package widgets
 
 import (
-	"encoding/json"
 	"fmt"
 
 	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
@@ -9,23 +8,12 @@ import (
 	tfjson "github.com/hashicorp/terraform-json"
 )
 
-// StateDiff renders the difference between two parsed states. Each changed
-// resource is an AdwExpanderRow with an action badge (added/changed/
-// removed); expanding shows attribute-level before/after pairs.
-//
-// Algorithm:
-//   - Index resources by address from both states (recursive across modules)
-//   - In-both with differing attributes → "changed"
-//   - In to-only → "added"
-//   - In from-only → "removed"
-//   - In both with identical attributes → no-op (skipped)
 type StateDiff struct {
 	scroller *gtk.ScrolledWindow
 	body     *gtk.Box
 	status   *adw.StatusPage
 }
 
-// NewStateDiff builds an empty diff view showing a placeholder.
 func NewStateDiff() *StateDiff {
 	body := gtk.NewBox(gtk.OrientationVertical, 0)
 	body.SetHExpand(true)
@@ -46,12 +34,9 @@ func NewStateDiff() *StateDiff {
 	return &StateDiff{scroller: scroller, body: body, status: status}
 }
 
-// Root returns the top-level widget for embedding.
 func (sd *StateDiff) Root() *gtk.ScrolledWindow { return sd.scroller }
 
-// Bind replaces the current view with the diff between from and to. Pass
-// nil for either to show the placeholder; identical states show a "no
-// differences" message.
+// Bind replaces the current view; nil sides show the placeholder.
 func (sd *StateDiff) Bind(from, to *tfjson.State) {
 	sd.clear()
 
@@ -110,7 +95,6 @@ func (sd *StateDiff) Bind(from, to *tfjson.State) {
 	sd.body.Append(page)
 }
 
-// SetError replaces the view with an error placeholder.
 func (sd *StateDiff) SetError(msg string) {
 	sd.clear()
 	sd.status.SetIconName("dialog-error-symbolic")
@@ -125,14 +109,11 @@ func (sd *StateDiff) clear() {
 	}
 }
 
-// resourceDiff is the internal carrier between the diff algorithm and the
-// row builders. Address is the terraform-style address (e.g. "module.x.aws_instance.y[0]");
-// AttrChanges is non-nil only for "changed" entries.
 type resourceDiff struct {
 	Address      string
 	ProviderName string
-	From         *tfjson.StateResource // nil when added
-	To           *tfjson.StateResource // nil when removed
+	From         *tfjson.StateResource
+	To           *tfjson.StateResource
 	AttrChanges  []attrChange
 }
 
@@ -178,9 +159,6 @@ func diffStates(from, to *tfjson.State) (added, changed, removed []resourceDiff)
 	return
 }
 
-// indexStateResources flattens a state's nested module tree into an
-// address-keyed map. The address terraform uses (e.g. "module.x.aws_instance.y")
-// is unique across the tree.
 func indexStateResources(s *tfjson.State) map[string]*tfjson.StateResource {
 	out := make(map[string]*tfjson.StateResource)
 	if s == nil || s.Values == nil {
@@ -202,9 +180,6 @@ func walkStateModule(m *tfjson.StateModule, out map[string]*tfjson.StateResource
 	}
 }
 
-// diffStateAttrs returns the per-key changes between two attribute maps.
-// Skip when both encode to the same JSON; otherwise emit an attrChange
-// with whether each side had the key set.
 func diffStateAttrs(a, b map[string]any) []attrChange {
 	keys := mergedKeys(a, b)
 	out := make([]attrChange, 0, len(keys))
@@ -280,6 +255,3 @@ func buildChangedResourceRow(r resourceDiff) *adw.ExpanderRow {
 	return row
 }
 
-// equalJSON / mergedKeys / jsonOf / truncate / escapeMarkup are shared with
-// plandiff.go in the same package.
-var _ = json.Marshal // keep encoding/json reachable for future expansion

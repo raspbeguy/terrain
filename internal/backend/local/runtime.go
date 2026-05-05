@@ -13,9 +13,8 @@ import (
 	"github.com/raspbeguy/terrain/internal/domain"
 )
 
-// Runtime is the strategy interface for how a single tofu/terraform
-// invocation runs. Implementations build on top of hostCommand so the
-// Flatpak chokepoint stays at one place.
+// Runtime: every implementation must build on hostCommand so the Flatpak
+// chokepoint stays at one place.
 type Runtime interface {
 	Command(ctx context.Context, workDir string, extraEnv []string, bin string, args []string, cancelName string) *exec.Cmd
 	Cancel(ctx context.Context, cancelName string) error
@@ -31,15 +30,12 @@ func (hostRuntime) Command(ctx context.Context, workDir string, extraEnv []strin
 func (hostRuntime) Cancel(_ context.Context, _ string) error                 { return nil }
 func (hostRuntime) PullCommand(_ context.Context, _ string) *exec.Cmd        { return nil }
 
-// containerRuntime invokes tofu through `<runtimeBin> run --rm --init`
-// against an OCI image (podman, docker, nerdctl, finch).
 type containerRuntime struct {
 	runtimeBin      string
 	image           string
 	pluginCacheHost string
 	runDirHost      string
-	// rootless skips --user because rootless podman with keep-id maps
-	// UIDs implicitly and a literal --user conflicts.
+	// rootless podman maps UIDs via keep-id; literal --user conflicts.
 	rootless bool
 }
 
@@ -87,9 +83,8 @@ func (r containerRuntime) PullCommand(ctx context.Context, image string) *exec.C
 	return hostCommand(ctx, "", nil, r.runtimeBin, "pull", image)
 }
 
-// translateArgs rewrites host paths embedded in CLI args to their in-
-// sandbox equivalents using a host-prefix → sandbox-prefix map; longest
-// matching prefix wins.
+// translateArgs rewrites host paths in CLI args via a host→sandbox prefix
+// map; longest match wins.
 func translateArgs(args []string, mounts map[string]string) []string {
 	out := make([]string, 0, len(args))
 	for _, a := range args {
@@ -101,9 +96,7 @@ func translateArgs(args []string, mounts map[string]string) []string {
 			out = append(out, "-var-file="+translatePath(a[len("-var-file="):], mounts))
 			continue
 		}
-		// Positional absolute path — the apply subcommand takes the plan
-		// file as a bare arg. Any other absolute path arg gets the same
-		// treatment defensively.
+		// `tofu apply <plan-file>` is the main case; treat any absolute path defensively.
 		if strings.HasPrefix(a, "/") {
 			out = append(out, translatePath(a, mounts))
 			continue
@@ -135,10 +128,8 @@ func translatePath(p string, mounts map[string]string) string {
 	return bestContainer + "/" + rest
 }
 
-// bubblewrapRuntime sandboxes the host's tofu/terraform binary in a bwrap
-// user namespace with a curated /usr + /etc + tmpfs view, plus binds for
-// the workspace, run-cache, and plugin cache. Network is left intact so
-// providers can reach their APIs; PID/UTS are unshared.
+// bubblewrapRuntime sandboxes the host binary in a bwrap user namespace.
+// Network is left intact (providers need it); PID/UTS are unshared.
 type bubblewrapRuntime struct {
 	bwrapBin        string
 	pluginCacheHost string
@@ -164,8 +155,7 @@ func (r bubblewrapRuntime) Command(ctx context.Context, workDir string, extraEnv
 		"--tmpfs", "/tmp",
 	}
 
-	// Custom install paths (/usr/local/, /opt/, ~/.local) need a single-
-	// file bind; /usr/bin/tofu is already covered by the /usr ro-bind.
+	// /usr is already ro-bound; only custom install paths need a single-file bind.
 	if !strings.HasPrefix(bin, "/usr/") {
 		bwrapArgs = append(bwrapArgs, "--ro-bind", bin, bin)
 	}
@@ -179,8 +169,7 @@ func (r bubblewrapRuntime) Command(ctx context.Context, workDir string, extraEnv
 		"--unshare-uts",
 		"--new-session",
 		"--die-with-parent",
-		// --clearenv prevents host shell secrets (AWS_*, SSH_*, …) from
-		// leaking; what we need we re-inject below + via extraEnv.
+		// --clearenv prevents host secrets (AWS_*, SSH_*, …) from leaking; re-inject what's needed below.
 		"--clearenv",
 		"--setenv", "PATH", "/usr/bin:/usr/sbin:/bin:/sbin",
 		"--setenv", "HOME", "/tmp",
@@ -207,9 +196,7 @@ func (r bubblewrapRuntime) Command(ctx context.Context, workDir string, extraEnv
 func (r bubblewrapRuntime) Cancel(_ context.Context, _ string) error          { return nil }
 func (r bubblewrapRuntime) PullCommand(_ context.Context, _ string) *exec.Cmd { return nil }
 
-// installRuntimeCancel chains rt.Cancel onto cmd.Cancel so streamCommand
-// runs the runtime-level kill (e.g. `podman kill --signal INT`) before
-// SIGINT-ing the wrapper process.
+// installRuntimeCancel: runtime-level kill (e.g. `podman kill`) runs before SIGINT to the wrapper.
 func installRuntimeCancel(cmd *exec.Cmd, rt Runtime, cancelName string) {
 	cmd.Cancel = func() error {
 		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
@@ -328,9 +315,7 @@ func (b *Backend) resolveRuntimeOptions(workspaceID, runID string) (runtimeOptio
 	}, nil
 }
 
-// detectRootlessPodman returns true when bin is rootless podman (in which
-// case keep-id maps UIDs implicitly and a literal --user conflicts).
-// docker / nerdctl / rootful podman get --user. Result is cached.
+// detectRootlessPodman caches whether bin is rootless podman.
 var rootlessOnce struct {
 	once sync.Once
 	v    bool

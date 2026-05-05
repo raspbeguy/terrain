@@ -17,8 +17,8 @@ import (
 	"github.com/raspbeguy/terrain/internal/runner"
 )
 
-// runStream is the local-backend implementation of domain.RunStream.
-// All channels are owned by the worker goroutine; consumers must only read.
+// runStream's channels are owned by the worker goroutine; consumers
+// must only read.
 type runStream struct {
 	events chan domain.RunEvent
 	logs   chan domain.LogLine
@@ -28,8 +28,7 @@ type runStream struct {
 
 func newRunStream() *runStream {
 	return &runStream{
-		// Buffered enough to absorb a normal run without backpressure on the
-		// producer (cancel/error events should never block on a slow UI).
+		// Buffered so cancel/error events never block on a slow UI.
 		events: make(chan domain.RunEvent, 16),
 		logs:   make(chan domain.LogLine, 256),
 		plan:   make(chan *domain.PlanResult, 1),
@@ -42,9 +41,6 @@ func (s *runStream) Logs() <-chan domain.LogLine        { return s.logs }
 func (s *runStream) Plan() <-chan *domain.PlanResult    { return s.plan }
 func (s *runStream) Done() <-chan error                 { return s.done }
 
-// startRun is the real implementation of LocalBackend.StartRun. Spawns the
-// subprocess, returns a stream the caller can drain on the UI thread (via
-// the bridge package).
 func (b *Backend) startRun(_ context.Context, req domain.RunRequest) (domain.Run, domain.RunStream, domain.CancelFunc, error) {
 	wsCtx, wsCancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer wsCancel()
@@ -78,8 +74,7 @@ func (b *Backend) startRun(_ context.Context, req domain.RunRequest) (domain.Run
 		UpdatedAt:   time.Now(),
 	}
 
-	// Detached context — the run outlives whatever GUI callback kicked it
-	// off. CancelFunc is what stops it.
+	// Detached context — runs outlive the GUI callback that started them.
 	runCtx, cancelCtx := context.WithCancel(context.Background())
 	stream := newRunStream()
 
@@ -93,13 +88,10 @@ func (b *Backend) startRun(_ context.Context, req domain.RunRequest) (domain.Run
 	return run, stream, cancelFn, nil
 }
 
-// runWorker is the goroutine that owns one run. Orchestrates initial
-// snapshot → subprocess → log tee → terminal events → history record →
-// channel close.
-//
-// b is the parent Backend, threaded through so the worker can call
-// b.materialize to resolve sensitive Terraform vars and env-category vars
-// from the keyring at run time.
+// runWorker owns one run: initial snapshot → subprocess → log tee →
+// terminal events → history record → channel close. b is threaded
+// through so the worker can call b.materialize to resolve sensitive +
+// env-category vars from the keyring.
 func runWorker(
 	ctx context.Context,
 	b *Backend,
@@ -129,9 +121,8 @@ func runWorker(
 		case stream.events <- ev:
 		case <-time.After(2 * time.Second):
 			slog.Warn("run event dropped (slow consumer)", "status", s, "msg", msg)
-			// Best-effort: surface the drop in the log view so the user
-			// notices instead of silently losing a status transition. If
-			// the log channel is also backpressured, give up.
+			// Surface the drop in the log so the user notices; give up
+			// silently if logs are also backpressured.
 			select {
 			case stream.logs <- domain.LogLine{
 				At:     time.Now(),
@@ -143,10 +134,9 @@ func runWorker(
 		}
 	}
 
-	// done is the signal channel for "everything else has drained";
-	// must close after events/logs/plan.
+	// done must close AFTER events/logs/plan so a Done() consumer knows
+	// every prior channel is drained.
 	defer func() {
-		// Persist the terminal snapshot to history before signalling done.
 		recordHistory(run, runDir, lastStatus, finalErr, exitCode)
 		select {
 		case stream.done <- finalErr:
@@ -210,18 +200,15 @@ func runWorker(
 
 	stdoutLog, stderrLog, logErr := openLogFiles(runDir)
 	if logErr != nil {
-		// Non-fatal: the live log channel still works, just no on-disk
-		// persistence. Surface the warning so it's visible in --debug
-		// output, then proceed.
+		// Non-fatal: the live log channel still works, just no
+		// persistence to disk.
 		slog.Warn("open run log files", "ws", ws.ID, "err", logErr)
 	}
 	defer closeIfNonNil(stdoutLog)
 	defer closeIfNonNil(stderrLog)
 
-	// Resolve sensitive + env-category vars from the keyring. Sensitive
-	// Terraform vars become a -var-file argument; env vars get appended to
-	// cmd.Env. The temp var-file is deleted as soon as the subprocess exits
-	// so resolved secrets don't linger in $XDG_CACHE_HOME.
+	// Sensitive + env vars resolve from the keyring into a per-run
+	// var-file (deleted on exit so secrets don't linger in cache).
 	rv := b.materialize(ws)
 	varFile, vferr := rv.writeVarFile(runDir)
 	if vferr != nil {
@@ -348,11 +335,8 @@ func runWorker(
 	close(stream.plan)
 }
 
-// formatArgsForLog renders the cmd-args slice for the run-event message
-// with sensitive values redacted. The two-arg form `-var KEY=VAL` becomes
-// `-var KEY=<redacted>`; everything else is passed through. Run history is
-// persisted to disk, so leaking secrets here would defeat the keyring +
-// vars.auto.tfvars.json setup that protects them everywhere else.
+// formatArgsForLog redacts `-var KEY=VAL` payloads before they hit the
+// on-disk run history.
 func formatArgsForLog(args []string) string {
 	out := make([]string, 0, len(args))
 	maskNext := false
@@ -374,8 +358,8 @@ func formatArgsForLog(args []string) string {
 	return strings.Join(out, " ")
 }
 
-// buildCmdArgs assembles the CLI args for one run. planFile is the path of
-// the produced plan (for plan/destroy kinds) — empty for apply.
+// buildCmdArgs returns the CLI args + the produced plan-file path
+// (empty for apply, which consumes a prior plan rather than producing one).
 func buildCmdArgs(req domain.RunRequest, runDir string) (args []string, planFile string, err error) {
 	switch req.Kind {
 	case domain.RunKindPlan:
@@ -408,9 +392,8 @@ func buildCmdArgs(req domain.RunRequest, runDir string) (args []string, planFile
 	return args, planFile, nil
 }
 
-// recordHistory persists a terminal run snapshot to the per-workspace ndjson
-// history. Best-effort: failures are logged but don't surface to the caller
-// because we're already in a deferred shutdown path.
+// recordHistory is best-effort: called from a deferred shutdown path,
+// so failures only get logged.
 func recordHistory(run domain.Run, runDir string, status domain.RunStatus, finalErr error, exitCode int) {
 	h, err := runner.NewHistory(run.BackendID, run.WorkspaceID)
 	if err != nil {
@@ -438,8 +421,8 @@ func recordHistory(run domain.Run, runDir string, status domain.RunStatus, final
 	}
 }
 
-// isCancelError reports whether the command error is "we cancelled it"
-// rather than "tofu failed for its own reasons."
+// isCancelError distinguishes "we cancelled it" from "tofu failed for
+// its own reasons".
 func isCancelError(ctx context.Context, err error) bool {
 	if err == nil {
 		return false
@@ -453,9 +436,8 @@ func isCancelError(ctx context.Context, err error) bool {
 	return false
 }
 
-// runArtifactsDir returns the per-run artifact directory under
-// XDG_CACHE_HOME (we'll move to XDG_DATA_HOME for state-version persistence
-// in M3 — runs are ephemeral, state is not).
+// runArtifactsDir returns the per-run dir under XDG_CACHE_HOME — runs
+// are ephemeral; state versions live under XDG_DATA_HOME instead.
 func runArtifactsDir(backendID string, ws domain.Workspace, runID string) (string, error) {
 	cacheHome, err := os.UserCacheDir()
 	if err != nil {
@@ -465,8 +447,8 @@ func runArtifactsDir(backendID string, ws domain.Workspace, runID string) (strin
 	return filepath.Join(cacheHome, "terrain", backendID, safeWS, "runs", runID), nil
 }
 
-// newRunID returns a sortable, opaque run identifier. Time-prefixed so
-// on-disk listing reads chronological without an index file.
+// newRunID returns a time-prefixed identifier so on-disk listing is
+// chronological without a separate index.
 func newRunID() string {
 	var b [8]byte
 	if _, err := rand.Read(b[:]); err != nil {
@@ -475,10 +457,8 @@ func newRunID() string {
 	return fmt.Sprintf("%d-%s", time.Now().Unix(), hex.EncodeToString(b[:]))
 }
 
-// openLogFiles creates the run's stdout/stderr log files. Returns the open
-// file handles, or an error if either could not be created. The caller is
-// responsible for closing both — even on partial success, both files are
-// either both non-nil or both nil.
+// openLogFiles returns both files non-nil on success and both nil on
+// error; caller closes both.
 func openLogFiles(runDir string) (stdout, stderr *os.File, err error) {
 	stdout, err = os.Create(filepath.Join(runDir, "stdout.log"))
 	if err != nil {

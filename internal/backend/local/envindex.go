@@ -7,21 +7,9 @@ import (
 	"os"
 )
 
-// envIndex is the on-disk record of which Environment-category variables
-// exist for a workspace. Names only — values remain in the keyring. Lives
-// at $XDG_DATA_HOME/terrain/<backendID>/<sanitized-ws>/env-vars.json with
-// shape:
-//
-//	["VAR1", "VAR2"]
-//
-// Why a side file: keyring backends (libsecret, Keychain) don't expose a
-// portable List API, so we can't enumerate "all env vars for this workspace"
-// from the keyring alone. A small JSON index is the simplest fix.
-//
-// Why per-workspace under XDG_DATA_HOME (not under the project directory):
-// keeping it out of the user's project tree avoids accidental commits of
-// terrain-internal state, and lets the user delete + re-clone their project
-// without losing terrain's view of which env vars apply to that workspace.
+// envIndex lists env-var names per workspace; values remain in the
+// keyring. Needed because libsecret/Keychain have no portable List API,
+// so we can't enumerate workspace env-vars from the keyring alone.
 type envIndex []string
 
 func loadEnvIndex(backendID, workspaceID string) ([]string, error) {
@@ -49,8 +37,6 @@ func saveEnvIndex(backendID, workspaceID string, names []string) error {
 		return err
 	}
 	if len(names) == 0 {
-		// No entries: remove the file rather than leaving an empty array.
-		// Best-effort — failure to remove an absent file is fine.
 		_ = os.Remove(path)
 		return nil
 	}
@@ -61,7 +47,7 @@ func saveEnvIndex(backendID, workspaceID string, names []string) error {
 	return os.WriteFile(path, data, 0o644)
 }
 
-// addEnvVar appends name to the workspace's env-var index. Idempotent.
+// addEnvVar is idempotent.
 func addEnvVar(backendID, workspaceID, name string) error {
 	names, _ := loadEnvIndex(backendID, workspaceID)
 	for _, n := range names {
@@ -72,8 +58,6 @@ func addEnvVar(backendID, workspaceID, name string) error {
 	return saveEnvIndex(backendID, workspaceID, append(names, name))
 }
 
-// removeEnvVar drops name from the workspace's env-var index. Missing names
-// are silently ignored.
 func removeEnvVar(backendID, workspaceID, name string) error {
 	names, _ := loadEnvIndex(backendID, workspaceID)
 	out := make([]string, 0, len(names))
