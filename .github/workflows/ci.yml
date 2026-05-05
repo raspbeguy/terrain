@@ -8,31 +8,23 @@ on:
 permissions:
   contents: read
 
+# Run inside Alpine because it has current libadwaita (1.6+) needed by
+# gotk4-adwaita. Ubuntu LTS still ships 1.5. Mirrors the dev VM.
 env:
-  # Match go.mod's pinned toolchain so cgo cache keys agree across runs.
-  GO_VERSION: "1.26"
+  APK_PACKAGES: >-
+    build-base git go gtk4.0-dev libadwaita-dev gobject-introspection-dev
+    libsecret-dev pkgconf
 
 jobs:
   go:
     name: go test + vet
     runs-on: ubuntu-latest
+    container: alpine:latest
     steps:
+      - name: Install Alpine deps
+        run: apk add --no-cache ${{ env.APK_PACKAGES }}
+
       - uses: actions/checkout@v4
-
-      - name: Install GTK4 + libadwaita dev headers
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            libgtk-4-dev \
-            libadwaita-1-dev \
-            libsecret-1-dev \
-            libgirepository1.0-dev \
-            pkg-config
-
-      - uses: actions/setup-go@v5
-        with:
-          go-version: ${{ env.GO_VERSION }}
-          check-latest: true
 
       - name: go vet
         run: go vet ./...
@@ -43,30 +35,15 @@ jobs:
   meson:
     name: meson build + smoke
     runs-on: ubuntu-latest
+    container: alpine:latest
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Install build + test deps
+      - name: Install Alpine deps
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            libgtk-4-dev \
-            libadwaita-1-dev \
-            libsecret-1-dev \
-            libgirepository1.0-dev \
-            libxml2-utils \
-            blueprint-compiler \
-            desktop-file-utils \
-            appstream \
-            meson \
-            ninja-build \
-            xvfb \
-            pkg-config
+          apk add --no-cache ${{ env.APK_PACKAGES }} \
+            blueprint-compiler desktop-file-utils appstream \
+            meson samurai xvfb-run libxml2-utils
 
-      - uses: actions/setup-go@v5
-        with:
-          go-version: ${{ env.GO_VERSION }}
-          check-latest: true
+      - uses: actions/checkout@v4
 
       - name: meson setup
         run: meson setup build
