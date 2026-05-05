@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  # Match go.mod's pinned toolchain so cgo cache keys agree across runs.
+  GO_VERSION: "1.26"
+
+jobs:
+  go:
+    name: go test + vet
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install GTK4 + libadwaita dev headers
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libgtk-4-dev \
+            libadwaita-1-dev \
+            libsecret-1-dev \
+            pkg-config
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          check-latest: true
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: go test
+        run: go test -race ./internal/...
+
+  meson:
+    name: meson build + smoke
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build + test deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libgtk-4-dev \
+            libadwaita-1-dev \
+            libsecret-1-dev \
+            blueprint-compiler \
+            desktop-file-utils \
+            appstream \
+            meson \
+            ninja-build \
+            xvfb \
+            pkg-config
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          check-latest: true
+
+      - name: meson setup
+        run: meson setup build
+
+      - name: meson compile
+        run: meson compile -C build
+
+      - name: meson test
+        run: meson test -C build --print-errorlogs
