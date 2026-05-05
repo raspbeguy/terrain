@@ -1,0 +1,145 @@
+# github.com/BurntSushi/toml v1.6.0
+## explicit; go 1.18
+github.com/BurntSushi/toml
+github.com/BurntSushi/toml/internal
+# github.com/KarpelesLab/weak v0.1.1
+## explicit; go 1.18
+github.com/KarpelesLab/weak
+# github.com/agext/levenshtein v1.2.1
+## explicit
+github.com/agext/levenshtein
+# github.com/apparentlymart/go-textseg/v15 v15.0.0
+## explicit; go 1.16
+github.com/apparentlymart/go-textseg/v15/textseg
+# github.com/danieljoos/wincred v1.2.3
+## explicit; go 1.18
+github.com/danieljoos/wincred
+# github.com/diamondburned/gotk4-adwaita/pkg v0.0.0-20250703085337-e94555b846b6
+## explicit; go 1.24.0
+github.com/diamondburned/gotk4-adwaita/pkg/adw
+# github.com/diamondburned/gotk4/pkg v0.3.2-0.20250703063411-16654385f59a
+## explicit; go 1.24.0
+github.com/diamondburned/gotk4/pkg/cairo
+github.com/diamondburned/gotk4/pkg/cairo/swizzle
+github.com/diamondburned/gotk4/pkg/core/closure
+github.com/diamondburned/gotk4/pkg/core/gbox
+github.com/diamondburned/gotk4/pkg/core/gcancel
+github.com/diamondburned/gotk4/pkg/core/gdebug
+github.com/diamondburned/gotk4/pkg/core/gerror
+github.com/diamondburned/gotk4/pkg/core/gextras
+github.com/diamondburned/gotk4/pkg/core/glib
+github.com/diamondburned/gotk4/pkg/core/intern
+github.com/diamondburned/gotk4/pkg/core/slab
+github.com/diamondburned/gotk4/pkg/gdk/v4
+github.com/diamondburned/gotk4/pkg/gdkpixbuf/v2
+github.com/diamondburned/gotk4/pkg/gio/v2
+github.com/diamondburned/gotk4/pkg/glib/v2
+github.com/diamondburned/gotk4/pkg/graphene
+github.com/diamondburned/gotk4/pkg/gsk/v4
+github.com/diamondburned/gotk4/pkg/gtk/v4
+github.com/diamondburned/gotk4/pkg/pango
+# github.com/godbus/dbus/v5 v5.2.2
+## explicit; go 1.20
+github.com/godbus/dbus/v5
+# github.com/google/go-cmp v0.7.0
+## explicit; go 1.21
+github.com/google/go-cmp/cmp
+github.com/google/go-cmp/cmp/internal/diff
+github.com/google/go-cmp/cmp/internal/flags
+github.com/google/go-cmp/cmp/internal/function
+github.com/google/go-cmp/cmp/internal/value
+# github.com/google/go-querystring v1.2.0
+## explicit; go 1.13
+github.com/google/go-querystring/query
+# github.com/hashicorp/go-cleanhttp v0.5.2
+## explicit; go 1.13
+github.com/hashicorp/go-cleanhttp
+# github.com/hashicorp/go-retryablehttp v0.7.8
+## explicit; go 1.23
+github.com/hashicorp/go-retryablehttp
+# github.com/hashicorp/go-slug v0.16.8
+## explicit; go 1.24
+github.com/hashicorp/go-slug
+github.com/hashicorp/go-slug/internal/escapingfs
+github.com/hashicorp/go-slug/internal/ignorefiles
+github.com/hashicorp/go-slug/internal/unpackinfo
+# github.com/hashicorp/go-tfe v1.104.0
+## explicit; go 1.25.0
+github.com/hashicorp/go-tfe
+# github.com/hashicorp/go-version v1.8.0
+## explicit
+github.com/hashicorp/go-version
+# github.com/hashicorp/hcl/v2 v2.24.0
+## explicit; go 1.23.0
+github.com/hashicorp/hcl/v2
+github.com/hashicorp/hcl/v2/ext/customdecode
+github.com/hashicorp/hcl/v2/hclparse
+github.com/hashicorp/hcl/v2/hclsyntax
+github.com/hashicorp/hcl/v2/hclwrite
+github.com/hashicorp/hcl/v2/json
+# github.com/hashicorp/jsonapi v1.4.3-0.20250220162346-81a76b606f3e
+## explicit; go 1.18
+github.com/hashicorp/jsonapi
+# github.com/hashicorp/terraform-json v0.27.2
+## explicit; go 1.21
+github.com/hashicorp/terraform-json
+# github.com/mitchellh/go-wordwrap v1.0.1
+## explicit; go 1.14
+github.com/mitchellh/go-wordwrap
+# github.com/zalando/go-keyring v0.2.8
+## explicit; go 1.18
+github.com/zalando/go-keyring
+github.com/zalando/go-keyring/internal/shellescape
+github.com/zalando/go-keyring/secret_service
+# github.com/zclconf/go-cty v1.18.1
+## explicit; go 1.25
+github.com/zclconf/go-cty/cty
+github.com/zclconf/go-cty/cty/convert
+github.com/zclconf/go-cty/cty/ctymarks
+github.com/zclconf/go-cty/cty/ctystrings
+github.com/zclconf/go-cty/cty/function
+github.com/zclconf/go-cty/cty/function/stdlib
+github.com/zclconf/go-cty/cty/gocty
+github.com/zclconf/go-cty/cty/json
+github.com/zclconf/go-cty/cty/set
+# go4.org/unsafe/assume-no-moving-gc v0.0.0-20231121144256-b99613f794b6
+## explicit; go 1.11
+go4.org/unsafe/assume-no-moving-gc
+# golang.org/x/mod v0.26.0
+## explicit; go 1.23.0
+golang.org/x/mod/semver
+# golang.org/x/sync v0.19.0
+## explicit; go 1.24.0
+golang.org/x/sync/errgroup
+golang.org/x/sync/singleflight
+# golang.org/x/sys v0.35.0
+## explicit; go 1.23.0
+golang.org/x/sys/unix
+golang.org/x/sys/windows
+# golang.org/x/text v0.28.0
+## explicit; go 1.23.0
+golang.org/x/text/transform
+golang.org/x/text/unicode/norm
+# golang.org/x/time v0.14.0
+## explicit; go 1.24.0
+golang.org/x/time/rate
+# golang.org/x/tools v0.35.0
+## explicit; go 1.23.0
+golang.org/x/tools/cmd/stringer
+golang.org/x/tools/go/gcexportdata
+golang.org/x/tools/go/packages
+golang.org/x/tools/go/types/objectpath
+golang.org/x/tools/go/types/typeutil
+golang.org/x/tools/internal/aliases
+golang.org/x/tools/internal/event
+golang.org/x/tools/internal/event/core
+golang.org/x/tools/internal/event/keys
+golang.org/x/tools/internal/event/label
+golang.org/x/tools/internal/gcimporter
+golang.org/x/tools/internal/gocommand
+golang.org/x/tools/internal/packagesinternal
+golang.org/x/tools/internal/pkgbits
+golang.org/x/tools/internal/stdlib
+golang.org/x/tools/internal/typeparams
+golang.org/x/tools/internal/typesinternal
+golang.org/x/tools/internal/versions
