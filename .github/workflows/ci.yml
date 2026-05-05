@@ -18,6 +18,10 @@ env:
     build-base git go gtk4.0-dev libadwaita-dev gobject-introspection-dev
     libsecret-dev pkgconf
   GOTOOLCHAIN: auto
+  # Skip Go's VCS stamping. Inside the container the working tree's UID
+  # mismatches the runner's, and git refuses to read repo metadata even
+  # with checkout's safe.directory bandage.
+  GOFLAGS: -buildvcs=false
 
 jobs:
   go:
