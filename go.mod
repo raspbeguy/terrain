@@ -10,7 +10,7 @@ require (
 	github.com/hashicorp/hcl/v2 v2.24.0
 	github.com/hashicorp/terraform-json v0.27.2
 	github.com/zalando/go-keyring v0.2.8
-	github.com/zclconf/go-cty v1.16.4
+	github.com/zclconf/go-cty v1.18.1
 )
 
 require (
