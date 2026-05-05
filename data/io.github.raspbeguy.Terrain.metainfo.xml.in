@@ -91,6 +91,10 @@
       <caption>State tree with attribute viewer</caption>
       <image>https://raw.githubusercontent.com/raspbeguy/terrain/main/data/screenshots/state-tree.png</image>
     </screenshot>
+    <screenshot>
+      <caption>Workspace variables with sensitive values masked</caption>
+      <image>https://raw.githubusercontent.com/raspbeguy/terrain/main/data/screenshots/variables.png</image>
+    </screenshot>
   </screenshots>
 
   <releases>
