@@ -5,22 +5,21 @@ sdk: org.gnome.Sdk
 sdk-extensions:
   - org.freedesktop.Sdk.Extension.golang
 build-options:
-  # ccache shim must come BEFORE the SDK's plain gcc on PATH, otherwise
-  # `cc` inside the sandbox finds /usr/bin/gcc directly and bypasses the
-  # cache entirely. With this prepend, every cgo C compilation (the long
-  # pole on gotk4 builds) routes through ccache.
+  # ccache must precede the SDK's gcc on PATH or cgo bypasses the cache.
   prepend-path: /usr/lib/sdk/ccache/bin
   append-path: /usr/lib/sdk/golang/bin
   env:
-    # -mod=vendor: read modules from <src>/vendor populated by go.mod.yml
-    # sources, no network during build — Flathub requirement.
+    # Vendor mode keeps the build offline (Flathub requirement).
     GOFLAGS: -mod=vendor
-    # GOTOOLCHAIN=auto would normally pull go.mod's pinned 1.26 over the
-    # SDK extension's bundled Go; in vendor mode that fetch isn't needed
-    # because all modules are pre-staged, so leave it unset (= default
-    # which is "auto" anyway, preserving the upgrade path if the SDK
-    # extension's Go ever falls behind go.mod's directive).
+    # Fail fast if go.mod outpaces the SDK's Go instead of network-fetching.
+    GOTOOLCHAIN: local
 command: terrain
+cleanup:
+  - /include
+  - /lib/pkgconfig
+  - /share/man
+  - '*.la'
+  - '*.a'
 finish-args:
   - --share=ipc
   - --share=network
@@ -37,6 +36,5 @@ modules:
       - type: archive
         url: https://github.com/raspbeguy/terrain/archive/refs/tags/v0.0.1.tar.gz
         sha256: 0000000000000000000000000000000000000000000000000000000000000000
-      # Pre-staged Go module sources — regenerate via flatpak-go-mod
-      # (github.com/dennwc/flatpak-go-mod) after dependency bumps.
+      # Regenerate via flatpak-go-mod after dependency bumps.
       - go.mod.yml
