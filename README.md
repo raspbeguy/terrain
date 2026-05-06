@@ -116,6 +116,20 @@ testdata/                     fixtures used by integration tests
 | `Ctrl+,`          | Preferences             |
 | `Ctrl+Q`          | Quit                    |
 
+## Visual identity
+
+The current app icon is a placeholder I threw together. Terrain wants a
+proper [GNOME-style app icon][hig] — vector, drawn in the 128×128 GNOME
+template, using the standard palette — because the plan is to apply to
+[GNOME Circle][circle] once the project is more mature, and Circle expects
+HIG-conformant visuals.
+
+If you have design chops and want to help — icon, mockups, anything visual
+— PRs and suggestions are very welcome.
+
+[hig]: https://developer.gnome.org/hig/guidelines/app-icons.html
+[circle]: https://circle.gnome.org/
+
 ## License
 
 GPL-3.0-or-later.
