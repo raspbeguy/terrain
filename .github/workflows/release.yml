@@ -10,8 +10,16 @@ permissions:
 
 jobs:
   flatpak:
-    runs-on: ubuntu-latest
-    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-latest
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 120
     container:
       image: ghcr.io/flathub-infra/flatpak-github-actions:gnome-50
       options: --privileged
@@ -21,20 +29,110 @@ jobs:
       - name: Build Flatpak bundle
         uses: flatpak/flatpak-github-actions/flatpak-builder@v6
         with:
-          bundle: terrain.flatpak
+          bundle: terrain-${{ matrix.arch }}.flatpak
           manifest-path: build-aux/flatpak/io.github.raspbeguy.Terrain.yml
-          cache-key: flatpak-builder-${{ hashFiles('build-aux/flatpak/io.github.raspbeguy.Terrain.yml', 'build-aux/flatpak/go.mod.yml') }}
+          cache-key: flatpak-builder-${{ matrix.arch }}-${{ hashFiles('build-aux/flatpak/io.github.raspbeguy.Terrain.yml', 'build-aux/flatpak/go.mod.yml') }}
+          arch: ${{ matrix.arch }}
           upload-artifact: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
       - name: Smoke test the bundle
         run: |
-          flatpak install --user --bundle --assumeyes ./terrain.flatpak
+          flatpak install --user --bundle --assumeyes ./terrain-${{ matrix.arch }}.flatpak
           flatpak run io.github.raspbeguy.Terrain --diagnose
 
       - name: Attach bundle to GitHub Release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          files: terrain.flatpak
+          files: terrain-${{ matrix.arch }}.flatpak
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+
+  binary-glibc:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - goarch: amd64
+            runner: ubuntu-latest
+          - goarch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install build deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential pkg-config meson ninja-build blueprint-compiler \
+            libgtk-4-dev libadwaita-1-dev libsecret-1-dev
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Build with meson
+        run: |
+          meson setup build
+          meson compile -C build
+
+      - name: Package binary tarball
+        run: |
+          mkdir -p dist
+          cp build/terrain LICENSE dist/
+          tar czf terrain-linux-${{ matrix.goarch }}-glibc.tar.gz -C dist .
+
+      - name: Attach binary to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: terrain-linux-${{ matrix.goarch }}-glibc.tar.gz
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+
+  binary-musl:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - goarch: amd64
+            runner: ubuntu-latest
+          - goarch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    container:
+      image: alpine:edge
+    steps:
+      # nodejs lets the runner host the JS-based actions inside the container.
+      - name: Install build deps
+        run: |
+          apk add --no-cache \
+            build-base musl-dev pkgconf meson ninja blueprint-compiler \
+            gtk4.0-dev libadwaita-dev libsecret-dev \
+            git tar gzip go nodejs
+
+      - uses: actions/checkout@v6
+
+      - name: Build with meson
+        env:
+          GOTOOLCHAIN: local
+        run: |
+          meson setup build
+          meson compile -C build
+
+      - name: Package binary tarball
+        run: |
+          mkdir -p dist
+          cp build/terrain LICENSE dist/
+          tar czf terrain-linux-${{ matrix.goarch }}-musl.tar.gz -C dist .
+
+      - name: Attach binary to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: terrain-linux-${{ matrix.goarch }}-musl.tar.gz
           generate_release_notes: true
           fail_on_unmatched_files: true
