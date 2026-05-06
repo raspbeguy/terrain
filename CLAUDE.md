@@ -182,13 +182,25 @@ testdata/                   Fixtures used by integration tests.
 
 ## Conventions
 
-- **Comments**: default to none. Add one only when the WHY is non-obvious
-  — a hidden invariant, a subtle constraint, a workaround for a specific
-  bug. One short line max; no multi-paragraph docstrings, no field-by-
-  field prose for self-explanatory names. Don't explain WHAT the code
-  does (names already do that). Don't reference the current task / fix /
-  commit date / "the user" ("verifies the 2026-05-03 change", "added for
-  the X flow") — that rots fast and belongs in commit messages or the PR.
+- **Comments — LOAD-BEARING RULE, READ THIS FIRST**: default to none.
+  This is non-negotiable: in repeated sessions, ignoring it has forced
+  full git-history rewrites to scrub verbose comments. Apply it on every
+  diff, before showing your work, every time.
+
+  - Add a comment **only** when the WHY is non-obvious — a hidden
+    invariant, a subtle constraint, a workaround for a specific bug.
+  - **One short line max.** If it wraps to a second line in the editor
+    at standard widths, it's too long: tighten it or delete it.
+  - **No** multi-paragraph docstrings. **No** field-by-field prose for
+    self-explanatory struct fields. **No** restating function names in
+    prose ("Foo bars the baz") — the signature says it.
+  - **No** speculation about future use ("UI hooks pass a context they
+    can cancel from a Stop button"). **No** task / fix / date references
+    ("verifies the 2026-05-03 change", "added for the X flow") — that
+    belongs in commit messages and rots in code.
+  - Self-audit pass before every commit:
+    `awk '/^[[:space:]]*\/\//{c++} !/^[[:space:]]*\/\//{if(c>=2)print FILENAME":"NR-c": "c" lines"; c=0}' <files>`
+    Any hit = trim before committing.
 
 - **Blueprint vs Go**: static layouts (windows, dialogs, page skeletons)
   live in `.blp` files; dynamic content (list rows, dropdown contents,
@@ -314,6 +326,6 @@ testdata/                   Fixtures used by integration tests.
   `build-flatpak/`, or `build-flatpak-repo/` in git. They're already in
   `.gitignore`; if you add new build artifacts, mirror that pattern.
 - Don't write multi-line docstrings or paragraph-long field/function
-  comments. See the Comments convention above — a comment that explains
-  WHAT the code does (rather than a non-obvious WHY) is noise to delete,
-  not preserve.
+  comments. See the Comments LOAD-BEARING RULE above — this has been
+  flagged by the user multiple times and required full history rewrites
+  to undo. Self-audit before every commit; one short line max or delete.
