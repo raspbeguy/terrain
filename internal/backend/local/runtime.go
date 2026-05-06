@@ -260,12 +260,7 @@ type runtimeOptions struct {
 	RunDirHost      string
 }
 
-func (b *Backend) resolveRuntimeOptions(workspaceID, runID string) (runtimeOptions, error) {
-	ws, err := LoadWorkspaceSettings(b.id, workspaceID)
-	if err != nil {
-		return runtimeOptions{}, fmt.Errorf("load workspace settings: %w", err)
-	}
-
+func (b *Backend) resolveRuntimeOptions(workspaceID, runID string, ws WorkspaceSettings) (runtimeOptions, error) {
 	mode := ws.RunMode
 	if mode == RunModeUnset {
 		switch RunMode(b.defaults.RunMode) {

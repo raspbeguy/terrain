@@ -23,5 +23,32 @@ Adw.PreferencesDialog ws_settings_dialog {
         title: "Container image (used only in Container mode)";
       }
     }
+
+    Adw.PreferencesGroup {
+      title: "Binary Source";
+      description: "Where the tofu/terraform binary comes from. Managed binaries live under $XDG_DATA_HOME/terrain/binaries — install versions from app Preferences.";
+
+      Adw.ComboRow ws_binary_source_row {
+        title: "Source";
+
+        model: StringList {
+          strings ["Host PATH", "Managed (downloaded by terrain)"]
+        };
+      }
+
+      Adw.ComboRow ws_managed_engine_row {
+        title: "Engine";
+        visible: false;
+
+        model: StringList {
+          strings ["OpenTofu", "Terraform"]
+        };
+      }
+
+      Adw.EntryRow ws_managed_version_row {
+        title: "Version";
+        visible: false;
+      }
+    }
   }
 }

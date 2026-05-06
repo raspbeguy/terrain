@@ -29,7 +29,6 @@ finish-args:
   - --device=dri
   - --filesystem=home
   - --talk-name=org.freedesktop.secrets
-  - --talk-name=org.freedesktop.Flatpak
 modules:
   - name: terrain
     buildsystem: meson

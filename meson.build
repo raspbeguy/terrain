@@ -39,6 +39,7 @@ blueprint_sources = [
   'varsets',
   'state-diff',
   'workspace-settings',
+  'managed-binary-install',
 ]
 
 blueprint_targets = []

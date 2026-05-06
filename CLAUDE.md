@@ -72,17 +72,35 @@ nil-widget crashes, and missing gresource entries automatically.
    terminal-looking widget.
 
 6. **Single tofu-invocation chokepoint**. Every `tofu` / `terraform` exec
-   site routes through `internal/backend/local/sandbox.go:hostCommand`
-   (which adds `flatpak-spawn --host` when sandboxed). The runtime layer
-   in `runtime.go` adds two opt-in sandboxed paths: `containerRuntime`
+   site routes through `internal/backend/local/sandbox.go:hostCommand`.
+   It runs the binary directly when sandbox-accessible (managed binaries
+   under `$XDG_DATA_HOME` or paths the Flatpak mounts) and falls back to
+   `flatpak-spawn --host` only for host-only paths — the latter requires
+   the `org.freedesktop.Flatpak` portal talk-name, which the Flathub
+   manifest does NOT grant. Inside the Flathub bundle, only managed-
+   binary subprocess mode works; container and bubblewrap modes need
+   host access and degrade to a clear error. The runtime layer in
+   `runtime.go` adds the two sandboxed paths: `containerRuntime`
    (podman/docker `run --rm --init …` against an OCI image) and
    `bubblewrapRuntime` (`bwrap` user-namespace sandbox around the host
-   binary, no image system). Both delegate back to `hostCommand` for
-   their runtime binary, so the Flatpak boundary still has exactly one
-   crossing. **Do not** add new exec sites for tofu/terraform/podman/
-   bwrap that bypass `hostCommand`.
+   binary, no image system). Both delegate back to `hostCommand` so the
+   Flatpak boundary stays at one crossing. **Do not** add new exec sites
+   for tofu/terraform/podman/bwrap that bypass `hostCommand`.
 
-7. **Run mode lives per-workspace, not in `domain.Workspace.ExecutionMode`**.
+7. **Binary resolution** is decoupled from the runtime via the
+   `BinaryResolver` interface in `internal/backend/local/binary.go`.
+   `pathResolver` discovers `tofu` / `terraform` on host PATH;
+   `managedResolver` downloads + caches official releases under
+   `$XDG_DATA_HOME/terrain/binaries/<engine>/<version>/` and verifies
+   them against the upstream `_SHA256SUMS` file. The choice is per-
+   workspace via `WorkspaceSettings.BinarySource` — `host` (zero value)
+   keeps the existing behavior; `managed` pulls the version named by
+   `WorkspaceSettings.ManagedEngine` + `ManagedVersion`. The shared
+   resolver singleton (`sharedManagedResolver()`) means UI-triggered
+   installs in Preferences and run-time resolutions in `runWorker` use
+   the same per-(engine, version) install lock.
+
+8. **Run mode lives per-workspace, not in `domain.Workspace.ExecutionMode`**.
    The TFE-mirror field is shared with the remote backend and has a fixed
    vocabulary; subprocess vs container is a local-backend implementation
    choice that lives in

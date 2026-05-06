@@ -28,6 +28,11 @@ type Preferences struct {
 	tofuImageRow      *adw.EntryRow
 	terraformImageRow *adw.EntryRow
 
+	managedGroup      *adw.PreferencesGroup
+	installManagedBtn *gtk.Button
+	managedBinaryRows []*adw.ActionRow
+	parent            *gtk.Window
+
 	cfg *config.Config
 }
 
@@ -50,6 +55,8 @@ func NewPreferences(cfg *config.Config, remoteBackends []RemoteBackend) *Prefere
 		defaultRunModeRow:   uihelpers.MustCast[*adw.ComboRow](builder, "default_run_mode_row"),
 		tofuImageRow:        uihelpers.MustCast[*adw.EntryRow](builder, "tofu_image_row"),
 		terraformImageRow:   uihelpers.MustCast[*adw.EntryRow](builder, "terraform_image_row"),
+		managedGroup:        uihelpers.MustCast[*adw.PreferencesGroup](builder, "managed_binaries_group"),
+		installManagedBtn:   uihelpers.MustCast[*gtk.Button](builder, "install_managed_binary_button"),
 		cfg:                 cfg,
 	}
 
@@ -58,11 +65,13 @@ func NewPreferences(cfg *config.Config, remoteBackends []RemoteBackend) *Prefere
 	p.bindTheme()
 	p.bindBackends(remoteBackends)
 	p.bindContainerRuntime(cfg)
+	p.bindManagedBinaries()
 
 	return p
 }
 
 func (p *Preferences) Present(parent *gtk.Window) {
+	p.parent = parent
 	p.dialog.Present(parent)
 }
 
@@ -168,6 +177,59 @@ func (p *Preferences) persist() {
 	if err := p.cfg.Save(); err != nil {
 		slog.Error("save preferences", "err", err)
 	}
+}
+
+func (p *Preferences) bindManagedBinaries() {
+	p.installManagedBtn.ConnectClicked(func() {
+		PresentManagedInstall(p.parent, func() { p.refreshManagedBinaries() })
+	})
+	p.refreshManagedBinaries()
+}
+
+func (p *Preferences) refreshManagedBinaries() {
+	for _, row := range p.managedBinaryRows {
+		p.managedGroup.Remove(row)
+	}
+	p.managedBinaryRows = nil
+
+	bins, err := local.ListManagedBinaries()
+	if err != nil {
+		slog.Warn("list managed binaries", "err", err)
+		return
+	}
+	if len(bins) == 0 {
+		empty := adw.NewActionRow()
+		empty.SetTitle("No managed binaries installed")
+		empty.SetSubtitle("Click \"Install version\" to download one.")
+		empty.AddCSSClass("dim-label")
+		p.managedGroup.Add(empty)
+		p.managedBinaryRows = append(p.managedBinaryRows, empty)
+		return
+	}
+	for _, b := range bins {
+		row := adw.NewActionRow()
+		row.SetTitle(b.Engine + " " + b.Version)
+		row.SetSubtitle(FormatManagedBinarySize(b.SizeBytes))
+		row.AddSuffix(p.managedRemoveButton(b))
+		p.managedGroup.Add(row)
+		p.managedBinaryRows = append(p.managedBinaryRows, row)
+	}
+}
+
+func (p *Preferences) managedRemoveButton(b local.ManagedBinaryInfo) *gtk.Button {
+	btn := gtk.NewButtonFromIconName("user-trash-symbolic")
+	btn.SetVAlign(gtk.AlignCenter)
+	btn.SetTooltipText("Remove " + b.Engine + " " + b.Version)
+	btn.AddCSSClass("flat")
+	btn.AddCSSClass("destructive-action")
+	btn.ConnectClicked(func() {
+		if err := local.RemoveManagedBinary(b.Engine, b.Version); err != nil {
+			slog.Error("remove managed binary", "engine", b.Engine, "version", b.Version, "err", err)
+			return
+		}
+		p.refreshManagedBinaries()
+	})
+	return btn
 }
 
 func (p *Preferences) bindTheme() {

@@ -1,6 +1,7 @@
 package local
 
 import (
+	"context"
 	"errors"
 )
 
@@ -38,3 +39,15 @@ func DetectAll() []BinaryInfo {
 
 // ErrNoBinary is returned when neither tofu nor terraform is on PATH.
 var ErrNoBinary = errors.New("neither tofu nor terraform found on PATH")
+
+// BinaryResolver impls: pathResolver (host PATH), managedResolver (cache).
+type BinaryResolver interface {
+	Resolve(ctx context.Context, engine, version string) (BinaryInfo, error)
+}
+
+// pathResolver ignores engine and version.
+type pathResolver struct{}
+
+func (pathResolver) Resolve(_ context.Context, _, _ string) (BinaryInfo, error) {
+	return DetectBinary()
+}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -22,12 +23,9 @@ func inFlatpak() bool {
 	return inFlatpakOnce.v
 }
 
-// hostCommand runs name on the host (via flatpak-spawn when sandboxed).
-// extraEnv layers onto the host's natural environment — never the sandbox's,
-// since its HOME/XDG_* would point host tofu at the wrong dirs.
-// Callers must not set cmd.Dir / cmd.Env after this returns.
+// hostCommand: callers must not set cmd.Dir / cmd.Env after this returns.
 func hostCommand(ctx context.Context, workDir string, extraEnv []string, name string, args ...string) *exec.Cmd {
-	if inFlatpak() {
+	if inFlatpak() && !runnableInSandbox(name) {
 		spawn := []string{"--host"}
 		if workDir != "" {
 			spawn = append(spawn, "--directory="+workDir)
@@ -45,6 +43,18 @@ func hostCommand(ctx context.Context, workDir string, extraEnv []string, name st
 		cmd.Env = append(os.Environ(), extraEnv...)
 	}
 	return cmd
+}
+
+// runnableInSandbox: bare command names (no slash) are treated as host-only.
+func runnableInSandbox(name string) bool {
+	if !filepath.IsAbs(name) {
+		return false
+	}
+	info, err := os.Stat(name)
+	if err != nil {
+		return false
+	}
+	return !info.IsDir()
 }
 
 // lookPath asks the host via flatpak-spawn when sandboxed; falls through to

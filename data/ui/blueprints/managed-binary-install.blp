@@ -1,0 +1,49 @@
+using Gtk 4.0;
+using Adw 1;
+
+Adw.Dialog managed_install_dialog {
+  title: "Install Managed Binary";
+  content-width: 420;
+
+  Gtk.Box {
+    orientation: vertical;
+    spacing: 0;
+
+    Adw.HeaderBar {
+      [start]
+      Gtk.Button managed_install_cancel_button {
+        label: "Cancel";
+      }
+
+      [end]
+      Gtk.Button managed_install_button {
+        label: "Install";
+
+        styles ["suggested-action"]
+      }
+    }
+
+    Adw.PreferencesPage {
+      Adw.PreferencesGroup {
+        Adw.ComboRow managed_install_engine_row {
+          title: "Engine";
+
+          model: StringList {
+            strings ["OpenTofu", "Terraform"]
+          };
+        }
+
+        Adw.EntryRow managed_install_version_row {
+          title: "Version (e.g. 1.7.0)";
+        }
+
+        Adw.ActionRow managed_install_status_row {
+          title: "Status";
+          subtitle: "Idle";
+
+          styles ["dim-label"]
+        }
+      }
+    }
+  }
+}

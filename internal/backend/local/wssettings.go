@@ -20,6 +20,15 @@ const (
 	RunModeBubblewrap RunMode = "bubblewrap"
 )
 
+// BinarySource: zero value falls through to host PATH.
+type BinarySource string
+
+const (
+	BinarySourceUnset   BinarySource = ""
+	BinarySourceHost    BinarySource = "host"
+	BinarySourceManaged BinarySource = "managed"
+)
+
 // WorkspaceSettings persists per-workspace overrides under
 // $XDG_DATA_HOME/terrain/<backend>/<ws>/settings.json. Zero value =
 // inherit app defaults.
@@ -27,7 +36,10 @@ type WorkspaceSettings struct {
 	RunMode RunMode `json:"run_mode,omitempty"`
 	// Image is the container image; only used when RunMode resolves to
 	// container. Empty = engine-specific default.
-	Image string `json:"image,omitempty"`
+	Image          string       `json:"image,omitempty"`
+	BinarySource   BinarySource `json:"binary_source,omitempty"`
+	ManagedEngine  string       `json:"managed_engine,omitempty"`  // "tofu" or "terraform"
+	ManagedVersion string       `json:"managed_version,omitempty"` // e.g. "1.7.0"
 }
 
 // LoadWorkspaceSettings returns the zero value when the file is missing.

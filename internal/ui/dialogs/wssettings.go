@@ -15,8 +15,11 @@ const wsSettingsResource = "/io/github/raspbeguy/Terrain/workspace-settings.ui"
 type WorkspaceSettings struct {
 	dialog *adw.PreferencesDialog
 
-	runModeRow *adw.ComboRow
-	imageRow   *adw.EntryRow
+	runModeRow       *adw.ComboRow
+	imageRow         *adw.EntryRow
+	binarySourceRow  *adw.ComboRow
+	managedEngineRow *adw.ComboRow
+	managedVerRow    *adw.EntryRow
 
 	backendID   string
 	workspaceID string
@@ -28,11 +31,14 @@ type WorkspaceSettings struct {
 func NewWorkspaceSettings(backendID, workspaceID string) *WorkspaceSettings {
 	builder := gtk.NewBuilderFromResource(wsSettingsResource)
 	w := &WorkspaceSettings{
-		dialog:      uihelpers.MustCast[*adw.PreferencesDialog](builder, "ws_settings_dialog"),
-		runModeRow:  uihelpers.MustCast[*adw.ComboRow](builder, "ws_run_mode_row"),
-		imageRow:    uihelpers.MustCast[*adw.EntryRow](builder, "ws_image_row"),
-		backendID:   backendID,
-		workspaceID: workspaceID,
+		dialog:           uihelpers.MustCast[*adw.PreferencesDialog](builder, "ws_settings_dialog"),
+		runModeRow:       uihelpers.MustCast[*adw.ComboRow](builder, "ws_run_mode_row"),
+		imageRow:         uihelpers.MustCast[*adw.EntryRow](builder, "ws_image_row"),
+		binarySourceRow:  uihelpers.MustCast[*adw.ComboRow](builder, "ws_binary_source_row"),
+		managedEngineRow: uihelpers.MustCast[*adw.ComboRow](builder, "ws_managed_engine_row"),
+		managedVerRow:    uihelpers.MustCast[*adw.EntryRow](builder, "ws_managed_version_row"),
+		backendID:        backendID,
+		workspaceID:      workspaceID,
 	}
 
 	current, err := local.LoadWorkspaceSettings(backendID, workspaceID)
@@ -52,8 +58,27 @@ func NewWorkspaceSettings(backendID, workspaceID string) *WorkspaceSettings {
 	}
 	w.imageRow.SetText(current.Image)
 
+	if current.BinarySource == local.BinarySourceManaged {
+		w.binarySourceRow.SetSelected(1)
+	} else {
+		w.binarySourceRow.SetSelected(0)
+	}
+	if current.ManagedEngine == "terraform" {
+		w.managedEngineRow.SetSelected(1)
+	} else {
+		w.managedEngineRow.SetSelected(0)
+	}
+	w.managedVerRow.SetText(current.ManagedVersion)
+	w.updateManagedVisibility()
+
 	w.runModeRow.Connect("notify::selected", w.persist)
 	w.imageRow.ConnectApply(w.persist)
+	w.binarySourceRow.Connect("notify::selected", func() {
+		w.updateManagedVisibility()
+		w.persist()
+	})
+	w.managedEngineRow.Connect("notify::selected", w.persist)
+	w.managedVerRow.ConnectApply(w.persist)
 
 	return w
 }
@@ -62,10 +87,24 @@ func (w *WorkspaceSettings) Present(parent *gtk.Window) {
 	w.dialog.Present(parent)
 }
 
+func (w *WorkspaceSettings) updateManagedVisibility() {
+	managed := w.binarySourceRow.Selected() == 1
+	w.managedEngineRow.SetVisible(managed)
+	w.managedVerRow.SetVisible(managed)
+}
+
 func (w *WorkspaceSettings) persist() {
 	want := local.WorkspaceSettings{
-		RunMode: w.selectedRunMode(),
-		Image:   w.imageRow.Text(),
+		RunMode:        w.selectedRunMode(),
+		Image:          w.imageRow.Text(),
+		BinarySource:   w.selectedBinarySource(),
+		ManagedEngine:  w.selectedManagedEngine(),
+		ManagedVersion: w.managedVerRow.Text(),
+	}
+	if want.BinarySource != local.BinarySourceManaged {
+		// Don't carry stale managed values through when the user switched off.
+		want.ManagedEngine = ""
+		want.ManagedVersion = ""
 	}
 	if want == w.initial {
 		return
@@ -78,7 +117,10 @@ func (w *WorkspaceSettings) persist() {
 	slog.Info("workspace settings saved",
 		"ws", w.workspaceID,
 		"run_mode", want.RunMode,
-		"image", want.Image)
+		"image", want.Image,
+		"binary_source", want.BinarySource,
+		"managed_engine", want.ManagedEngine,
+		"managed_version", want.ManagedVersion)
 }
 
 func (w *WorkspaceSettings) selectedRunMode() local.RunMode {
@@ -91,4 +133,18 @@ func (w *WorkspaceSettings) selectedRunMode() local.RunMode {
 		return local.RunModeContainer
 	}
 	return local.RunModeUnset
+}
+
+func (w *WorkspaceSettings) selectedBinarySource() local.BinarySource {
+	if w.binarySourceRow.Selected() == 1 {
+		return local.BinarySourceManaged
+	}
+	return local.BinarySourceUnset
+}
+
+func (w *WorkspaceSettings) selectedManagedEngine() string {
+	if w.managedEngineRow.Selected() == 1 {
+		return "terraform"
+	}
+	return "tofu"
 }

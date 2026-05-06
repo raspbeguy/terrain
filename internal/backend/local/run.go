@@ -49,11 +49,6 @@ func (b *Backend) startRun(_ context.Context, req domain.RunRequest) (domain.Run
 		return domain.Run{}, nil, nil, fmt.Errorf("resolve workspace: %w", err)
 	}
 
-	bin, err := DetectBinary()
-	if err != nil {
-		return domain.Run{}, nil, nil, fmt.Errorf("detect tofu/terraform: %w", err)
-	}
-
 	runID := newRunID()
 	runDir, err := runArtifactsDir(b.id, ws, runID)
 	if err != nil {
@@ -83,7 +78,7 @@ func (b *Backend) startRun(_ context.Context, req domain.RunRequest) (domain.Run
 		return nil
 	}
 
-	go runWorker(runCtx, b, run, ws, bin, req, runDir, stream)
+	go runWorker(runCtx, b, run, ws, req, runDir, stream)
 
 	return run, stream, cancelFn, nil
 }
@@ -97,7 +92,6 @@ func runWorker(
 	b *Backend,
 	run domain.Run,
 	ws domain.Workspace,
-	bin BinaryInfo,
 	req domain.RunRequest,
 	runDir string,
 	stream *runStream,
@@ -147,10 +141,35 @@ func runWorker(
 
 	setStatus(domain.StatusPending, "queued")
 
+	wsSettings, err := LoadWorkspaceSettings(b.id, ws.ID)
+	if err != nil {
+		finalErr = fmt.Errorf("load workspace settings: %w", err)
+		setStatus(domain.StatusErrored, finalErr.Error())
+		close(stream.events)
+		close(stream.logs)
+		close(stream.plan)
+		return
+	}
+
+	// Resolve binary first because managed mode may download (slow).
+	if wsSettings.BinarySource == BinarySourceManaged {
+		setStatus(domain.StatusFetching,
+			fmt.Sprintf("fetching %s %s", wsSettings.ManagedEngine, wsSettings.ManagedVersion))
+	}
+	bin, err := b.binaryResolver(wsSettings).Resolve(ctx, wsSettings.ManagedEngine, wsSettings.ManagedVersion)
+	if err != nil {
+		finalErr = fmt.Errorf("resolve binary: %w", err)
+		setStatus(domain.StatusErrored, finalErr.Error())
+		close(stream.events)
+		close(stream.logs)
+		close(stream.plan)
+		return
+	}
+
 	// Apply binds to the producing plan's mode/image (read from its
 	// request.txt) so toggling workspace settings mid-flow can't strand
 	// a plan whose paths reference the original sandbox.
-	rtOpts, err := b.resolveRuntimeOptions(ws.ID, run.ID)
+	rtOpts, err := b.resolveRuntimeOptions(ws.ID, run.ID, wsSettings)
 	if err != nil {
 		finalErr = fmt.Errorf("resolve runtime: %w", err)
 		setStatus(domain.StatusErrored, finalErr.Error())

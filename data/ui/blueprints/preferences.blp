@@ -88,6 +88,18 @@ Adw.PreferencesDialog preferences_dialog {
         styles ["property"]
       }
     }
+
+    Adw.PreferencesGroup managed_binaries_group {
+      title: "Managed Binaries";
+      description: "Versions terrain has downloaded into $XDG_DATA_HOME/terrain/binaries — use these per-workspace without a host install.";
+
+      header-suffix: Gtk.Button install_managed_binary_button {
+        label: "Install version";
+        valign: center;
+
+        styles ["flat", "suggested-action"]
+      };
+    }
   }
 
   Adw.PreferencesPage {

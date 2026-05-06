@@ -35,6 +35,14 @@ func New(id, name string) *Backend {
 	return &Backend{id: id, name: name}
 }
 
+// binaryResolver: shared singleton in managed mode so UI installs and runs see one lock.
+func (b *Backend) binaryResolver(s WorkspaceSettings) BinaryResolver {
+	if s.BinarySource == BinarySourceManaged {
+		return sharedManagedResolver()
+	}
+	return pathResolver{}
+}
+
 // SetRuntimeDefaults must be called before the backend is published.
 func (b *Backend) SetRuntimeDefaults(d RuntimeDefaults) {
 	b.defaults = d
