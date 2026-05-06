@@ -67,7 +67,8 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             build-essential pkg-config meson ninja-build blueprint-compiler \
-            libgtk-4-dev libadwaita-1-dev libsecret-1-dev desktop-file-utils
+            libgtk-4-dev libadwaita-1-dev libsecret-1-dev desktop-file-utils \
+            libgirepository1.0-dev
 
       - uses: actions/setup-go@v5
         with:
@@ -116,9 +117,10 @@ jobs:
             apk add --no-cache \
               build-base musl-dev pkgconf meson ninja blueprint-compiler \
               desktop-file-utils \
-              gtk4.0-dev libadwaita-dev libsecret-dev \
+              gtk4.0-dev libadwaita-dev gobject-introspection-dev libsecret-dev \
               git tar gzip go
             export GOTOOLCHAIN=local
+            export GOFLAGS=-buildvcs=false
             meson setup build
             meson compile -C build
             mkdir -p dist
