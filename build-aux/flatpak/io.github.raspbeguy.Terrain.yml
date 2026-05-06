@@ -28,13 +28,12 @@ finish-args:
   - --device=dri
   - --filesystem=home
   - --talk-name=org.freedesktop.secrets
+  - --talk-name=org.freedesktop.Flatpak
 modules:
   - name: terrain
     buildsystem: meson
     sources:
-      # Bump url + sha256 on each release.
-      - type: archive
-        url: https://github.com/raspbeguy/terrain/archive/refs/tags/v0.0.1.tar.gz
-        sha256: 0000000000000000000000000000000000000000000000000000000000000000
+      - type: dir
+        path: ../..
       # Regenerate via flatpak-go-mod after dependency bumps.
       - go.mod.yml
