@@ -5,9 +5,8 @@ A native GNOME GUI for [Terraform](https://www.terraform.io/) and
 [OTF](https://github.com/leg100/otf).
 
 > **Status:** pre-release. Workspace management, run streaming, plan diff,
-> state viewer, variable editing, and remote backends (HCP / TFE / OTF) all
-> work. Variable sets management page is in flight; Flathub submission and
-> screenshots are pending.
+> state viewer, variable editing, variable sets, and remote backends
+> (HCP / TFE / OTF) all work. Flathub submission is queued.
 
 ## Features
 
@@ -19,9 +18,24 @@ A native GNOME GUI for [Terraform](https://www.terraform.io/) and
 - **Run history** — past runs persisted to disk (local) or fetched from API (remote), clickable for read-only replay
 - **Hybrid backends** — local CLI runner + remote OTF / HCP Terraform / Terraform Enterprise
 
+## Install
+
+Each [release](https://github.com/raspbeguy/terrain/releases) ships six
+artifacts:
+
+| File | When to use |
+|---|---|
+| `terrain-x86_64.flatpak` / `terrain-aarch64.flatpak` | Recommended. Works on any modern Linux desktop. `flatpak install --user --bundle ./terrain-x86_64.flatpak` |
+| `terrain-linux-amd64-glibc.tar.gz` / `terrain-linux-arm64-glibc.tar.gz` | Host binary. Needs libadwaita ≥ 1.7 (Fedora 41+, Debian 13+, Ubuntu 24.10+, Arch). |
+| `terrain-linux-amd64-musl.tar.gz` / `terrain-linux-arm64-musl.tar.gz` | Host binary for musl distros (Alpine, Void, postmarketOS). |
+
+The host binaries dynamically link against GTK 4 / libadwaita / libsecret;
+ensure the runtime versions match. The Flatpak bundle carries its own
+runtime and works regardless.
+
 ## Tech stack
 
-- Go 1.22+ with [gotk4](https://github.com/diamondburned/gotk4) + [gotk4-adwaita](https://github.com/diamondburned/gotk4-adwaita) (GTK 4 / libadwaita 1.4+)
+- Go 1.26+ with [gotk4](https://github.com/diamondburned/gotk4) + [gotk4-adwaita](https://github.com/diamondburned/gotk4-adwaita) (GTK 4 / libadwaita 1.6+)
 - UI defined in [Blueprint](https://gnome.pages.gitlab.gnome.org/blueprint-compiler/) (`.blp` → `.ui` → gresource)
 - HCL parsing: `github.com/hashicorp/hcl/v2`
 - Plan/state JSON: `github.com/hashicorp/terraform-json`
@@ -33,10 +47,10 @@ A native GNOME GUI for [Terraform](https://www.terraform.io/) and
 
 ### Prerequisites
 
-- Go ≥ 1.22
+- Go ≥ 1.26
 - Meson ≥ 1.0
 - GTK 4 ≥ 4.10 dev headers
-- libadwaita ≥ 1.4 dev headers
+- libadwaita ≥ 1.6 dev headers
 - blueprint-compiler ≥ 0.10
 - (Optional) `tofu` or `terraform` on `PATH` — required for runtime functionality
 - (Optional) `xvfb-run` — used by the `meson test` boot smoke test
@@ -60,8 +74,8 @@ meson test -C build                # runs desktop/metainfo validators + xvfb boo
 ### Flatpak
 
 ```sh
-flatpak install --user org.gnome.Sdk//47 org.gnome.Platform//47 \
-                      org.freedesktop.Sdk.Extension.golang//24.08
+flatpak install --user org.gnome.Sdk//50 org.gnome.Platform//50 \
+                      org.freedesktop.Sdk.Extension.golang//25.08
 flatpak-builder --user --install --force-clean build-flatpak \
                 build-aux/flatpak/io.github.raspbeguy.Terrain.yml
 flatpak run io.github.raspbeguy.Terrain
