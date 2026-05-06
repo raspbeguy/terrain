@@ -27,7 +27,7 @@ jobs:
   go:
     name: go test + vet
     runs-on: ubuntu-latest
-    container: alpine:latest
+    container: alpine:edge
     steps:
       - name: Install Alpine deps
         run: apk add --no-cache ${{ env.APK_PACKAGES }}
@@ -43,7 +43,7 @@ jobs:
   meson:
     name: meson build + smoke
     runs-on: ubuntu-latest
-    container: alpine:latest
+    container: alpine:edge
     steps:
       - name: Install Alpine deps
         run: |
