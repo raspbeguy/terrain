@@ -57,24 +57,30 @@ jobs:
             runner: ubuntu-latest
           - goarch: arm64
             runner: ubuntu-24.04-arm
+    # Ubuntu 24.04 LTS ships libadwaita 1.5; gotk4-adwaita references 1.6+
+    # symbols. Build in 25.04 (Plucky, libadwaita 1.7) so cgo compiles.
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
+    container:
+      image: ubuntu:25.04
     steps:
-      - uses: actions/checkout@v6
-
       - name: Install build deps
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
+          apt-get update
+          apt-get install -y --no-install-recommends \
             build-essential pkg-config meson ninja-build blueprint-compiler \
             libgtk-4-dev libadwaita-1-dev libsecret-1-dev desktop-file-utils \
-            libgirepository1.0-dev
+            libgirepository1.0-dev git ca-certificates
+
+      - uses: actions/checkout@v6
 
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
 
       - name: Build with meson
+        env:
+          GOFLAGS: -buildvcs=false
         run: |
           meson setup build
           meson compile -C build
