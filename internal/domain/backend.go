@@ -58,3 +58,17 @@ type Backend interface {
 	// Close releases resources. Idempotent.
 	Close() error
 }
+
+// WorkspaceStreamer lets the UI fill the sidebar page-by-page instead of
+// waiting for a buffered List call. Mostly useful for remote orgs with
+// hundreds of workspaces. Channel closes when paging is done.
+type WorkspaceStreamer interface {
+	StreamWorkspaces(ctx context.Context) <-chan WorkspaceStreamItem
+}
+
+// WorkspaceStreamItem carries either a page of workspaces or a fatal error.
+// On error, the stream closes immediately after.
+type WorkspaceStreamItem struct {
+	Workspaces []Workspace
+	Err        error
+}

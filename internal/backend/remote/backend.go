@@ -129,32 +129,57 @@ func (b *Backend) Capabilities() domain.Capabilities {
 	return b.caps
 }
 
-// Workspaces lists every workspace in the org, flattening pages.
+// Workspaces drains StreamWorkspaces — kept for callers that want the
+// whole list as a slice (e.g. the varsets dialog).
 func (b *Backend) Workspaces(ctx context.Context) ([]domain.Workspace, error) {
 	var out []domain.Workspace
-	page := 1
-	for {
-		opts := &tfe.WorkspaceListOptions{
-			ListOptions: tfe.ListOptions{PageNumber: page, PageSize: 100},
-			// Include the project relation in the same call so the
-			// sidebar can show project names without per-workspace
-			// reads. OTF before v0.3 returns nil Project; we fall back
-			// to the org name then.
-			Include: []tfe.WSIncludeOpt{tfe.WSProject},
+	for item := range b.StreamWorkspaces(ctx) {
+		if item.Err != nil {
+			return nil, item.Err
 		}
-		list, err := b.client.Workspaces.List(ctx, b.organization, opts)
-		if err != nil {
-			return nil, fmt.Errorf("list workspaces (page %d): %w", page, err)
-		}
-		for _, ws := range list.Items {
-			out = append(out, b.toWorkspace(ws))
-		}
-		if list.CurrentPage >= list.TotalPages || list.TotalPages == 0 {
-			break
-		}
-		page = list.NextPage
+		out = append(out, item.Workspaces...)
 	}
 	return out, nil
+}
+
+// StreamWorkspaces emits one channel item per API page. Include=WSProject
+// piggy-backs the project name so the sidebar doesn't need a per-workspace
+// follow-up read; OTF before v0.3 returns nil Project — toWorkspace falls
+// back to the org name then.
+func (b *Backend) StreamWorkspaces(ctx context.Context) <-chan domain.WorkspaceStreamItem {
+	out := make(chan domain.WorkspaceStreamItem, 4)
+	go func() {
+		defer close(out)
+		page := 1
+		for {
+			opts := &tfe.WorkspaceListOptions{
+				ListOptions: tfe.ListOptions{PageNumber: page, PageSize: 100},
+				Include:     []tfe.WSIncludeOpt{tfe.WSProject},
+			}
+			list, err := b.client.Workspaces.List(ctx, b.organization, opts)
+			if err != nil {
+				select {
+				case out <- domain.WorkspaceStreamItem{Err: fmt.Errorf("list workspaces (page %d): %w", page, err)}:
+				case <-ctx.Done():
+				}
+				return
+			}
+			pageWS := make([]domain.Workspace, 0, len(list.Items))
+			for _, ws := range list.Items {
+				pageWS = append(pageWS, b.toWorkspace(ws))
+			}
+			select {
+			case out <- domain.WorkspaceStreamItem{Workspaces: pageWS}:
+			case <-ctx.Done():
+				return
+			}
+			if list.CurrentPage >= list.TotalPages || list.TotalPages == 0 {
+				return
+			}
+			page = list.NextPage
+		}
+	}()
+	return out
 }
 
 func (b *Backend) Workspace(ctx context.Context, id string) (domain.Workspace, error) {

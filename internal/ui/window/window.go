@@ -177,19 +177,56 @@ func (w *Window) refreshFrom(backends []domain.Backend) error {
 	return nil
 }
 
+// fetchRemoteWorkspaces uses the streaming API when the backend supports
+// it so the sidebar fills page-by-page; orgs with hundreds of workspaces
+// blew through the previous synchronous deadline.
 func (w *Window) fetchRemoteWorkspaces(b domain.Backend) {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
-	list, err := b.Workspaces(ctx)
+
+	streamer, ok := b.(domain.WorkspaceStreamer)
+	if !ok {
+		list, err := b.Workspaces(ctx)
+		bridge.OnMainThread(func() {
+			if err != nil {
+				slog.Warn("fetch remote workspaces", "backend", b.ID(), "err", err)
+				w.ToastError("Couldn't load workspaces from " + b.DisplayName() + ": " + err.Error())
+				return
+			}
+			slog.Info("remote workspaces loaded", "backend", b.ID(), "count", len(list))
+			w.replaceBackendWorkspaces(b.ID(), list)
+		})
+		return
+	}
+
 	bridge.OnMainThread(func() {
-		if err != nil {
-			slog.Warn("fetch remote workspaces", "backend", b.ID(), "err", err)
-			w.ToastError("Couldn't load workspaces from " + b.DisplayName() + ": " + err.Error())
+		w.replaceBackendWorkspaces(b.ID(), nil)
+	})
+	total := 0
+	for item := range streamer.StreamWorkspaces(ctx) {
+		if item.Err != nil {
+			err := item.Err
+			bridge.OnMainThread(func() {
+				slog.Warn("fetch remote workspaces", "backend", b.ID(), "err", err)
+				w.ToastError("Couldn't load workspaces from " + b.DisplayName() + ": " + err.Error())
+			})
 			return
 		}
-		slog.Info("remote workspaces loaded", "backend", b.ID(), "count", len(list))
-		w.replaceBackendWorkspaces(b.ID(), list)
-	})
+		page := item.Workspaces
+		total += len(page)
+		bridge.OnMainThread(func() {
+			w.appendBackendWorkspaces(b.ID(), page)
+		})
+	}
+	slog.Info("remote workspaces loaded", "backend", b.ID(), "count", total)
+}
+
+func (w *Window) appendBackendWorkspaces(backendID string, more []domain.Workspace) {
+	if len(more) == 0 {
+		return
+	}
+	w.workspaces = append(w.workspaces, more...)
+	w.rebuildSidebar()
 }
 
 func (w *Window) replaceBackendWorkspaces(backendID string, list []domain.Workspace) {
