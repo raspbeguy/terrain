@@ -44,8 +44,6 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          files: terrain-${{ matrix.arch }}.flatpak
-          generate_release_notes: true
           fail_on_unmatched_files: true
 
   binary-glibc:
@@ -95,8 +93,6 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          files: terrain-linux-${{ matrix.goarch }}-glibc.tar.gz
-          generate_release_notes: true
           fail_on_unmatched_files: true
 
   binary-musl:
@@ -138,6 +134,4 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          files: terrain-linux-${{ matrix.goarch }}-musl.tar.gz
-          generate_release_notes: true
           fail_on_unmatched_files: true
