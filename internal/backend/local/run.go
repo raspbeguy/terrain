@@ -152,11 +152,31 @@ func runWorker(
 	}
 
 	// Resolve binary first because managed mode may download (slow).
+	managedVersion := wsSettings.ManagedVersion
+	if wsSettings.BinarySource == BinarySourceManaged && wsSettings.ManagedTrackLatest {
+		setStatus(domain.StatusFetching,
+			"checking latest "+wsSettings.ManagedEngine+" release")
+		latest, lerr := LatestManagedVersion(ctx, wsSettings.ManagedEngine)
+		switch {
+		case lerr == nil:
+			managedVersion = latest
+		case wsSettings.ManagedVersion != "":
+			slog.Warn("latest version lookup failed, falling back to pinned",
+				"engine", wsSettings.ManagedEngine, "pinned", wsSettings.ManagedVersion, "err", lerr)
+		default:
+			finalErr = fmt.Errorf("resolve latest %s: %w", wsSettings.ManagedEngine, lerr)
+			setStatus(domain.StatusErrored, finalErr.Error())
+			close(stream.events)
+			close(stream.logs)
+			close(stream.plan)
+			return
+		}
+	}
 	if wsSettings.BinarySource == BinarySourceManaged {
 		setStatus(domain.StatusFetching,
-			fmt.Sprintf("fetching %s %s", wsSettings.ManagedEngine, wsSettings.ManagedVersion))
+			fmt.Sprintf("fetching %s %s", wsSettings.ManagedEngine, managedVersion))
 	}
-	bin, err := b.binaryResolver(wsSettings).Resolve(ctx, wsSettings.ManagedEngine, wsSettings.ManagedVersion)
+	bin, err := b.binaryResolver(wsSettings).Resolve(ctx, wsSettings.ManagedEngine, managedVersion)
 	if err != nil {
 		finalErr = fmt.Errorf("resolve binary: %w", err)
 		setStatus(domain.StatusErrored, finalErr.Error())

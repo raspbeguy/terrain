@@ -36,10 +36,11 @@ type WorkspaceSettings struct {
 	RunMode RunMode `json:"run_mode,omitempty"`
 	// Image is the container image; only used when RunMode resolves to
 	// container. Empty = engine-specific default.
-	Image          string       `json:"image,omitempty"`
-	BinarySource   BinarySource `json:"binary_source,omitempty"`
-	ManagedEngine  string       `json:"managed_engine,omitempty"`  // "tofu" or "terraform"
-	ManagedVersion string       `json:"managed_version,omitempty"` // e.g. "1.7.0"
+	Image              string       `json:"image,omitempty"`
+	BinarySource       BinarySource `json:"binary_source,omitempty"`
+	ManagedEngine      string       `json:"managed_engine,omitempty"`  // "tofu" or "terraform"
+	ManagedVersion     string       `json:"managed_version,omitempty"` // ignored when ManagedTrackLatest is true
+	ManagedTrackLatest bool         `json:"managed_track_latest,omitempty"`
 }
 
 // LoadWorkspaceSettings returns the zero value when the file is missing.
@@ -50,6 +51,10 @@ func LoadWorkspaceSettings(backendID, workspaceID string) (WorkspaceSettings, er
 	if err != nil {
 		return WorkspaceSettings{}, err
 	}
+	return loadWorkspaceSettingsAt(path)
+}
+
+func loadWorkspaceSettingsAt(path string) (WorkspaceSettings, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {

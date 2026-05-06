@@ -45,6 +45,12 @@ Adw.PreferencesDialog ws_settings_dialog {
         };
       }
 
+      Adw.SwitchRow ws_managed_track_latest_row {
+        title: "Track latest stable";
+        subtitle: "Resolve the newest tagged release at run time. Falls back to the pinned version on lookup failure.";
+        visible: false;
+      }
+
       Adw.EntryRow ws_managed_version_row {
         title: "Version";
         visible: false;

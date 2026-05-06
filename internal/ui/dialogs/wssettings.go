@@ -15,11 +15,12 @@ const wsSettingsResource = "/io/github/raspbeguy/Terrain/workspace-settings.ui"
 type WorkspaceSettings struct {
 	dialog *adw.PreferencesDialog
 
-	runModeRow       *adw.ComboRow
-	imageRow         *adw.EntryRow
-	binarySourceRow  *adw.ComboRow
-	managedEngineRow *adw.ComboRow
-	managedVerRow    *adw.EntryRow
+	runModeRow         *adw.ComboRow
+	imageRow           *adw.EntryRow
+	binarySourceRow    *adw.ComboRow
+	managedEngineRow   *adw.ComboRow
+	managedTrackLatest *adw.SwitchRow
+	managedVerRow      *adw.EntryRow
 
 	backendID   string
 	workspaceID string
@@ -31,14 +32,15 @@ type WorkspaceSettings struct {
 func NewWorkspaceSettings(backendID, workspaceID string) *WorkspaceSettings {
 	builder := gtk.NewBuilderFromResource(wsSettingsResource)
 	w := &WorkspaceSettings{
-		dialog:           uihelpers.MustCast[*adw.PreferencesDialog](builder, "ws_settings_dialog"),
-		runModeRow:       uihelpers.MustCast[*adw.ComboRow](builder, "ws_run_mode_row"),
-		imageRow:         uihelpers.MustCast[*adw.EntryRow](builder, "ws_image_row"),
-		binarySourceRow:  uihelpers.MustCast[*adw.ComboRow](builder, "ws_binary_source_row"),
-		managedEngineRow: uihelpers.MustCast[*adw.ComboRow](builder, "ws_managed_engine_row"),
-		managedVerRow:    uihelpers.MustCast[*adw.EntryRow](builder, "ws_managed_version_row"),
-		backendID:        backendID,
-		workspaceID:      workspaceID,
+		dialog:             uihelpers.MustCast[*adw.PreferencesDialog](builder, "ws_settings_dialog"),
+		runModeRow:         uihelpers.MustCast[*adw.ComboRow](builder, "ws_run_mode_row"),
+		imageRow:           uihelpers.MustCast[*adw.EntryRow](builder, "ws_image_row"),
+		binarySourceRow:    uihelpers.MustCast[*adw.ComboRow](builder, "ws_binary_source_row"),
+		managedEngineRow:   uihelpers.MustCast[*adw.ComboRow](builder, "ws_managed_engine_row"),
+		managedTrackLatest: uihelpers.MustCast[*adw.SwitchRow](builder, "ws_managed_track_latest_row"),
+		managedVerRow:      uihelpers.MustCast[*adw.EntryRow](builder, "ws_managed_version_row"),
+		backendID:          backendID,
+		workspaceID:        workspaceID,
 	}
 
 	current, err := local.LoadWorkspaceSettings(backendID, workspaceID)
@@ -68,6 +70,7 @@ func NewWorkspaceSettings(backendID, workspaceID string) *WorkspaceSettings {
 	} else {
 		w.managedEngineRow.SetSelected(0)
 	}
+	w.managedTrackLatest.SetActive(current.ManagedTrackLatest)
 	w.managedVerRow.SetText(current.ManagedVersion)
 	w.updateManagedVisibility()
 
@@ -78,6 +81,7 @@ func NewWorkspaceSettings(backendID, workspaceID string) *WorkspaceSettings {
 		w.persist()
 	})
 	w.managedEngineRow.Connect("notify::selected", w.persist)
+	w.managedTrackLatest.Connect("notify::active", w.persist)
 	w.managedVerRow.ConnectApply(w.persist)
 
 	return w
@@ -90,21 +94,24 @@ func (w *WorkspaceSettings) Present(parent *gtk.Window) {
 func (w *WorkspaceSettings) updateManagedVisibility() {
 	managed := w.binarySourceRow.Selected() == 1
 	w.managedEngineRow.SetVisible(managed)
+	w.managedTrackLatest.SetVisible(managed)
 	w.managedVerRow.SetVisible(managed)
 }
 
 func (w *WorkspaceSettings) persist() {
 	want := local.WorkspaceSettings{
-		RunMode:        w.selectedRunMode(),
-		Image:          w.imageRow.Text(),
-		BinarySource:   w.selectedBinarySource(),
-		ManagedEngine:  w.selectedManagedEngine(),
-		ManagedVersion: w.managedVerRow.Text(),
+		RunMode:            w.selectedRunMode(),
+		Image:              w.imageRow.Text(),
+		BinarySource:       w.selectedBinarySource(),
+		ManagedEngine:      w.selectedManagedEngine(),
+		ManagedTrackLatest: w.managedTrackLatest.Active(),
+		ManagedVersion:     w.managedVerRow.Text(),
 	}
 	if want.BinarySource != local.BinarySourceManaged {
 		// Don't carry stale managed values through when the user switched off.
 		want.ManagedEngine = ""
 		want.ManagedVersion = ""
+		want.ManagedTrackLatest = false
 	}
 	if want == w.initial {
 		return
@@ -120,6 +127,7 @@ func (w *WorkspaceSettings) persist() {
 		"image", want.Image,
 		"binary_source", want.BinarySource,
 		"managed_engine", want.ManagedEngine,
+		"managed_track_latest", want.ManagedTrackLatest,
 		"managed_version", want.ManagedVersion)
 }
 

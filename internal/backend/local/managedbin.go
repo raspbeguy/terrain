@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -284,6 +285,66 @@ func ListManagedBinaries() ([]ManagedBinaryInfo, error) {
 		}
 	}
 	return out, nil
+}
+
+// ReferencedManagedBinaries: keys are "<engine>/<version>".
+func ReferencedManagedBinaries() (map[string]bool, error) {
+	dataHome, err := userDataDir()
+	if err != nil {
+		return nil, err
+	}
+	root := filepath.Join(dataHome, "terrain")
+	binariesDir := filepath.Join(root, "binaries")
+
+	refs := map[string]bool{}
+	err = filepath.WalkDir(root, func(path string, d fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return nil
+		}
+		if d.IsDir() {
+			if path == binariesDir {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if d.Name() != "settings.json" {
+			return nil
+		}
+		s, err := loadWorkspaceSettingsAt(path)
+		if err != nil {
+			return nil
+		}
+		if s.BinarySource == BinarySourceManaged && s.ManagedEngine != "" && s.ManagedVersion != "" {
+			refs[s.ManagedEngine+"/"+s.ManagedVersion] = true
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return refs, nil
+}
+
+func CleanUnusedManagedBinaries() ([]ManagedBinaryInfo, error) {
+	refs, err := ReferencedManagedBinaries()
+	if err != nil {
+		return nil, err
+	}
+	installed, err := ListManagedBinaries()
+	if err != nil {
+		return nil, err
+	}
+	var removed []ManagedBinaryInfo
+	for _, b := range installed {
+		if refs[b.Engine+"/"+b.Version] {
+			continue
+		}
+		if err := RemoveManagedBinary(b.Engine, b.Version); err != nil {
+			return removed, fmt.Errorf("remove %s %s: %w", b.Engine, b.Version, err)
+		}
+		removed = append(removed, b)
+	}
+	return removed, nil
 }
 
 // RemoveManagedBinary: missing dir is a no-op.

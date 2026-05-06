@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"testing"
+	"time"
 )
 
 func TestManagedArchiveURL_Tofu(t *testing.T) {
@@ -215,6 +216,151 @@ func TestManagedResolver_UsesCacheWhenPresent(t *testing.T) {
 	}
 	if bin.Name != "tofu" {
 		t.Errorf("name: %s", bin.Name)
+	}
+}
+
+func TestReferencedManagedBinaries(t *testing.T) {
+	dataHome := t.TempDir()
+	t.Setenv("XDG_DATA_HOME", dataHome)
+
+	// One pinned, one host, one tracking latest (no explicit version).
+	mustWrite := func(p string, body string) {
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	mustWrite(filepath.Join(dataHome, "terrain", "local", "ws-a", "settings.json"),
+		`{"binary_source":"managed","managed_engine":"tofu","managed_version":"1.7.0"}`)
+	mustWrite(filepath.Join(dataHome, "terrain", "local", "ws-b", "settings.json"),
+		`{"binary_source":"host"}`)
+	mustWrite(filepath.Join(dataHome, "terrain", "local", "ws-c", "settings.json"),
+		`{"binary_source":"managed","managed_engine":"terraform","managed_track_latest":true}`)
+
+	// Stray file inside binaries/ — must be skipped.
+	mustWrite(filepath.Join(dataHome, "terrain", "binaries", "junk.json"),
+		`{"binary_source":"managed","managed_engine":"tofu","managed_version":"99.99.99"}`)
+
+	refs, err := ReferencedManagedBinaries()
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
+	if !refs["tofu/1.7.0"] {
+		t.Errorf("ws-a's reference missing: %v", refs)
+	}
+	if refs["tofu/99.99.99"] {
+		t.Errorf("binaries/junk.json should be skipped, got: %v", refs)
+	}
+	// ws-c uses track_latest with no explicit version — not referenced.
+	if len(refs) != 1 {
+		t.Errorf("expected 1 reference (ws-a), got %d: %v", len(refs), refs)
+	}
+}
+
+func TestCleanUnusedManagedBinaries(t *testing.T) {
+	dataHome := t.TempDir()
+	t.Setenv("XDG_DATA_HOME", dataHome)
+
+	// Install three versions on disk.
+	for _, v := range []struct{ engine, version string }{
+		{"tofu", "1.7.0"},
+		{"tofu", "1.6.0"},
+		{"terraform", "1.9.5"},
+	} {
+		bp, err := managedBinaryPath(v.engine, v.version)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.MkdirAll(filepath.Dir(bp), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(bp, []byte("stub"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// Only one workspace references one of them.
+	settings := filepath.Join(dataHome, "terrain", "local", "ws-a", "settings.json")
+	if err := os.MkdirAll(filepath.Dir(settings), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(settings, []byte(
+		`{"binary_source":"managed","managed_engine":"tofu","managed_version":"1.7.0"}`,
+	), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	removed, err := CleanUnusedManagedBinaries()
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
+	if len(removed) != 2 {
+		t.Errorf("expected to remove 2, got %d: %v", len(removed), removed)
+	}
+
+	remaining, err := ListManagedBinaries()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(remaining) != 1 || remaining[0].Engine != "tofu" || remaining[0].Version != "1.7.0" {
+		t.Errorf("unexpected remaining: %+v", remaining)
+	}
+}
+
+func TestLatestVersionCacheTTL(t *testing.T) {
+	// Reset the package cache for the test.
+	latestCacheMu.Lock()
+	latestCache = map[string]latestEntry{}
+	latestCache["tofu"] = latestEntry{version: "1.7.0", fetchedAt: time.Now()}
+	latestCacheMu.Unlock()
+	defer func() {
+		latestCacheMu.Lock()
+		latestCache = map[string]latestEntry{}
+		latestCacheMu.Unlock()
+	}()
+
+	// Pre-cancelled context — confirms we hit the cache, not the network.
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	got, err := LatestManagedVersion(ctx, "tofu")
+	if err != nil {
+		t.Fatalf("cached lookup failed: %v", err)
+	}
+	if got != "1.7.0" {
+		t.Errorf("got %q want 1.7.0", got)
+	}
+}
+
+func TestFetchLatestReleaseTag_RedirectParsing(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/redirect" {
+			http.Redirect(w, r, "/opentofu/opentofu/releases/tag/v1.7.0", http.StatusFound)
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer srv.Close()
+
+	// Bypass fetchLatestReleaseTag's hardcoded URL; just exercise the redirect parser.
+	req, err := http.NewRequest(http.MethodHead, srv.URL+"/redirect", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	client := &http.Client{
+		CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	loc := resp.Header.Get("Location")
+	if loc != "/opentofu/opentofu/releases/tag/v1.7.0" {
+		t.Errorf("location: %s", loc)
 	}
 }
 

@@ -30,6 +30,7 @@ type Preferences struct {
 
 	managedGroup      *adw.PreferencesGroup
 	installManagedBtn *gtk.Button
+	cleanManagedBtn   *gtk.Button
 	managedBinaryRows []*adw.ActionRow
 	parent            *gtk.Window
 
@@ -57,6 +58,7 @@ func NewPreferences(cfg *config.Config, remoteBackends []RemoteBackend) *Prefere
 		terraformImageRow:   uihelpers.MustCast[*adw.EntryRow](builder, "terraform_image_row"),
 		managedGroup:        uihelpers.MustCast[*adw.PreferencesGroup](builder, "managed_binaries_group"),
 		installManagedBtn:   uihelpers.MustCast[*gtk.Button](builder, "install_managed_binary_button"),
+		cleanManagedBtn:     uihelpers.MustCast[*gtk.Button](builder, "clean_managed_binaries_button"),
 		cfg:                 cfg,
 	}
 
@@ -182,6 +184,15 @@ func (p *Preferences) persist() {
 func (p *Preferences) bindManagedBinaries() {
 	p.installManagedBtn.ConnectClicked(func() {
 		PresentManagedInstall(p.parent, func() { p.refreshManagedBinaries() })
+	})
+	p.cleanManagedBtn.ConnectClicked(func() {
+		removed, err := local.CleanUnusedManagedBinaries()
+		if err != nil {
+			slog.Error("clean unused managed binaries", "err", err)
+			return
+		}
+		slog.Info("cleaned unused managed binaries", "count", len(removed))
+		p.refreshManagedBinaries()
 	})
 	p.refreshManagedBinaries()
 }
