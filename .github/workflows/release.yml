@@ -67,7 +67,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             build-essential pkg-config meson ninja-build blueprint-compiler \
-            libgtk-4-dev libadwaita-1-dev libsecret-1-dev
+            libgtk-4-dev libadwaita-1-dev libsecret-1-dev desktop-file-utils
 
       - uses: actions/setup-go@v5
         with:
@@ -101,33 +101,30 @@ jobs:
             runner: ubuntu-latest
           - goarch: arm64
             runner: ubuntu-24.04-arm
+    # JS actions can't run inside Alpine on arm64 runners, so docker-run the
+    # build from the host instead of using `container:`. Same pattern on
+    # both archs for consistency.
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
-    container:
-      image: alpine:edge
     steps:
-      # nodejs lets the runner host the JS-based actions inside the container.
-      - name: Install build deps
-        run: |
-          apk add --no-cache \
-            build-base musl-dev pkgconf meson ninja blueprint-compiler \
-            gtk4.0-dev libadwaita-dev libsecret-dev \
-            git tar gzip go nodejs
-
       - uses: actions/checkout@v6
 
-      - name: Build with meson
-        env:
-          GOTOOLCHAIN: local
+      - name: Build inside Alpine
         run: |
-          meson setup build
-          meson compile -C build
-
-      - name: Package binary tarball
-        run: |
-          mkdir -p dist
-          cp build/terrain LICENSE dist/
-          tar czf terrain-linux-${{ matrix.goarch }}-musl.tar.gz -C dist .
+          docker run --rm -v "$PWD":/work -w /work alpine:edge sh -c '
+            set -e
+            apk add --no-cache \
+              build-base musl-dev pkgconf meson ninja blueprint-compiler \
+              desktop-file-utils \
+              gtk4.0-dev libadwaita-dev libsecret-dev \
+              git tar gzip go
+            export GOTOOLCHAIN=local
+            meson setup build
+            meson compile -C build
+            mkdir -p dist
+            cp build/terrain LICENSE dist/
+            tar czf terrain-linux-${{ matrix.goarch }}-musl.tar.gz -C dist .
+          '
 
       - name: Attach binary to GitHub Release
         if: startsWith(github.ref, 'refs/tags/')
