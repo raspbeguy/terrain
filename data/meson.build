@@ -19,7 +19,7 @@ install_data(app_id + '.gschema.xml',
 )
 
 install_data(
-  'icons' / 'hicolor' / 'scalable' / 'apps' / (app_id + '.svg'),
+  meson.project_source_root() / 'docs' / (app_id + '.svg'),
   install_dir: get_option('datadir') / 'icons' / 'hicolor' / 'scalable' / 'apps',
 )
 

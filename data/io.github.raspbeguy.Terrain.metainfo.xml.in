@@ -81,19 +81,19 @@
   <screenshots>
     <screenshot type="default">
       <caption>Workspace overview with the runs tab populated</caption>
-      <image>https://raw.githubusercontent.com/raspbeguy/terrain/main/data/screenshots/workspace.png</image>
+      <image>https://raw.githubusercontent.com/raspbeguy/terrain/main/docs/screenshots/workspace.png</image>
     </screenshot>
     <screenshot>
       <caption>Plan diff viewer showing per-resource changes</caption>
-      <image>https://raw.githubusercontent.com/raspbeguy/terrain/main/data/screenshots/plan-diff.png</image>
+      <image>https://raw.githubusercontent.com/raspbeguy/terrain/main/docs/screenshots/plan-diff.png</image>
     </screenshot>
     <screenshot>
       <caption>State tree with attribute viewer</caption>
-      <image>https://raw.githubusercontent.com/raspbeguy/terrain/main/data/screenshots/state-tree.png</image>
+      <image>https://raw.githubusercontent.com/raspbeguy/terrain/main/docs/screenshots/state-tree.png</image>
     </screenshot>
     <screenshot>
       <caption>Workspace variables with sensitive values masked</caption>
-      <image>https://raw.githubusercontent.com/raspbeguy/terrain/main/data/screenshots/variables.png</image>
+      <image>https://raw.githubusercontent.com/raspbeguy/terrain/main/docs/screenshots/variables.png</image>
     </screenshot>
   </screenshots>
 

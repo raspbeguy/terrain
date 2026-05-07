@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Terrain — A native GNOME GUI for Terraform and OpenTofu</title>
+  <meta name="description" content="Terrain is a native GNOME desktop GUI for Terraform and OpenTofu, inspired by Terraform Enterprise. Streamed runs, plan diffs, state viewer, variable management, hybrid local + remote backends.">
+  <meta property="og:title" content="Terrain — Native GNOME GUI for Terraform and OpenTofu">
+  <meta property="og:description" content="A polished desktop interface for Terraform / OpenTofu workflows on Linux.">
+  <meta property="og:image" content="https://raw.githubusercontent.com/raspbeguy/terrain/main/docs/screenshots/workspace.png">
+  <meta property="og:type" content="website">
+  <meta name="theme-color" content="#3aa893" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#1d6373" media="(prefers-color-scheme: dark)">
+  <link rel="icon" href="io.github.raspbeguy.Terrain.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="hero">
+    <div class="hero-inner">
+      <img class="hero-icon" src="io.github.raspbeguy.Terrain.svg" alt="Terrain icon" width="128" height="128">
+      <div class="hero-text">
+        <h1>Terrain</h1>
+        <p class="tagline">A native GNOME GUI for Terraform and OpenTofu.</p>
+        <p class="lede">Workspaces, streamed runs, plan diffs, state viewer, variable management — local working dirs and remote backends (HCP, Terraform Enterprise, OTF) under one roof.</p>
+        <div class="cta">
+          <a class="btn primary" href="https://github.com/raspbeguy/terrain/releases/latest">Download</a>
+          <a class="btn" href="https://github.com/raspbeguy/terrain">View on GitHub</a>
+          <a class="btn" href="#features">Features</a>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section class="screenshots" aria-label="Screenshots">
+      <div class="shot-grid">
+        <figure>
+          <a href="screenshots/workspace.png">
+            <img src="screenshots/workspace.png" alt="Workspace overview with the runs tab populated" loading="lazy">
+          </a>
+          <figcaption>Workspace overview</figcaption>
+        </figure>
+        <figure>
+          <a href="screenshots/plan-diff.png">
+            <img src="screenshots/plan-diff.png" alt="Plan diff viewer showing per-resource changes" loading="lazy">
+          </a>
+          <figcaption>Per-resource plan diff</figcaption>
+        </figure>
+        <figure>
+          <a href="screenshots/state-tree.png">
+            <img src="screenshots/state-tree.png" alt="State tree with attribute viewer" loading="lazy">
+          </a>
+          <figcaption>State tree with attributes</figcaption>
+        </figure>
+        <figure>
+          <a href="screenshots/variables.png">
+            <img src="screenshots/variables.png" alt="Workspace variables with sensitive values masked" loading="lazy">
+          </a>
+          <figcaption>Variables with sensitive masking</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <section id="features" class="features">
+      <h2>What it does</h2>
+      <div class="feature-grid">
+        <article>
+          <h3>Workspaces</h3>
+          <p>Group local projects and remote workspaces in one sidebar. Switch between them without restarting.</p>
+        </article>
+        <article>
+          <h3>Streamed runs</h3>
+          <p><code>tofu plan</code> / <code>apply</code> / <code>destroy</code> with live coloured logs and a working cancel button. Remote runs fetched via API polling.</p>
+        </article>
+        <article>
+          <h3>Plan diff</h3>
+          <p>TFE-style per-resource changes with action badges (<code>+</code> / <code>~</code> / <code>−</code> / <code>−/+</code>) and attribute-level before/after.</p>
+        </article>
+        <article>
+          <h3>State viewer</h3>
+          <p>Resource tree with attributes, history of past state versions, side-by-side diff between any two versions.</p>
+        </article>
+        <article>
+          <h3>Variables</h3>
+          <p>Read and edit; sensitive values masked and persisted to the system keyring (libsecret), never plaintext on disk. Variable sets too.</p>
+        </article>
+        <article>
+          <h3>Hybrid backends</h3>
+          <p>Local CLI runner alongside HCP Terraform, self-hosted Terraform Enterprise, and OTF — same UI, no branching on backend kind.</p>
+        </article>
+      </div>
+    </section>
+
+    <section id="install" class="install">
+      <h2>Install</h2>
+      <div class="install-grid">
+        <article>
+          <h3>Flatpak <span class="pill">recommended</span></h3>
+          <p>Works on any modern Linux desktop. Carries its own runtime.</p>
+          <pre><code>flatpak install --user --bundle \
+  ./terrain-x86_64.flatpak</code></pre>
+          <p><a href="https://github.com/raspbeguy/terrain/releases/latest">Download for x86_64 or aarch64</a></p>
+        </article>
+        <article>
+          <h3>Pre-built host binary</h3>
+          <p>For glibc distros (Fedora 41+, Debian Trixie+, Ubuntu 24.10+, Arch) or musl (Alpine, Void). Needs GTK&nbsp;4 + libadwaita 1.6+ on the host.</p>
+          <pre><code>tar xzf terrain-linux-amd64-glibc.tar.gz
+./terrain</code></pre>
+          <p><a href="https://github.com/raspbeguy/terrain/releases/latest">Download tarballs</a></p>
+        </article>
+        <article>
+          <h3>From source</h3>
+          <p>Go 1.26+, GTK 4.10+, libadwaita 1.6+, blueprint-compiler, meson.</p>
+          <pre><code>meson setup build
+meson compile -C build
+./build/terrain</code></pre>
+          <p><a href="https://github.com/raspbeguy/terrain#building-from-source">Build instructions</a></p>
+        </article>
+      </div>
+    </section>
+
+    <section class="status">
+      <h2>Status &amp; help wanted</h2>
+      <p><strong>Pre-release.</strong> Workspace management, runs, plan diff, state, variable management, variable sets, and remote backends (HCP / TFE / OTF) all work. Flathub submission is queued.</p>
+      <p>The current app icon is a placeholder. Terrain wants a proper <a href="https://developer.gnome.org/hig/guidelines/app-icons.html">GNOME-style app icon</a>; the plan is to apply to <a href="https://circle.gnome.org/">GNOME Circle</a>. If you have design chops and want to help — icon, mockups, anything visual — <a href="https://github.com/raspbeguy/terrain/issues">PRs and suggestions</a> are very welcome.</p>
+    </section>
+  </main>
+
+  <footer>
+    <p>
+      <a href="https://github.com/raspbeguy/terrain">github.com/raspbeguy/terrain</a>
+      &nbsp;·&nbsp;
+      <a href="https://github.com/raspbeguy/terrain/blob/main/LICENSE">GPL-3.0-or-later</a>
+      &nbsp;·&nbsp;
+      Built by <a href="https://github.com/raspbeguy">Guy Godfroy</a>
+    </p>
+  </footer>
+</body>
+</html>
