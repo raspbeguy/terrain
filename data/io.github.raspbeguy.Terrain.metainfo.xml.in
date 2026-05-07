@@ -101,15 +101,11 @@
     <release version="@VERSION@" date="2026-05-06">
       <description>
         <p>
-          Pre-release build covering the M0–M5 milestones: workspace
-          shell, local plan/apply pipeline with streaming logs,
-          terraform-json plan diff and state viewer, variable editing
-          with libsecret, run history with replay, remote backends
-          (HCP/TFE/OTF) for listing, runs, plan diff, state, and apply.
-        </p>
-        <p>
-          Variable sets and full Flathub metadata land in subsequent
-          releases.
+          Initial release. Manage local Terraform and OpenTofu projects
+          and remote backends (HCP Terraform, Terraform Enterprise, OTF)
+          from a single GNOME window, with streamed plan and apply logs,
+          per-resource plan diffs, a state browser, variable editing
+          with keyring-backed secrets, and replayable run history.
         </p>
       </description>
     </release>

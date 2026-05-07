@@ -4,9 +4,9 @@ A native GNOME GUI for [Terraform](https://www.terraform.io/) and
 [OpenTofu](https://opentofu.org/), inspired by Terraform Enterprise and
 [OTF](https://github.com/leg100/otf).
 
-> **Status:** pre-release. Workspace management, run streaming, plan diff,
-> state viewer, variable editing, variable sets, and remote backends
-> (HCP / TFE / OTF) all work. Flathub submission is queued.
+> Workspace management, run streaming, plan diff, state viewer,
+> variable editing, variable sets, and remote backends (HCP / TFE / OTF)
+> all work. Flathub submission is queued.
 
 ## Features
 
