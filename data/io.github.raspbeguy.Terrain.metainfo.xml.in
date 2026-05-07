@@ -39,7 +39,7 @@
 
   <launchable type="desktop-id">@APP_ID@.desktop</launchable>
 
-  <url type="homepage">https://github.com/raspbeguy/terrain</url>
+  <url type="homepage">https://raspbeguy.github.io/terrain/</url>
   <url type="bugtracker">https://github.com/raspbeguy/terrain/issues</url>
   <url type="vcs-browser">https://github.com/raspbeguy/terrain</url>
 
