@@ -7,24 +7,6 @@ Adw.PreferencesDialog ws_settings_dialog {
 
   Adw.PreferencesPage {
     Adw.PreferencesGroup {
-      title: "Run Mode";
-      description: "Choose whether tofu/terraform runs as a host subprocess or inside a container. \"Default\" follows the global setting from app Preferences.";
-
-      Adw.ComboRow ws_run_mode_row {
-        title: "Run mode";
-        subtitle: "Bubblewrap = host binary in a filesystem sandbox (light, isolation only). Container = OCI image (version pin + CI parity).";
-
-        model: StringList {
-          strings ["Default", "Subprocess (host)", "Bubblewrap", "Container"]
-        };
-      }
-
-      Adw.EntryRow ws_image_row {
-        title: "Container image (used only in Container mode)";
-      }
-    }
-
-    Adw.PreferencesGroup {
       title: "Binary Source";
       description: "Where the tofu/terraform binary comes from. Managed binaries live under $XDG_DATA_HOME/terrain/binaries — install versions from app Preferences.";
 

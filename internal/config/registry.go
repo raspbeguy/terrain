@@ -23,13 +23,7 @@ func BuildBackends(c *Config) ([]domain.Backend, error) {
 		switch bc.Type {
 		case "local":
 			b := local.New(bc.ID, bc.Name)
-			b.SetRuntimeDefaults(local.RuntimeDefaults{
-				Engine:         c.App.DefaultEngine,
-				RuntimePath:    c.App.ContainerRuntimePath,
-				RunMode:        c.App.DefaultRunMode,
-				ImageTofu:      c.App.DefaultImageTofu,
-				ImageTerraform: c.App.DefaultImageTerraform,
-			})
+			b.SetRuntimeDefaults(local.RuntimeDefaults{Engine: c.App.DefaultEngine})
 			for _, p := range bc.Projects {
 				b.AddProject(local.Project{
 					ID:          p.ID,

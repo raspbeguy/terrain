@@ -24,11 +24,6 @@ type Preferences struct {
 	terraformRow        *adw.ActionRow
 	remoteBackendsGroup *adw.PreferencesGroup
 
-	runtimePathRow    *adw.EntryRow
-	defaultRunModeRow *adw.ComboRow
-	tofuImageRow      *adw.EntryRow
-	terraformImageRow *adw.EntryRow
-
 	managedGroup      *adw.PreferencesGroup
 	installManagedBtn *gtk.Button
 	cleanManagedBtn   *gtk.Button
@@ -40,8 +35,6 @@ type Preferences struct {
 	sshKeyRows      []*adw.ActionRow
 
 	parent *gtk.Window
-
-	cfg *config.Config
 }
 
 type RemoteBackend interface {
@@ -59,24 +52,18 @@ func NewPreferences(cfg *config.Config, remoteBackends []RemoteBackend) *Prefere
 		tofuRow:             uihelpers.MustCast[*adw.ActionRow](builder, "tofu_row"),
 		terraformRow:        uihelpers.MustCast[*adw.ActionRow](builder, "terraform_row"),
 		remoteBackendsGroup: uihelpers.MustCast[*adw.PreferencesGroup](builder, "remote_backends_group"),
-		runtimePathRow:      uihelpers.MustCast[*adw.EntryRow](builder, "runtime_path_row"),
-		defaultRunModeRow:   uihelpers.MustCast[*adw.ComboRow](builder, "default_run_mode_row"),
-		tofuImageRow:        uihelpers.MustCast[*adw.EntryRow](builder, "tofu_image_row"),
-		terraformImageRow:   uihelpers.MustCast[*adw.EntryRow](builder, "terraform_image_row"),
 		managedGroup:        uihelpers.MustCast[*adw.PreferencesGroup](builder, "managed_binaries_group"),
 		installManagedBtn:   uihelpers.MustCast[*gtk.Button](builder, "install_managed_binary_button"),
 		cleanManagedBtn:     uihelpers.MustCast[*gtk.Button](builder, "clean_managed_binaries_button"),
 		sshKeysGroup:        uihelpers.MustCast[*adw.PreferencesGroup](builder, "ssh_keys_group"),
 		sshGenerateBtn:      uihelpers.MustCast[*gtk.Button](builder, "ssh_keys_generate_button"),
 		sshImportBtn:        uihelpers.MustCast[*gtk.Button](builder, "ssh_keys_import_button"),
-		cfg:                 cfg,
 	}
 
 	p.bindBinaries()
 	p.bindEngine(cfg)
 	p.bindTheme()
 	p.bindBackends(remoteBackends)
-	p.bindContainerRuntime(cfg)
 	p.bindManagedBinaries()
 	p.bindSSHKeys()
 
@@ -144,56 +131,6 @@ func (p *Preferences) bindBackends(backends []RemoteBackend) {
 		row.AddSuffix(btn)
 
 		p.remoteBackendsGroup.Add(row)
-	}
-}
-
-func (p *Preferences) bindContainerRuntime(cfg *config.Config) {
-	if cfg == nil {
-		return
-	}
-	p.runtimePathRow.SetText(cfg.App.ContainerRuntimePath)
-	p.tofuImageRow.SetText(cfg.App.DefaultImageTofu)
-	p.terraformImageRow.SetText(cfg.App.DefaultImageTerraform)
-	switch cfg.App.DefaultRunMode {
-	case "bubblewrap":
-		p.defaultRunModeRow.SetSelected(1)
-	case "container":
-		p.defaultRunModeRow.SetSelected(2)
-	default:
-		p.defaultRunModeRow.SetSelected(0)
-	}
-
-	p.runtimePathRow.ConnectApply(func() {
-		cfg.App.ContainerRuntimePath = p.runtimePathRow.Text()
-		p.persist()
-	})
-	p.tofuImageRow.ConnectApply(func() {
-		cfg.App.DefaultImageTofu = p.tofuImageRow.Text()
-		p.persist()
-	})
-	p.terraformImageRow.ConnectApply(func() {
-		cfg.App.DefaultImageTerraform = p.terraformImageRow.Text()
-		p.persist()
-	})
-	p.defaultRunModeRow.Connect("notify::selected", func() {
-		switch p.defaultRunModeRow.Selected() {
-		case 1:
-			cfg.App.DefaultRunMode = "bubblewrap"
-		case 2:
-			cfg.App.DefaultRunMode = "container"
-		default:
-			cfg.App.DefaultRunMode = "subprocess"
-		}
-		p.persist()
-	})
-}
-
-func (p *Preferences) persist() {
-	if p.cfg == nil {
-		return
-	}
-	if err := p.cfg.Save(); err != nil {
-		slog.Error("save preferences", "err", err)
 	}
 }
 

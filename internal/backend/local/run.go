@@ -183,47 +183,6 @@ func runWorker(
 		return
 	}
 
-	// Apply binds to the producing plan's mode/image (read from its
-	// request.txt) so toggling workspace settings mid-flow can't strand
-	// a plan whose paths reference the original sandbox.
-	rtOpts, err := b.resolveRuntimeOptions(ws.ID, run.ID, wsSettings)
-	if err != nil {
-		finalErr = fmt.Errorf("resolve runtime: %w", err)
-		setStatus(domain.StatusErrored, finalErr.Error())
-		close(stream.events)
-		close(stream.logs)
-		close(stream.plan)
-		return
-	}
-	if req.Kind == domain.RunKindApply && req.PlanFile != "" {
-		producingRunDir := filepath.Dir(req.PlanFile)
-		if priorMode, priorImage, perr := readRequestSnapshot(producingRunDir); perr == nil {
-			rtOpts.RunMode = priorMode
-			if priorImage != "" {
-				rtOpts.Image = priorImage
-			}
-		}
-	}
-	rt, err := newRuntime(rtOpts)
-	if err != nil {
-		finalErr = fmt.Errorf("init runtime: %w", err)
-		setStatus(domain.StatusErrored, finalErr.Error())
-		close(stream.events)
-		close(stream.logs)
-		close(stream.plan)
-		return
-	}
-	cancelName := "terrain-" + run.ID
-
-	if err := writeRequestSnapshot(runDir, run, req, rtOpts.RunMode, rtOpts.Image); err != nil {
-		finalErr = fmt.Errorf("snapshot request: %w", err)
-		setStatus(domain.StatusErrored, finalErr.Error())
-		close(stream.events)
-		close(stream.logs)
-		close(stream.plan)
-		return
-	}
-
 	args, planFile, err := buildCmdArgs(req, runDir)
 	if err != nil {
 		finalErr = err
@@ -275,31 +234,13 @@ func runWorker(
 		}
 	}()
 
-	// Image pre-pull (container mode only); host + bwrap return nil here.
-	if pullCmd := rt.PullCommand(ctx, rtOpts.Image); pullCmd != nil {
-		setStatus(domain.StatusFetching,
-			fmt.Sprintf("pulling image %s", rtOpts.Image))
-		if pullErr := streamCommand(ctx, pullCmd, teedLogs); pullErr != nil {
-			close(teedLogs)
-			wg.Wait()
-			close(stream.logs)
-			finalErr = fmt.Errorf("image pull: %w", pullErr)
-			setStatus(domain.StatusErrored, finalErr.Error())
-			close(stream.events)
-			close(stream.plan)
-			return
-		}
-	}
-
-	// Plan/destroy always init first; apply replays a saved plan that's
-	// already been through init.
+	// Plan/destroy always init first; apply replays a saved plan that's already been through init.
 	if req.Kind == domain.RunKindPlan || req.Kind == domain.RunKindDestroy {
 		setStatus(domain.StatusFetching,
 			fmt.Sprintf("running `%s init -input=false`", bin.Name))
-		initCmd := rt.Command(ctx, ws.WorkingDirectory,
+		initCmd := runCommand(ctx, ws.WorkingDirectory,
 			[]string{"NO_COLOR=1", "TF_WORKSPACE=" + ws.Name},
-			bin.Path, []string{"init", "-input=false", "-no-color"}, cancelName+"-init")
-		installRuntimeCancel(initCmd, rt, cancelName+"-init")
+			bin.Path, []string{"init", "-input=false", "-no-color"})
 		if initErr := streamCommand(ctx, initCmd, teedLogs); initErr != nil {
 			close(teedLogs)
 			wg.Wait()
@@ -330,8 +271,7 @@ func runWorker(
 	}
 
 	extraEnv := append([]string{"NO_COLOR=1", "TF_WORKSPACE=" + ws.Name}, rv.envEntries()...)
-	cmd := rt.Command(ctx, ws.WorkingDirectory, extraEnv, bin.Path, args, cancelName)
-	installRuntimeCancel(cmd, rt, cancelName)
+	cmd := runCommand(ctx, ws.WorkingDirectory, extraEnv, bin.Path, args)
 
 	cmdErr := streamCommand(ctx, cmd, teedLogs)
 	close(teedLogs)
@@ -528,37 +468,3 @@ func closeIfNonNil(f *os.File) {
 	}
 }
 
-func writeRequestSnapshot(runDir string, run domain.Run, req domain.RunRequest, mode RunMode, image string) error {
-	body := fmt.Sprintf(
-		"id=%s\nworkspace=%s\nkind=%s\ncreated_at=%s\nmessage=%s\nrun_mode=%s\nimage=%s\n",
-		run.ID, run.WorkspaceID, run.Kind, run.CreatedAt.Format(time.RFC3339), req.Message, mode, image,
-	)
-	return os.WriteFile(filepath.Join(runDir, "request.txt"), []byte(body), 0o644)
-}
-
-// readRequestSnapshot recovers the run-mode + image fields from a prior
-// run's request.txt. Missing fields default to subprocess + empty so
-// pre-runtime-layer snapshots still load.
-func readRequestSnapshot(runDir string) (mode RunMode, image string, err error) {
-	data, err := os.ReadFile(filepath.Join(runDir, "request.txt"))
-	if err != nil {
-		return RunModeSubprocess, "", err
-	}
-	for _, line := range strings.Split(string(data), "\n") {
-		eq := strings.Index(line, "=")
-		if eq <= 0 {
-			continue
-		}
-		key, val := line[:eq], line[eq+1:]
-		switch key {
-		case "run_mode":
-			mode = RunMode(val)
-		case "image":
-			image = val
-		}
-	}
-	if mode == RunModeUnset {
-		mode = RunModeSubprocess
-	}
-	return mode, image, nil
-}

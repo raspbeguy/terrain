@@ -125,6 +125,19 @@ testdata/                     fixtures used by integration tests
 | `Ctrl+,`          | Preferences             |
 | `Ctrl+Q`          | Quit                    |
 
+## Roadmap
+
+Container and bubblewrap run modes were considered and removed — they
+expanded the threat surface, complicated Flathub review, and were
+largely untested. Runs always go through the host subprocess against
+either a host-PATH binary or a managed binary in
+`$XDG_DATA_HOME/terrain/binaries/`.
+
+A possible future is a **Kubernetes runner backend** (sibling to local
+and remote) that runs `tofu plan/apply` as a `Job` inside a cluster
+the user already has a kubeconfig for, streaming logs back. Deferred
+until there's demand.
+
 ## Visual identity
 
 The current app icon is a placeholder I threw together. Terrain wants a

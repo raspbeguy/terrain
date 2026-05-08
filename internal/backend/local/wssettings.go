@@ -9,17 +9,6 @@ import (
 	"path/filepath"
 )
 
-// RunMode picks the launcher for a workspace's runs. Empty value means
-// "inherit AppConfig.DefaultRunMode".
-type RunMode string
-
-const (
-	RunModeUnset      RunMode = ""
-	RunModeSubprocess RunMode = "subprocess"
-	RunModeContainer  RunMode = "container"
-	RunModeBubblewrap RunMode = "bubblewrap"
-)
-
 // BinarySource: zero value resolves to managed.
 type BinarySource string
 
@@ -41,10 +30,6 @@ func (s BinarySource) Effective() BinarySource {
 // $XDG_DATA_HOME/terrain/<backend>/<ws>/settings.json. Zero value =
 // inherit app defaults.
 type WorkspaceSettings struct {
-	RunMode RunMode `json:"run_mode,omitempty"`
-	// Image is the container image; only used when RunMode resolves to
-	// container. Empty = engine-specific default.
-	Image              string       `json:"image,omitempty"`
 	BinarySource       BinarySource `json:"binary_source,omitempty"`
 	ManagedEngine      string       `json:"managed_engine,omitempty"`  // "tofu" or "terraform"
 	ManagedVersion     string       `json:"managed_version,omitempty"` // ignored when ManagedTrackLatest is true

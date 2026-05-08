@@ -25,19 +25,6 @@ type Config struct {
 type AppConfig struct {
 	// DefaultEngine is "tofu" or "terraform"; preferred when both exist.
 	DefaultEngine string `toml:"default_engine"`
-
-	// ContainerRuntimePath is the container CLI binary (podman, docker,
-	// nerdctl, …). Empty disables container mode.
-	ContainerRuntimePath string `toml:"container_runtime_path"`
-
-	// DefaultRunMode is the mode for workspaces with no override:
-	// "subprocess", "bubblewrap", or "container". Empty = subprocess.
-	DefaultRunMode string `toml:"default_run_mode"`
-
-	// DefaultImageTofu / DefaultImageTerraform are the engine-specific
-	// container image fallbacks. Tag or @digest forms both work.
-	DefaultImageTofu      string `toml:"default_image_tofu"`
-	DefaultImageTerraform string `toml:"default_image_terraform"`
 }
 
 // BackendConfig is a single registry entry; local and remote share the
@@ -101,17 +88,6 @@ func Load() (*Config, error) {
 	if c.App.DefaultEngine == "" {
 		c.App.DefaultEngine = "tofu"
 	}
-	if c.App.ContainerRuntimePath == "" {
-		c.App.ContainerRuntimePath = "/usr/bin/podman"
-	}
-	if c.App.DefaultImageTofu == "" {
-		c.App.DefaultImageTofu = "ghcr.io/opentofu/opentofu:latest"
-	}
-	if c.App.DefaultImageTerraform == "" {
-		c.App.DefaultImageTerraform = "hashicorp/terraform:latest"
-	}
-	// DefaultRunMode stays empty when unset; the resolver treats "" as
-	// subprocess.
 	return c, nil
 }
 
@@ -286,12 +262,5 @@ func (c *Config) dropLegacyLocalProjects() {
 }
 
 func defaultConfig() *Config {
-	return &Config{
-		App: AppConfig{
-			DefaultEngine:         "tofu",
-			ContainerRuntimePath:  "/usr/bin/podman",
-			DefaultImageTofu:      "ghcr.io/opentofu/opentofu:latest",
-			DefaultImageTerraform: "hashicorp/terraform:latest",
-		},
-	}
+	return &Config{App: AppConfig{DefaultEngine: "tofu"}}
 }

@@ -15,8 +15,6 @@ const wsSettingsResource = "/io/github/raspbeguy/Terrain/workspace-settings.ui"
 type WorkspaceSettings struct {
 	dialog *adw.PreferencesDialog
 
-	runModeRow         *adw.ComboRow
-	imageRow           *adw.EntryRow
 	binarySourceRow    *adw.ComboRow
 	managedEngineRow   *adw.ComboRow
 	managedTrackLatest *adw.SwitchRow
@@ -24,8 +22,7 @@ type WorkspaceSettings struct {
 
 	backendID   string
 	workspaceID string
-	// initial is the on-disk snapshot; persist() compares against it so a
-	// no-op edit doesn't cause a needless write.
+	// initial is the on-disk snapshot; persist() compares against it so a no-op edit doesn't cause a needless write.
 	initial local.WorkspaceSettings
 }
 
@@ -33,8 +30,6 @@ func NewWorkspaceSettings(backendID, workspaceID string) *WorkspaceSettings {
 	builder := gtk.NewBuilderFromResource(wsSettingsResource)
 	w := &WorkspaceSettings{
 		dialog:             uihelpers.MustCast[*adw.PreferencesDialog](builder, "ws_settings_dialog"),
-		runModeRow:         uihelpers.MustCast[*adw.ComboRow](builder, "ws_run_mode_row"),
-		imageRow:           uihelpers.MustCast[*adw.EntryRow](builder, "ws_image_row"),
 		binarySourceRow:    uihelpers.MustCast[*adw.ComboRow](builder, "ws_binary_source_row"),
 		managedEngineRow:   uihelpers.MustCast[*adw.ComboRow](builder, "ws_managed_engine_row"),
 		managedTrackLatest: uihelpers.MustCast[*adw.SwitchRow](builder, "ws_managed_track_latest_row"),
@@ -48,17 +43,6 @@ func NewWorkspaceSettings(backendID, workspaceID string) *WorkspaceSettings {
 		slog.Warn("load workspace settings", "ws", workspaceID, "err", err)
 	}
 	w.initial = current
-	switch current.RunMode {
-	case local.RunModeSubprocess:
-		w.runModeRow.SetSelected(1)
-	case local.RunModeBubblewrap:
-		w.runModeRow.SetSelected(2)
-	case local.RunModeContainer:
-		w.runModeRow.SetSelected(3)
-	default:
-		w.runModeRow.SetSelected(0)
-	}
-	w.imageRow.SetText(current.Image)
 
 	if current.BinarySource == local.BinarySourceHost {
 		w.binarySourceRow.SetSelected(1)
@@ -79,8 +63,6 @@ func NewWorkspaceSettings(backendID, workspaceID string) *WorkspaceSettings {
 	w.managedVerRow.SetText(current.ManagedVersion)
 	w.updateManagedVisibility()
 
-	w.runModeRow.Connect("notify::selected", w.persist)
-	w.imageRow.ConnectApply(w.persist)
 	w.binarySourceRow.Connect("notify::selected", func() {
 		w.updateManagedVisibility()
 		w.persist()
@@ -105,8 +87,6 @@ func (w *WorkspaceSettings) updateManagedVisibility() {
 
 func (w *WorkspaceSettings) persist() {
 	want := local.WorkspaceSettings{
-		RunMode:            w.selectedRunMode(),
-		Image:              w.imageRow.Text(),
 		BinarySource:       w.selectedBinarySource(),
 		ManagedEngine:      w.selectedManagedEngine(),
 		ManagedTrackLatest: w.managedTrackLatest.Active(),
@@ -128,24 +108,10 @@ func (w *WorkspaceSettings) persist() {
 	w.initial = want
 	slog.Info("workspace settings saved",
 		"ws", w.workspaceID,
-		"run_mode", want.RunMode,
-		"image", want.Image,
 		"binary_source", want.BinarySource,
 		"managed_engine", want.ManagedEngine,
 		"managed_track_latest", want.ManagedTrackLatest,
 		"managed_version", want.ManagedVersion)
-}
-
-func (w *WorkspaceSettings) selectedRunMode() local.RunMode {
-	switch w.runModeRow.Selected() {
-	case 1:
-		return local.RunModeSubprocess
-	case 2:
-		return local.RunModeBubblewrap
-	case 3:
-		return local.RunModeContainer
-	}
-	return local.RunModeUnset
 }
 
 func (w *WorkspaceSettings) selectedBinarySource() local.BinarySource {

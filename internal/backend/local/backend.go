@@ -48,11 +48,7 @@ type Backend struct {
 }
 
 type RuntimeDefaults struct {
-	Engine         string // "tofu" or "terraform"
-	RuntimePath    string
-	RunMode        string
-	ImageTofu      string
-	ImageTerraform string
+	Engine string // "tofu" or "terraform"
 }
 
 func New(id, name string) *Backend {

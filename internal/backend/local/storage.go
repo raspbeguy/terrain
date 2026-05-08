@@ -38,21 +38,6 @@ func envIndexFile(backendID, workspaceID string) (string, error) {
 	return filepath.Join(dir, "env-vars.json"), nil
 }
 
-// containerPluginCacheDir is the per-workspace TF_PLUGIN_CACHE_DIR for
-// container/bwrap modes. Kept separate from the host subprocess cache
-// because container glibc/arch/lock-file hashes may diverge from the host's.
-func containerPluginCacheDir(backendID, workspaceID string) (string, error) {
-	cacheHome, err := os.UserCacheDir()
-	if err != nil {
-		return "", fmt.Errorf("cache dir: %w", err)
-	}
-	dir := filepath.Join(cacheHome, "terrain", backendID, sanitize(workspaceID), "plugins-container")
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return "", fmt.Errorf("mkdir %s: %w", dir, err)
-	}
-	return dir, nil
-}
-
 func userDataDir() (string, error) {
 	if d := os.Getenv("XDG_DATA_HOME"); d != "" {
 		return d, nil

@@ -72,20 +72,14 @@ nil-widget crashes, and missing gresource entries automatically.
    terminal-looking widget.
 
 6. **Single tofu-invocation chokepoint**. Every `tofu` / `terraform` exec
-   site routes through `internal/backend/local/sandbox.go:hostCommand`.
-   It runs the binary directly when sandbox-accessible (managed binaries
-   under `$XDG_DATA_HOME` or paths the Flatpak mounts) and falls back to
-   `flatpak-spawn --host` only for host-only paths — the latter requires
-   the `org.freedesktop.Flatpak` portal talk-name, which the Flathub
-   manifest does NOT grant. Inside the Flathub bundle, only managed-
-   binary subprocess mode works; container and bubblewrap modes need
-   host access and degrade to a clear error. The runtime layer in
-   `runtime.go` adds the two sandboxed paths: `containerRuntime`
-   (podman/docker `run --rm --init …` against an OCI image) and
-   `bubblewrapRuntime` (`bwrap` user-namespace sandbox around the host
-   binary, no image system). Both delegate back to `hostCommand` so the
-   Flatpak boundary stays at one crossing. **Do not** add new exec sites
-   for tofu/terraform/podman/bwrap that bypass `hostCommand`.
+   site routes through `internal/backend/local/sandbox.go:hostCommand`,
+   wrapped by `runCommand` in `runtime.go`. Inside Flatpak it falls back
+   to `flatpak-spawn --host` for host-only paths — the Flathub manifest
+   doesn't grant the talk-name for that, so only managed-binary
+   subprocess mode works there. Container/bubblewrap modes were
+   removed: they were untested, expanded the threat surface, and made
+   Flathub review fragile. **Do not** add new exec sites for
+   `tofu`/`terraform` that bypass `runCommand`.
 
 7. **Binary resolution** is decoupled from the runtime via the
    `BinaryResolver` interface in `internal/backend/local/binary.go`.
@@ -105,22 +99,7 @@ nil-widget crashes, and missing gresource entries automatically.
    banner when the effective managed engine has no installed binary
    yet.
 
-8. **Run mode lives per-workspace, not in `domain.Workspace.ExecutionMode`**.
-   The TFE-mirror field is shared with the remote backend and has a fixed
-   vocabulary; subprocess vs container is a local-backend implementation
-   choice that lives in
-   `$XDG_DATA_HOME/terrain/<backend>/<ws>/settings.json`
-   (`local.LoadWorkspaceSettings` / `local.SaveWorkspaceSettings`).
-   Each run also persists its effective mode + image into its
-   `request.txt` snapshot so apply runs can reuse the producing plan's
-   mode regardless of whether the workspace setting changed in between.
-   State queries (`LoadState`, `snapshotState`) deliberately stay on
-   the host binary even when a workspace is in container mode — they're
-   short, synchronous, and forcing a container spin-up on every state-
-   tab refresh would hurt UX. Documented limitation; revisit only if
-   version-mismatch issues surface.
-
-9. **Local projects are clone-backed, never arbitrary host paths**. A
+8. **Local projects are clone-backed, never arbitrary host paths**. A
    `local.Project` carries `(GitURL, GitRef, Subpath)`; `WorkingDir()`
    resolves to `$XDG_DATA_HOME/terrain/git-repos/<hash>/<subpath>` where
    `<hash>` = first 16 hex of `sha256(url + "@" + ref)`. Multiple
@@ -134,7 +113,7 @@ nil-widget crashes, and missing gresource entries automatically.
    the Flathub manifest ship without `--filesystem=home` or
    `--talk-name=org.freedesktop.Flatpak`.
 
-10. **Tofu workspaces are first-class**. One `domain.Workspace` per
+9. **Tofu workspaces are first-class**. One `domain.Workspace` per
     `tofu workspace` (default + any extra). Discovery is dynamic
     (never persisted in `config.toml`): `RefreshWorkspaces` runs
     `tofu workspace list -no-color`, falling back to scanning
@@ -159,10 +138,10 @@ internal/
   backend/local/            tofu/terraform CLI runner. exec.go (subprocess
                             line streaming + SIGINT cancel), run.go (run
                             worker, TF_WORKSPACE injection), runtime.go
-                            (Runtime: hostRuntime + containerRuntime +
-                            bubblewrapRuntime), wssettings.go (per-workspace
-                            settings.json + Effective helpers for default-
-                            managed), wslist.go (tofu-workspace cache,
+                            (runCommand: thin wrapper over hostCommand),
+                            wssettings.go (per-workspace settings.json +
+                            Effective helpers for default-managed),
+                            wslist.go (tofu-workspace cache,
                             RefreshWorkspaces / Create / Delete), wsname.go
                             (validator), gitrepo.go (clone hash, GC),
                             variables.go, varsets.go, snapshot.go,
@@ -198,8 +177,8 @@ internal/
                             preferences (incl. SSH Keys + Binaries pages),
                             sshkeys (generate/import), workspace
                             (New Workspace alert), wssettings (per-workspace
-                            settings: run mode, binary source, image),
-                            varedit, varsets, statediff, managedbins.
+                            binary source), varedit, varsets, statediff,
+                            managedbins (install dialog with progress bar).
     views/run/              run detail (log + plan diff tabs).
     views/workspace/        workspace detail (overview with Repository row
                             + sync/open buttons + binary banner; runs;
@@ -291,17 +270,11 @@ testdata/                   Fixtures used by integration tests.
     variable name index (names only; values in keyring). Same out-of-
     project rationale as overrides.tfvars.
   - `$XDG_DATA_HOME/terrain/<backend>/<ws>/settings.json` — per-workspace
-    overrides: `run_mode`, `image`, `binary_source`, `managed_engine`,
-    `managed_track_latest`, `managed_version`. Zero values inherit:
-    `run_mode` → `AppConfig.DefaultRunMode`; `image` → engine-specific
-    default; `binary_source` → managed (via `BinarySource.Effective()`);
-    `managed_engine` → `AppConfig.DefaultEngine`. Edited via the gear
-    button in the workspace overview header.
-  - `$XDG_CACHE_HOME/terrain/<backend>/<ws>/plugins-container/` — provider
-    plugin cache mounted into the container as `TF_PLUGIN_CACHE_DIR`.
-    Kept separate from the host's `.terraform/` because container glibc /
-    arch may not match the host's, so lock-file hashes diverge. Safe to
-    wipe — tofu re-downloads on next init.
+    overrides: `binary_source`, `managed_engine`, `managed_track_latest`,
+    `managed_version`. Zero values inherit: `binary_source` → managed
+    (via `BinarySource.Effective()`); `managed_engine` →
+    `AppConfig.DefaultEngine`. Edited via the gear button in the
+    workspace overview header.
 
 - **Secrets**: never plaintext on disk if avoidable. Sensitive variable
   values + remote backend tokens go to the system keyring (libsecret on
@@ -346,6 +319,18 @@ testdata/                   Fixtures used by integration tests.
 - **Flatpak module sources are vendored** (`build-aux/flatpak/go.mod.yml`
   generated by `flatpak-go-mod`) so the build is offline and Flathub-eligible.
   Regenerate the vendor file after dependency bumps.
+
+## Future ideas
+
+- **Kubernetes runner backend.** A new `internal/backend/k8s/` (sibling to
+  `local` and `remote`) that targets the user's existing kubeconfig
+  context: each `tofu plan/apply` becomes a `Job` running an
+  OpenTofu/Terraform image, with logs streamed from the pod. Deferred —
+  the local backend covers the desktop use case and the runtime layer
+  was deliberately simplified back to pure subprocess; revisit when
+  there's demand and a clean execution-isolation story that doesn't
+  need extra Flatpak permissions (kube-apiserver TLS auth + the user's
+  kubeconfig already gives us everything we need over plain HTTPS).
 
 ## Where to read more
 
