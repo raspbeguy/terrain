@@ -5,13 +5,10 @@ sdk: org.gnome.Sdk
 sdk-extensions:
   - org.freedesktop.Sdk.Extension.golang
 build-options:
-  # ccache must precede the SDK's gcc on PATH or cgo bypasses the cache.
   prepend-path: /usr/lib/sdk/ccache/bin
   append-path: /usr/lib/sdk/golang/bin
   env:
-    # Vendor mode keeps the build offline (Flathub requirement).
     GOFLAGS: -mod=vendor
-    # Fail fast if go.mod outpaces the SDK's Go instead of network-fetching.
     GOTOOLCHAIN: local
 command: terrain
 cleanup:
