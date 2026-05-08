@@ -23,6 +23,7 @@ func PresentManagedInstall(parent *gtk.Window, onComplete func()) {
 	engineRow := uihelpers.MustCast[*adw.ComboRow](builder, "managed_install_engine_row")
 	versionRow := uihelpers.MustCast[*adw.EntryRow](builder, "managed_install_version_row")
 	statusRow := uihelpers.MustCast[*adw.ActionRow](builder, "managed_install_status_row")
+	progressBar := uihelpers.MustCast[*gtk.ProgressBar](builder, "managed_install_progress")
 	cancelBtn := uihelpers.MustCast[*gtk.Button](builder, "managed_install_cancel_button")
 	installBtn := uihelpers.MustCast[*gtk.Button](builder, "managed_install_button")
 
@@ -34,29 +35,64 @@ func PresentManagedInstall(parent *gtk.Window, onComplete func()) {
 			engine = "terraform"
 		}
 		version := strings.TrimSpace(versionRow.Text())
-		if version == "" {
-			statusRow.SetSubtitle("✗ version is required")
-			return
-		}
 
-		statusRow.SetSubtitle("Downloading…")
+		statusRow.SetSubtitle("Resolving…")
+		progressBar.SetVisible(false)
+		progressBar.SetFraction(0)
 		installBtn.SetSensitive(false)
 		cancelBtn.SetSensitive(false)
 
 		go func() {
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 			defer cancel()
-			_, err := local.InstallManagedBinary(ctx, engine, version)
+
+			resolved := version
+			if resolved == "" {
+				glibIdleAdd(func() { statusRow.SetSubtitle("Resolving latest…") })
+				latest, lerr := local.LatestManagedVersion(ctx, engine)
+				if lerr != nil {
+					glibIdleAdd(func() {
+						statusRow.SetSubtitle("✗ " + lerr.Error())
+						installBtn.SetSensitive(true)
+						cancelBtn.SetSensitive(true)
+					})
+					return
+				}
+				resolved = latest
+			}
+
+			glibIdleAdd(func() {
+				statusRow.SetSubtitle(fmt.Sprintf("Downloading %s %s…", engine, resolved))
+				progressBar.SetVisible(true)
+				progressBar.SetFraction(0)
+				progressBar.SetText("")
+			})
+
+			progress := func(written, total int64) {
+				glibIdleAdd(func() {
+					if total > 0 {
+						progressBar.SetFraction(float64(written) / float64(total))
+						progressBar.SetText(fmt.Sprintf("%s / %s", FormatManagedBinarySize(written), FormatManagedBinarySize(total)))
+					} else {
+						progressBar.Pulse()
+						progressBar.SetText(FormatManagedBinarySize(written))
+					}
+				})
+			}
+
+			_, err := local.InstallManagedBinaryWithProgress(ctx, engine, resolved, progress)
 
 			glibIdleAdd(func() {
 				if err != nil {
-					slog.Warn("install managed binary", "engine", engine, "version", version, "err", err)
+					slog.Warn("install managed binary", "engine", engine, "version", resolved, "err", err)
 					statusRow.SetSubtitle("✗ " + err.Error())
+					progressBar.SetVisible(false)
 					installBtn.SetSensitive(true)
 					cancelBtn.SetSensitive(true)
 					return
 				}
-				statusRow.SetSubtitle(fmt.Sprintf("✓ installed %s %s", engine, version))
+				progressBar.SetFraction(1)
+				statusRow.SetSubtitle(fmt.Sprintf("✓ installed %s %s", engine, resolved))
 				if onComplete != nil {
 					onComplete()
 				}

@@ -70,7 +70,12 @@ func NewWorkspaceSettings(backendID, workspaceID string) *WorkspaceSettings {
 	} else {
 		w.managedEngineRow.SetSelected(0)
 	}
-	w.managedTrackLatest.SetActive(current.ManagedTrackLatest)
+	// Fresh / unset workspace defaults to track-latest (matches new managed-by-default behaviour).
+	trackLatest := current.ManagedTrackLatest
+	if current.BinarySource == "" && !current.ManagedTrackLatest && current.ManagedVersion == "" {
+		trackLatest = true
+	}
+	w.managedTrackLatest.SetActive(trackLatest)
 	w.managedVerRow.SetText(current.ManagedVersion)
 	w.updateManagedVisibility()
 

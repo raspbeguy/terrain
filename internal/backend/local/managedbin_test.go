@@ -157,7 +157,7 @@ func TestManagedResolver_RoundTrip(t *testing.T) {
 
 	r := newManagedResolver()
 	stagedZip := filepath.Join(t.TempDir(), archiveName)
-	if err := r.fetchToFile(context.Background(), srv.URL+"/archive", stagedZip); err != nil {
+	if err := r.fetchToFile(context.Background(), srv.URL+"/archive", stagedZip, nil); err != nil {
 		t.Fatalf("fetch archive: %v", err)
 	}
 	sumsBody, err := r.fetchBytes(context.Background(), srv.URL+"/sums")

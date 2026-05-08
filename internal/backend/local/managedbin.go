@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -40,14 +41,38 @@ func newManagedResolver() *managedResolver {
 	}
 }
 
-func (r *managedResolver) Resolve(ctx context.Context, engine, version string) (BinaryInfo, error) {
+// ErrManagedBinaryMissing tells callers a managed binary isn't installed yet — only the Preferences install dialog should download.
+var ErrManagedBinaryMissing = errors.New("managed binary not installed")
+
+// Resolve looks up the binary on disk; never downloads. Run pipeline uses this so launching a run never hits the network.
+func (r *managedResolver) Resolve(_ context.Context, engine, version string) (BinaryInfo, error) {
 	if engine != "tofu" && engine != "terraform" {
 		return BinaryInfo{}, fmt.Errorf("unsupported managed engine %q (want tofu or terraform)", engine)
 	}
 	if version == "" {
 		return BinaryInfo{}, errors.New("managed binary requires a version")
 	}
+	binPath, err := managedBinaryPath(engine, version)
+	if err != nil {
+		return BinaryInfo{}, err
+	}
+	if _, err := os.Stat(binPath); err == nil {
+		return BinaryInfo{Name: engine, Path: binPath}, nil
+	}
+	return BinaryInfo{}, fmt.Errorf("%w: %s %s", ErrManagedBinaryMissing, engine, version)
+}
 
+// ProgressFunc reports archive download progress; total may be -1 if Content-Length is missing.
+type ProgressFunc func(written, total int64)
+
+// Install downloads + verifies + installs the binary. Caller (Preferences) is responsible for surfacing progress.
+func (r *managedResolver) Install(ctx context.Context, engine, version string, progress ProgressFunc) (BinaryInfo, error) {
+	if engine != "tofu" && engine != "terraform" {
+		return BinaryInfo{}, fmt.Errorf("unsupported managed engine %q (want tofu or terraform)", engine)
+	}
+	if version == "" {
+		return BinaryInfo{}, errors.New("managed binary requires a version")
+	}
 	binPath, err := managedBinaryPath(engine, version)
 	if err != nil {
 		return BinaryInfo{}, err
@@ -60,12 +85,10 @@ func (r *managedResolver) Resolve(ctx context.Context, engine, version string) (
 	lock.Lock()
 	defer lock.Unlock()
 
-	// Re-check inside the lock — another goroutine may have just installed.
 	if _, err := os.Stat(binPath); err == nil {
 		return BinaryInfo{Name: engine, Path: binPath}, nil
 	}
-
-	if err := r.downloadAndInstall(ctx, engine, version, binPath); err != nil {
+	if err := r.downloadAndInstall(ctx, engine, version, binPath, progress); err != nil {
 		return BinaryInfo{}, fmt.Errorf("install %s %s: %w", engine, version, err)
 	}
 	return BinaryInfo{Name: engine, Path: binPath}, nil
@@ -119,7 +142,7 @@ func mapGoArch(goarch string) (string, error) {
 	}
 }
 
-func (r *managedResolver) downloadAndInstall(ctx context.Context, engine, version, binPath string) error {
+func (r *managedResolver) downloadAndInstall(ctx context.Context, engine, version, binPath string, progress ProgressFunc) error {
 	archiveURL, sumsURL, archiveName, err := managedArchiveURL(engine, version, runtime.GOARCH)
 	if err != nil {
 		return err
@@ -137,7 +160,7 @@ func (r *managedResolver) downloadAndInstall(ctx context.Context, engine, versio
 	defer os.RemoveAll(tmpDir)
 
 	archivePath := filepath.Join(tmpDir, archiveName)
-	if err := r.fetchToFile(ctx, archiveURL, archivePath); err != nil {
+	if err := r.fetchToFile(ctx, archiveURL, archivePath, progress); err != nil {
 		return fmt.Errorf("download archive: %w", err)
 	}
 
@@ -167,7 +190,7 @@ func (r *managedResolver) downloadAndInstall(ctx context.Context, engine, versio
 	return os.Rename(staged, binPath)
 }
 
-func (r *managedResolver) fetchToFile(ctx context.Context, url, dst string) error {
+func (r *managedResolver) fetchToFile(ctx context.Context, url, dst string, progress ProgressFunc) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return err
@@ -185,8 +208,34 @@ func (r *managedResolver) fetchToFile(ctx context.Context, url, dst string) erro
 		return err
 	}
 	defer f.Close()
-	_, err = io.Copy(f, resp.Body)
+	src := io.Reader(resp.Body)
+	if progress != nil {
+		src = &progressReader{r: resp.Body, total: resp.ContentLength, cb: progress}
+	}
+	_, err = io.Copy(f, src)
 	return err
+}
+
+// progressReader rate-limits callbacks to ~10/sec so the GTK main thread isn't flooded on a fast network.
+type progressReader struct {
+	r        io.Reader
+	total    int64
+	written  int64
+	cb       ProgressFunc
+	lastFire time.Time
+}
+
+func (p *progressReader) Read(buf []byte) (int, error) {
+	n, err := p.r.Read(buf)
+	if n > 0 {
+		p.written += int64(n)
+		now := time.Now()
+		if err == io.EOF || now.Sub(p.lastFire) >= 100*time.Millisecond {
+			p.cb(p.written, p.total)
+			p.lastFire = now
+		}
+	}
+	return n, err
 }
 
 func (r *managedResolver) fetchBytes(ctx context.Context, url string) ([]byte, error) {
@@ -373,8 +422,74 @@ func sharedManagedResolver() *managedResolver {
 	return defaultManagedResolver
 }
 
-func InstallManagedBinary(ctx context.Context, engine, version string) (BinaryInfo, error) {
-	return sharedManagedResolver().Resolve(ctx, engine, version)
+// InstallManagedBinaryWithProgress is the Preferences install path; progress fires from the HTTP response reader, rate-limited.
+func InstallManagedBinaryWithProgress(ctx context.Context, engine, version string, progress ProgressFunc) (BinaryInfo, error) {
+	return sharedManagedResolver().Install(ctx, engine, version, progress)
+}
+
+// LatestInstalledVersion returns the highest semver-sorted installed version of engine, or ErrManagedBinaryMissing if none.
+func LatestInstalledVersion(engine string) (string, error) {
+	bins, err := ListManagedBinaries()
+	if err != nil {
+		return "", err
+	}
+	var versions []string
+	for _, b := range bins {
+		if b.Engine == engine {
+			versions = append(versions, b.Version)
+		}
+	}
+	if len(versions) == 0 {
+		return "", fmt.Errorf("%w: %s", ErrManagedBinaryMissing, engine)
+	}
+	sort.Slice(versions, func(i, j int) bool { return compareSemver(versions[i], versions[j]) > 0 })
+	return versions[0], nil
+}
+
+// compareSemver: -1 if a<b, 0 equal, 1 if a>b. Numeric parse per dotted component; non-numeric falls back to string compare.
+func compareSemver(a, b string) int {
+	ap, bp := strings.Split(a, "."), strings.Split(b, ".")
+	for i := 0; i < len(ap) || i < len(bp); i++ {
+		var as, bs string
+		if i < len(ap) {
+			as = ap[i]
+		}
+		if i < len(bp) {
+			bs = bp[i]
+		}
+		ai, aerr := parseUint(as)
+		bi, berr := parseUint(bs)
+		if aerr == nil && berr == nil {
+			if ai < bi {
+				return -1
+			}
+			if ai > bi {
+				return 1
+			}
+			continue
+		}
+		if as < bs {
+			return -1
+		}
+		if as > bs {
+			return 1
+		}
+	}
+	return 0
+}
+
+func parseUint(s string) (uint64, error) {
+	if s == "" {
+		return 0, fmt.Errorf("empty")
+	}
+	var v uint64
+	for _, c := range s {
+		if c < '0' || c > '9' {
+			return 0, fmt.Errorf("non-numeric")
+		}
+		v = v*10 + uint64(c-'0')
+	}
+	return v, nil
 }
 
 func extractZipBinary(zipPath, name, dst string) error {

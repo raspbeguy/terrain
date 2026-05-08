@@ -158,32 +158,20 @@ func runWorker(
 		return
 	}
 
-	// Resolve binary first because managed mode may download (slow).
 	effectiveSource := wsSettings.BinarySource.Effective()
 	managedEngine := wsSettings.EffectiveManagedEngine(b.defaults.Engine)
 	managedVersion := wsSettings.ManagedVersion
-	if effectiveSource == BinarySourceManaged && wsSettings.ManagedTrackLatest {
-		setStatus(domain.StatusFetching,
-			"checking latest "+managedEngine+" release")
-		latest, lerr := LatestManagedVersion(ctx, managedEngine)
-		switch {
-		case lerr == nil:
-			managedVersion = latest
-		case wsSettings.ManagedVersion != "":
-			slog.Warn("latest version lookup failed, falling back to pinned",
-				"engine", managedEngine, "pinned", wsSettings.ManagedVersion, "err", lerr)
-		default:
-			finalErr = fmt.Errorf("resolve latest %s: %w", managedEngine, lerr)
+	if effectiveSource == BinarySourceManaged && (wsSettings.ManagedTrackLatest || managedVersion == "") {
+		latest, lerr := LatestInstalledVersion(managedEngine)
+		if lerr != nil {
+			finalErr = fmt.Errorf("no managed %s binary installed; install one in Preferences → Binaries: %w", managedEngine, lerr)
 			setStatus(domain.StatusErrored, finalErr.Error())
 			close(stream.events)
 			close(stream.logs)
 			close(stream.plan)
 			return
 		}
-	}
-	if effectiveSource == BinarySourceManaged {
-		setStatus(domain.StatusFetching,
-			fmt.Sprintf("fetching %s %s", managedEngine, managedVersion))
+		managedVersion = latest
 	}
 	bin, err := b.binaryResolver(wsSettings).Resolve(ctx, managedEngine, managedVersion)
 	if err != nil {

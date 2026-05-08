@@ -34,7 +34,7 @@ Adw.Dialog managed_install_dialog {
         }
 
         Adw.EntryRow managed_install_version_row {
-          title: "Version (e.g. 1.7.0)";
+          title: "Version (e.g. 1.7.0 — leave empty for latest stable)";
         }
 
         Adw.ActionRow managed_install_status_row {
@@ -42,6 +42,17 @@ Adw.Dialog managed_install_dialog {
           subtitle: "Idle";
 
           styles ["dim-label"]
+        }
+      }
+
+      Adw.PreferencesGroup {
+        Gtk.ProgressBar managed_install_progress {
+          show-text: true;
+          visible: false;
+          margin-top: 8;
+          margin-bottom: 8;
+          margin-start: 12;
+          margin-end: 12;
         }
       }
     }
