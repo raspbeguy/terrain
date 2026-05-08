@@ -9,6 +9,7 @@ import (
 
 	"github.com/raspbeguy/terrain/internal/backend/local"
 	"github.com/raspbeguy/terrain/internal/config"
+	"github.com/raspbeguy/terrain/internal/sshkeys"
 	"github.com/raspbeguy/terrain/internal/ui/uihelpers"
 )
 
@@ -32,7 +33,13 @@ type Preferences struct {
 	installManagedBtn *gtk.Button
 	cleanManagedBtn   *gtk.Button
 	managedBinaryRows []*adw.ActionRow
-	parent            *gtk.Window
+
+	sshKeysGroup    *adw.PreferencesGroup
+	sshGenerateBtn  *gtk.Button
+	sshImportBtn    *gtk.Button
+	sshKeyRows      []*adw.ActionRow
+
+	parent *gtk.Window
 
 	cfg *config.Config
 }
@@ -59,6 +66,9 @@ func NewPreferences(cfg *config.Config, remoteBackends []RemoteBackend) *Prefere
 		managedGroup:        uihelpers.MustCast[*adw.PreferencesGroup](builder, "managed_binaries_group"),
 		installManagedBtn:   uihelpers.MustCast[*gtk.Button](builder, "install_managed_binary_button"),
 		cleanManagedBtn:     uihelpers.MustCast[*gtk.Button](builder, "clean_managed_binaries_button"),
+		sshKeysGroup:        uihelpers.MustCast[*adw.PreferencesGroup](builder, "ssh_keys_group"),
+		sshGenerateBtn:      uihelpers.MustCast[*gtk.Button](builder, "ssh_keys_generate_button"),
+		sshImportBtn:        uihelpers.MustCast[*gtk.Button](builder, "ssh_keys_import_button"),
 		cfg:                 cfg,
 	}
 
@@ -68,6 +78,7 @@ func NewPreferences(cfg *config.Config, remoteBackends []RemoteBackend) *Prefere
 	p.bindBackends(remoteBackends)
 	p.bindContainerRuntime(cfg)
 	p.bindManagedBinaries()
+	p.bindSSHKeys()
 
 	return p
 }
@@ -75,6 +86,11 @@ func NewPreferences(cfg *config.Config, remoteBackends []RemoteBackend) *Prefere
 func (p *Preferences) Present(parent *gtk.Window) {
 	p.parent = parent
 	p.dialog.Present(parent)
+}
+
+// ConnectClosed proxies the underlying Adw.Dialog signal so callers can refresh dependent UI when the user closes Preferences.
+func (p *Preferences) ConnectClosed(fn func()) {
+	p.dialog.ConnectClosed(fn)
 }
 
 func (p *Preferences) bindBinaries() {
@@ -241,6 +257,81 @@ func (p *Preferences) managedRemoveButton(b local.ManagedBinaryInfo) *gtk.Button
 		p.refreshManagedBinaries()
 	})
 	return btn
+}
+
+func (p *Preferences) bindSSHKeys() {
+	p.sshGenerateBtn.ConnectClicked(func() {
+		PresentSSHGenerate(p.parent, func() { p.refreshSSHKeys() })
+	})
+	p.sshImportBtn.ConnectClicked(func() {
+		PresentSSHImport(p.parent, func() { p.refreshSSHKeys() })
+	})
+	p.refreshSSHKeys()
+}
+
+func (p *Preferences) refreshSSHKeys() {
+	for _, row := range p.sshKeyRows {
+		p.sshKeysGroup.Remove(row)
+	}
+	p.sshKeyRows = nil
+
+	keys, err := sshkeys.List()
+	if err != nil {
+		slog.Warn("list ssh keys", "err", err)
+		return
+	}
+	if len(keys) == 0 {
+		empty := adw.NewActionRow()
+		empty.SetTitle("No keys")
+		empty.SetSubtitle("Click Generate to create one, or Import to bring in an existing key.")
+		empty.AddCSSClass("dim-label")
+		p.sshKeysGroup.Add(empty)
+		p.sshKeyRows = append(p.sshKeyRows, empty)
+		return
+	}
+	for _, k := range keys {
+		k := k
+		row := adw.NewActionRow()
+		row.SetTitle(escapeMarkup(k.Label))
+		row.SetSubtitle(k.Type + " · " + k.Fingerprint)
+		row.AddSuffix(p.sshKeySuffix(k))
+		p.sshKeysGroup.Add(row)
+		p.sshKeyRows = append(p.sshKeyRows, row)
+	}
+}
+
+func (p *Preferences) sshKeySuffix(k sshkeys.KeyInfo) *gtk.Box {
+	copyBtn := gtk.NewButtonFromIconName("edit-copy-symbolic")
+	copyBtn.SetVAlign(gtk.AlignCenter)
+	copyBtn.SetTooltipText("Copy public key")
+	copyBtn.AddCSSClass("flat")
+	copyBtn.ConnectClicked(func() {
+		pub, err := sshkeys.PublicKeyText(k.Label)
+		if err != nil {
+			return
+		}
+		copyBtn.Display().Clipboard().SetText(pub)
+		slog.Info("copied ssh public key", "label", k.Label)
+	})
+
+	delBtn := gtk.NewButtonFromIconName("user-trash-symbolic")
+	delBtn.SetVAlign(gtk.AlignCenter)
+	delBtn.SetTooltipText("Remove " + k.Label)
+	delBtn.AddCSSClass("flat")
+	delBtn.AddCSSClass("destructive-action")
+	delBtn.ConnectClicked(func() {
+		if err := sshkeys.Remove(k.Label); err != nil {
+			slog.Error("remove ssh key", "label", k.Label, "err", err)
+			return
+		}
+		p.refreshSSHKeys()
+	})
+
+	box := gtk.NewBox(gtk.OrientationHorizontal, 4)
+	box.SetVAlign(gtk.AlignCenter)
+	box.Append(copyBtn)
+	box.Append(delBtn)
+	return box
 }
 
 func (p *Preferences) bindTheme() {

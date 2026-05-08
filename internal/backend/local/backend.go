@@ -1,18 +1,38 @@
 // Package local implements domain.Backend by shelling out to the tofu /
-// terraform CLI against a local working directory.
+// terraform CLI against a git-clone of the user's project.
 package local
 
 import (
 	"context"
+	"path/filepath"
 
 	"github.com/raspbeguy/terrain/internal/domain"
 	"github.com/raspbeguy/terrain/internal/runner"
 )
 
 type Project struct {
-	ID   string
-	Name string
-	Path string
+	ID          string
+	Name        string
+	GitURL      string
+	GitRef      string
+	Subpath     string
+	SSHKeyLabel string
+	GitUsername string
+
+	// dirOverride is a test escape hatch — set in package tests to point at a literal directory.
+	dirOverride string
+}
+
+// WorkingDir is the on-disk path the tofu/terraform process runs in.
+func (p Project) WorkingDir() (string, error) {
+	if p.dirOverride != "" {
+		return p.dirOverride, nil
+	}
+	cloneDir, err := CloneDir(p.GitURL, p.GitRef)
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(cloneDir, p.Subpath), nil
 }
 
 // Backend groups all local projects under one sidebar header: one Backend, many workspaces.
@@ -64,13 +84,20 @@ func (b *Backend) Close() error { return nil }
 func (b *Backend) Workspaces(_ context.Context) ([]domain.Workspace, error) {
 	out := make([]domain.Workspace, 0, len(b.projects))
 	for _, p := range b.projects {
+		dir, err := p.WorkingDir()
+		if err != nil {
+			return nil, err
+		}
 		out = append(out, domain.Workspace{
 			ID:               b.id + ":" + p.ID + ":default",
 			BackendID:        b.id,
 			Name:             "default",
 			ProjectName:      p.Name,
 			ProjectID:        p.ID,
-			WorkingDirectory: p.Path,
+			WorkingDirectory: dir,
+			GitURL:           p.GitURL,
+			GitRef:           p.GitRef,
+			Subpath:          p.Subpath,
 			ExecutionMode:    "local",
 		})
 	}

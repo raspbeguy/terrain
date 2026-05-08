@@ -31,7 +31,15 @@ func BuildBackends(c *Config) ([]domain.Backend, error) {
 				ImageTerraform: c.App.DefaultImageTerraform,
 			})
 			for _, p := range bc.Projects {
-				b.AddProject(local.Project{ID: p.ID, Name: p.Name, Path: p.Path})
+				b.AddProject(local.Project{
+					ID:          p.ID,
+					Name:        p.Name,
+					GitURL:      p.GitURL,
+					GitRef:      p.GitRef,
+					Subpath:     p.Subpath,
+					SSHKeyLabel: p.SSHKeyLabel,
+					GitUsername: p.GitUsername,
+				})
 			}
 			backends = append(backends, b)
 

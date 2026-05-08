@@ -121,4 +121,31 @@ Adw.PreferencesDialog preferences_dialog {
       description: "Refresh capability bitmasks if a backend has been upgraded since the last connect.";
     }
   }
+
+  Adw.PreferencesPage {
+    title: "SSH Keys";
+    icon-name: "dialog-password-symbolic";
+
+    Adw.PreferencesGroup ssh_keys_group {
+      title: "Terrain-managed SSH Keys";
+      description: "Used by local projects with ssh:// or git@host: URLs. Keys live in $XDG_DATA_HOME/terrain/ssh-keys/ and never touch ~/.ssh.";
+
+      header-suffix: Gtk.Box {
+        spacing: 6;
+        valign: center;
+
+        Gtk.Button ssh_keys_import_button {
+          label: "Import";
+
+          styles ["flat"]
+        }
+
+        Gtk.Button ssh_keys_generate_button {
+          label: "Generate";
+
+          styles ["flat", "suggested-action"]
+        }
+      };
+    }
+  }
 }

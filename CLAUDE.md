@@ -115,6 +115,20 @@ nil-widget crashes, and missing gresource entries automatically.
    tab refresh would hurt UX. Documented limitation; revisit only if
    version-mismatch issues surface.
 
+9. **Local projects are clone-backed, never arbitrary host paths**. A
+   `local.Project` carries `(GitURL, GitRef, Subpath)`; `WorkingDir()`
+   resolves to `$XDG_DATA_HOME/terrain/git-repos/<hash>/<subpath>` where
+   `<hash>` = first 16 hex of `sha256(url + "@" + ref)`. Multiple
+   projects with the same `(url, ref)` share one clone — only the
+   subpath varies. Clones are app-managed working copies, not user
+   editing surfaces; `Sync` is `fetch + reset --hard`, so local edits
+   inside the clone are discarded by design. Cloning, syncing, and
+   ls-remote probes all go through `internal/gitutils/` (pure-Go
+   go-git, never host `git`). Auth uses libsecret tokens for HTTPS or
+   `internal/sshkeys` for SSH — both sandbox-local. This is what lets
+   the Flathub manifest ship without `--filesystem=home` or
+   `--talk-name=org.freedesktop.Flatpak`.
+
 ## Package layout
 
 ```
@@ -225,6 +239,12 @@ testdata/                   Fixtures used by integration tests.
 - **File paths**:
   - `$XDG_CONFIG_HOME/terrain/config.toml` — backend registry (durable)
   - `$XDG_CONFIG_HOME/terrain/varsets/<id>.json` — variable set manifests
+  - `$XDG_DATA_HOME/terrain/git-repos/<hash>/` — clone of a local project
+    repo. `<hash>` = first 16 hex of `sha256(git_url + "@" + git_ref)`;
+    multiple subpaths share one clone. Sync = fetch + reset --hard.
+  - `$XDG_DATA_HOME/terrain/ssh-keys/<label>/` — terrain-managed ed25519
+    keys for SSH-flavoured git URLs. Stays in-sandbox so the Flatpak
+    needs no `--socket=ssh-auth` or `--filesystem=~/.ssh`.
   - `$XDG_CACHE_HOME/terrain/<backend>/<ws>/runs/<id>/` — run artifacts
     (ephemeral; deleted by cache cleanup is fine)
   - `$XDG_DATA_HOME/terrain/<backend>/<ws>/state-versions/<id>/` — state

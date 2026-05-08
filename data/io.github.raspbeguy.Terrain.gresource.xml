@@ -6,6 +6,8 @@
     <file preprocess="xml-stripblanks" compressed="true">preferences.ui</file>
     <file preprocess="xml-stripblanks" compressed="true">run-detail.ui</file>
     <file preprocess="xml-stripblanks" compressed="true">add-remote.ui</file>
+    <file preprocess="xml-stripblanks" compressed="true">add-local.ui</file>
+    <file preprocess="xml-stripblanks" compressed="true">ssh-key-import.ui</file>
     <file preprocess="xml-stripblanks" compressed="true">var-edit.ui</file>
     <file preprocess="xml-stripblanks" compressed="true">varsets.ui</file>
     <file preprocess="xml-stripblanks" compressed="true">state-diff.ui</file>

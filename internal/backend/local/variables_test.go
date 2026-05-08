@@ -19,7 +19,7 @@ func TestUpsertPlainVar_WritesOverridesNotProjectTfvars(t *testing.T) {
 	projectDir := t.TempDir()
 
 	b := New("local", "Local")
-	b.AddProject(Project{ID: "p1", Name: "infra", Path: projectDir})
+	b.AddProject(Project{ID: "p1", Name: "infra", dirOverride: projectDir})
 	wsID := "local:p1:default"
 
 	v := domain.Variable{
@@ -61,7 +61,7 @@ func TestVariablesForWorkspace_ReadsOverrides(t *testing.T) {
 	}
 
 	b := New("local", "Local")
-	b.AddProject(Project{ID: "p1", Name: "infra", Path: projectDir})
+	b.AddProject(Project{ID: "p1", Name: "infra", dirOverride: projectDir})
 	wsID := "local:p1:default"
 
 	if err := b.UpsertVariable(context.Background(), wsID, domain.Variable{
@@ -108,7 +108,7 @@ func TestDeleteVariable_RemovesFromOverridesOnly(t *testing.T) {
 	}
 
 	b := New("local", "Local")
-	b.AddProject(Project{ID: "p1", Name: "infra", Path: projectDir})
+	b.AddProject(Project{ID: "p1", Name: "infra", dirOverride: projectDir})
 	wsID := "local:p1:default"
 
 	if err := b.UpsertVariable(context.Background(), wsID, domain.Variable{

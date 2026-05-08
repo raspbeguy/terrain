@@ -39,9 +39,35 @@ Box workspace_detail_root {
               styles ["flat"]
             };
 
-            Adw.ActionRow workspace_path_row {
-              title: "Working Directory";
+            Adw.ActionRow workspace_repo_row {
+              title: "Repository";
               subtitle: "—";
+
+              [suffix]
+              Box {
+                spacing: 6;
+                valign: center;
+
+                Button workspace_open_dir_button {
+                  icon-name: "folder-open-symbolic";
+                  tooltip-text: "Open workspace directory";
+
+                  styles ["flat"]
+                }
+
+                Button workspace_sync_button {
+                  icon-name: "view-refresh-symbolic";
+                  tooltip-text: "Sync from git remote";
+
+                  styles ["flat"]
+                }
+              }
+            }
+
+            Adw.ActionRow workspace_subpath_row {
+              title: "Subpath";
+              subtitle: "—";
+              visible: false;
             }
 
             Adw.ActionRow workspace_engine_row {

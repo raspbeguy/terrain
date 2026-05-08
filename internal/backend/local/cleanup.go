@@ -47,4 +47,10 @@ func (b *Backend) CleanupOrphanArtifacts() {
 		slog.Info("cleaned up orphan vars files from prior crashes",
 			"backend", b.id, "count", cleaned)
 	}
+
+	referenced := map[string]bool{}
+	for _, p := range b.projects {
+		referenced[repoHash(p.GitURL, p.GitRef)] = true
+	}
+	gcOrphanClones(referenced)
 }

@@ -1,0 +1,100 @@
+using Gtk 4.0;
+using Adw 1;
+
+Adw.Dialog ssh_key_import_dialog {
+  title: "Import SSH Key";
+  content-width: 480;
+  content-height: 520;
+
+  child: Adw.ToolbarView {
+    [top]
+    Adw.HeaderBar {
+      show-end-title-buttons: false;
+      show-start-title-buttons: false;
+
+      [start]
+      Button ssh_key_import_cancel_button {
+        label: "Cancel";
+      }
+
+      [end]
+      Button ssh_key_import_confirm_button {
+        label: "Import";
+        sensitive: false;
+
+        styles ["suggested-action"]
+      }
+    }
+
+    content: Adw.PreferencesPage {
+      Adw.PreferencesGroup {
+        title: "Identity";
+
+        Adw.EntryRow ssh_key_import_label_row {
+          title: "Label";
+        }
+      }
+
+      Adw.PreferencesGroup {
+        title: "Private key";
+        description: "Paste the OpenSSH-format private key. Passphrase-protected keys are not supported.";
+
+        Adw.ViewStack ssh_key_import_stack {
+          enable-transitions: false;
+          vexpand: true;
+
+          Adw.ViewStackPage {
+            name: "paste";
+            title: "Paste";
+
+            child: ScrolledWindow {
+              hexpand: true;
+              vexpand: true;
+              min-content-height: 240;
+
+              child: TextView ssh_key_import_textview {
+                monospace: true;
+                top-margin: 8;
+                bottom-margin: 8;
+                left-margin: 8;
+                right-margin: 8;
+              };
+            };
+          }
+
+          Adw.ViewStackPage {
+            name: "file";
+            title: "From file";
+
+            child: Adw.ActionRow {
+              activatable-widget: ssh_key_import_pick_button;
+              title: "Pick a file";
+              subtitle: "Read once via the FileLauncher portal.";
+
+              [suffix]
+              Button ssh_key_import_pick_button {
+                label: "Choose…";
+                valign: center;
+
+                styles ["flat"]
+              }
+            };
+          }
+        }
+
+        Adw.ViewSwitcher {
+          stack: ssh_key_import_stack;
+          policy: wide;
+        }
+      }
+
+      Adw.PreferencesGroup {
+        Adw.ActionRow ssh_key_import_status_row {
+          title: "Status";
+          subtitle: "Idle";
+          subtitle-lines: 4;
+        }
+      }
+    };
+  };
+}

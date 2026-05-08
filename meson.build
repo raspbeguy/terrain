@@ -35,6 +35,8 @@ blueprint_sources = [
   'preferences',
   'run-detail',
   'add-remote',
+  'add-local',
+  'ssh-key-import',
   'var-edit',
   'varsets',
   'state-diff',

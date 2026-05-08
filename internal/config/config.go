@@ -60,9 +60,15 @@ type BackendConfig struct {
 }
 
 type ProjectConfig struct {
-	ID   string `toml:"id"`
-	Name string `toml:"name"`
-	Path string `toml:"path"`
+	ID      string `toml:"id"`
+	Name    string `toml:"name"`
+	GitURL  string `toml:"git_url"`
+	GitRef  string `toml:"git_ref,omitempty"`
+	Subpath string `toml:"subpath,omitempty"`
+
+	// SSHKeyLabel selects an internal/sshkeys label for SSH URLs; HTTPS tokens live in libsecret keyed by host.
+	SSHKeyLabel string `toml:"ssh_key_label,omitempty"`
+	GitUsername string `toml:"git_username,omitempty"`
 }
 
 func Path() (string, error) {
@@ -91,6 +97,7 @@ func Load() (*Config, error) {
 	if _, err := toml.Decode(string(data), c); err != nil {
 		return nil, fmt.Errorf("parse %s: %w", path, err)
 	}
+	c.dropLegacyLocalProjects()
 	if c.App.DefaultEngine == "" {
 		c.App.DefaultEngine = "tofu"
 	}
@@ -233,23 +240,19 @@ func (c *Config) RemoveLocalProject(projectID string) error {
 // failure in RemoveLocalProject.
 var ErrProjectNotFound = errors.New("project not found")
 
-// AddLocalProject reuses the existing local backend if any (one local
-// backend per registry); creates one otherwise.
-func (c *Config) AddLocalProject(name, path string) (BackendConfig, ProjectConfig, error) {
-	abs, err := filepath.Abs(path)
-	if err != nil {
-		return BackendConfig{}, ProjectConfig{}, fmt.Errorf("abs %s: %w", path, err)
+// AddLocalProject reuses the single "local" backend if present, creates it otherwise.
+func (c *Config) AddLocalProject(p ProjectConfig) (BackendConfig, ProjectConfig, error) {
+	if p.GitURL == "" {
+		return BackendConfig{}, ProjectConfig{}, fmt.Errorf("git_url is required")
 	}
-	project := ProjectConfig{
-		ID:   newID(),
-		Name: name,
-		Path: abs,
+	if p.ID == "" {
+		p.ID = newID()
 	}
 
 	for i, bc := range c.Backends {
 		if bc.Type == "local" {
-			c.Backends[i].Projects = append(c.Backends[i].Projects, project)
-			return c.Backends[i], project, c.Save()
+			c.Backends[i].Projects = append(c.Backends[i].Projects, p)
+			return c.Backends[i], p, c.Save()
 		}
 	}
 
@@ -257,10 +260,29 @@ func (c *Config) AddLocalProject(name, path string) (BackendConfig, ProjectConfi
 		ID:       "local",
 		Type:     "local",
 		Name:     "Local",
-		Projects: []ProjectConfig{project},
+		Projects: []ProjectConfig{p},
 	}
 	c.Backends = append(c.Backends, bc)
-	return bc, project, c.Save()
+	return bc, p, c.Save()
+}
+
+// dropLegacyLocalProjects: pre-git "path"-only entries lose their key on decode (go-toml ignores unknown fields) and surface as empty GitURL.
+func (c *Config) dropLegacyLocalProjects() {
+	for bi := range c.Backends {
+		if c.Backends[bi].Type != "local" {
+			continue
+		}
+		kept := c.Backends[bi].Projects[:0]
+		for _, p := range c.Backends[bi].Projects {
+			if p.GitURL == "" {
+				slog.Warn("skipping legacy local project (path-only schema)",
+					"id", p.ID, "name", p.Name)
+				continue
+			}
+			kept = append(kept, p)
+		}
+		c.Backends[bi].Projects = kept
+	}
 }
 
 func defaultConfig() *Config {

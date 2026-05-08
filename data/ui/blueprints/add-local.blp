@@ -1,0 +1,126 @@
+using Gtk 4.0;
+using Adw 1;
+
+Adw.Dialog add_local_dialog {
+  title: "Add Local Project";
+  content-width: 520;
+  content-height: 600;
+
+  child: Adw.ToolbarView {
+    [top]
+    Adw.HeaderBar {
+      show-end-title-buttons: false;
+      show-start-title-buttons: false;
+
+      [start]
+      Button add_local_cancel_button {
+        label: "Cancel";
+      }
+
+      [end]
+      Button add_local_add_button {
+        label: "Add";
+        sensitive: false;
+
+        styles ["suggested-action"]
+      }
+    }
+
+    content: ScrolledWindow {
+      hscrollbar-policy: never;
+
+      child: Adw.PreferencesPage {
+        Adw.PreferencesGroup {
+          title: "Repository";
+
+          Adw.EntryRow add_local_url_row {
+            title: "Git URL";
+            input-purpose: url;
+          }
+
+          Adw.EntryRow add_local_ref_row {
+            title: "Branch / tag (optional)";
+          }
+
+          Adw.EntryRow add_local_subpath_row {
+            title: "Subpath (optional)";
+          }
+
+          Adw.EntryRow add_local_name_row {
+            title: "Display name";
+          }
+
+          Adw.ActionRow add_local_reuse_row {
+            title: "(reusing existing clone)";
+            visible: false;
+
+            styles ["dim-label"]
+          }
+        }
+
+        Adw.PreferencesGroup add_local_https_group {
+          title: "Authentication";
+          description: "Leave empty for public repositories.";
+
+          Adw.EntryRow add_local_username_row {
+            title: "Username (optional)";
+          }
+
+          Adw.PasswordEntryRow add_local_token_row {
+            title: "Personal access token";
+          }
+        }
+
+        Adw.PreferencesGroup add_local_ssh_group {
+          title: "Authentication";
+          description: "Pick a key from the Terrain key store.";
+          visible: false;
+
+          Adw.ComboRow add_local_ssh_key_row {
+            title: "SSH key";
+
+            model: StringList {};
+          }
+
+          Adw.ActionRow add_local_manage_keys_row {
+            title: "Manage SSH keys";
+            subtitle: "Open Preferences to add or remove keys.";
+            activatable-widget: add_local_manage_keys_button;
+
+            [suffix]
+            Button add_local_manage_keys_button {
+              label: "Open Preferences";
+              valign: center;
+
+              styles ["flat"]
+            }
+          }
+        }
+
+        Adw.PreferencesGroup {
+          title: "Connection";
+
+          Adw.ActionRow add_local_status_row {
+            title: "Status";
+            subtitle: "Not tested";
+            subtitle-lines: 4;
+          }
+
+          Adw.ActionRow {
+            activatable-widget: add_local_test_button;
+            title: "Test repository";
+            subtitle: "Run git ls-remote to verify the URL and ref.";
+
+            [suffix]
+            Button add_local_test_button {
+              label: "Test";
+              valign: center;
+
+              styles ["flat"]
+            }
+          }
+        }
+      };
+    };
+  };
+}

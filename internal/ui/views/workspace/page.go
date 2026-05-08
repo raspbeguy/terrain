@@ -20,7 +20,10 @@ const uiResource = "/io/github/raspbeguy/Terrain/workspace-detail.ui"
 type Page struct {
 	root *gtk.Box
 
-	pathRow            *adw.ActionRow
+	repoRow            *adw.ActionRow
+	subpathRow         *adw.ActionRow
+	openDirBtn         *gtk.Button
+	syncBtn            *gtk.Button
 	engineRow          *adw.ActionRow
 	versionRow         *adw.ActionRow
 	resourcesRow       *adw.ActionRow
@@ -59,6 +62,8 @@ type Page struct {
 	onAddVar            func(domain.Workspace)
 	onRemoveVar         func(domain.Workspace, domain.Variable)
 	onOpenSettings      func(domain.Workspace)
+	onSync              func(domain.Workspace)
+	onOpenDirectory     func(domain.Workspace)
 }
 
 func (p *Page) SetOnOpenSettings(fn func(domain.Workspace)) {
@@ -76,7 +81,10 @@ func New() *Page {
 	builder := gtk.NewBuilderFromResource(uiResource)
 	p := &Page{
 		root:            uihelpers.MustCast[*gtk.Box](builder, "workspace_detail_root"),
-		pathRow:         uihelpers.MustCast[*adw.ActionRow](builder, "workspace_path_row"),
+		repoRow:         uihelpers.MustCast[*adw.ActionRow](builder, "workspace_repo_row"),
+		subpathRow:      uihelpers.MustCast[*adw.ActionRow](builder, "workspace_subpath_row"),
+		openDirBtn:      uihelpers.MustCast[*gtk.Button](builder, "workspace_open_dir_button"),
+		syncBtn:         uihelpers.MustCast[*gtk.Button](builder, "workspace_sync_button"),
 		engineRow:       uihelpers.MustCast[*adw.ActionRow](builder, "workspace_engine_row"),
 		versionRow:      uihelpers.MustCast[*adw.ActionRow](builder, "workspace_version_row"),
 		resourcesRow:    uihelpers.MustCast[*adw.ActionRow](builder, "workspace_resources_row"),
@@ -112,6 +120,16 @@ func New() *Page {
 		slog.Debug("workspace settings clicked", "ws", p.current.ID)
 		if p.onOpenSettings != nil && p.current.ID != "" {
 			p.onOpenSettings(p.current)
+		}
+	})
+	p.openDirBtn.ConnectClicked(func() {
+		if p.onOpenDirectory != nil && p.current.ID != "" {
+			p.onOpenDirectory(p.current)
+		}
+	})
+	p.syncBtn.ConnectClicked(func() {
+		if p.onSync != nil && p.current.ID != "" {
+			p.onSync(p.current)
 		}
 	})
 	p.refreshStateBtn.ConnectClicked(func() {
@@ -488,11 +506,43 @@ func (p *Page) Root() *gtk.Box { return p.root }
 func (p *Page) Bind(ws domain.Workspace) {
 	slog.Debug("workspace bind", "id", ws.ID, "project", ws.ProjectName)
 	p.current = ws
-	p.pathRow.SetSubtitle(displayOrDash(ws.WorkingDirectory))
+
+	if ws.GitURL != "" {
+		ref := ws.GitRef
+		if ref == "" {
+			ref = "default branch"
+		}
+		p.repoRow.SetSubtitle(ws.GitURL + " @ " + ref)
+		p.openDirBtn.SetVisible(true)
+		p.syncBtn.SetVisible(true)
+		if ws.Subpath != "" {
+			p.subpathRow.SetSubtitle(ws.Subpath)
+			p.subpathRow.SetVisible(true)
+		} else {
+			p.subpathRow.SetVisible(false)
+		}
+	} else {
+		p.repoRow.SetSubtitle(displayOrDash(ws.WorkingDirectory))
+		p.openDirBtn.SetVisible(false)
+		p.syncBtn.SetVisible(false)
+		p.subpathRow.SetVisible(false)
+	}
+
 	p.engineRow.SetSubtitle(displayOrDash(ws.ExecutionMode))
 	p.versionRow.SetSubtitle(displayOrDash(ws.TerraformVersion))
 	p.refreshRuns()
 	p.refreshVariables()
+}
+
+// SetOnSync wires the "Sync from git remote" suffix button.
+func (p *Page) SetOnSync(fn func(domain.Workspace)) { p.onSync = fn }
+
+// SetOnOpenDirectory wires the "Open workspace directory" suffix button.
+func (p *Page) SetOnOpenDirectory(fn func(domain.Workspace)) { p.onOpenDirectory = fn }
+
+// SetSyncBusy disables the sync button and shows a spinner-ish state.
+func (p *Page) SetSyncBusy(busy bool) {
+	p.syncBtn.SetSensitive(!busy)
 }
 
 func displayOrDash(s string) string {

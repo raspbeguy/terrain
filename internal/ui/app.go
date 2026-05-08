@@ -5,13 +5,18 @@ package ui
 import (
 	"context"
 	"log/slog"
+	"os"
+	"time"
 
 	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
 	"github.com/diamondburned/gotk4/pkg/gio/v2"
 	"github.com/diamondburned/gotk4/pkg/glib/v2"
+	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 
+	"github.com/raspbeguy/terrain/internal/backend/local"
 	"github.com/raspbeguy/terrain/internal/config"
 	"github.com/raspbeguy/terrain/internal/domain"
+	"github.com/raspbeguy/terrain/internal/gitutils"
 	"github.com/raspbeguy/terrain/internal/runner"
 	"github.com/raspbeguy/terrain/internal/ui/dialogs"
 	"github.com/raspbeguy/terrain/internal/ui/window"
@@ -119,6 +124,9 @@ func (a *App) onActivate() {
 	}
 	a.window = w
 	w.SetOnRemoveProject(a.removeLocalProject)
+	w.SetOnSync(a.syncProject)
+	w.SetOnOpenDirectory(a.openProjectDirectory)
+	w.SetOnAddSubpath(a.addSubpathFromExisting)
 	w.Present()
 }
 
@@ -148,12 +156,30 @@ func (a *App) onAddLocalProject() {
 	if a.window == nil {
 		return
 	}
-	dialogs.AddLocal(
-		context.Background(),
-		a.window.GtkWindow(),
-		a.completeAddLocal,
-		func(err error) { slog.Error("add local project", "err", err) },
-	)
+	dialogs.AddLocal(a.window.GtkWindow(), a.existingLocalClones(), a.completeAddLocal,
+		func(onClosed func()) {
+			prefs := dialogs.NewPreferences(a.cfg, a.remoteBackends())
+			if onClosed != nil {
+				prefs.ConnectClosed(onClosed)
+			}
+			prefs.Present(a.window.GtkWindow())
+		})
+}
+
+func (a *App) existingLocalClones() []dialogs.ExistingClone {
+	if a.cfg == nil {
+		return nil
+	}
+	var out []dialogs.ExistingClone
+	for _, bc := range a.cfg.Backends {
+		if bc.Type != "local" {
+			continue
+		}
+		for _, p := range bc.Projects {
+			out = append(out, dialogs.ExistingClone{GitURL: p.GitURL, GitRef: p.GitRef})
+		}
+	}
+	return out
 }
 
 func (a *App) completeAddLocal(p dialogs.LocalProject) {
@@ -165,28 +191,87 @@ func (a *App) completeAddLocal(p dialogs.LocalProject) {
 		}
 		a.cfg = cfg
 	}
-	if _, _, err := a.cfg.AddLocalProject(p.Name, p.Path); err != nil {
-		slog.Error("save project", "err", err, "path", p.Path)
+	pc := config.ProjectConfig{
+		Name:        p.Name,
+		GitURL:      p.GitURL,
+		GitRef:      p.GitRef,
+		Subpath:     p.Subpath,
+		SSHKeyLabel: p.SSHKeyLabel,
+		GitUsername: p.Username,
+	}
+	bc, saved, err := a.cfg.AddLocalProject(pc)
+	if err != nil {
+		slog.Error("save project", "err", err, "url", p.GitURL)
 		if a.window != nil {
 			a.window.ToastError("Couldn't save project: " + err.Error())
 		}
 		return
 	}
-	backends, err := config.BuildBackends(a.cfg)
+	a.window.Toast("Cloning " + p.Name + "…")
+	go a.cloneAndPublish(bc, saved, p)
+}
+
+func (a *App) cloneAndPublish(bc config.BackendConfig, saved config.ProjectConfig, p dialogs.LocalProject) {
+	cloneDir, err := local.CloneDir(saved.GitURL, saved.GitRef)
 	if err != nil {
-		slog.Error("rebuild backends", "err", err)
-		if a.window != nil {
-			a.window.ToastError("Couldn't rebuild backends: " + err.Error())
-		}
+		a.handleCloneFailure(saved, "clone path: "+err.Error())
 		return
 	}
-	a.backends = backends
-	if a.window != nil {
-		if err := a.window.Refresh(backends); err != nil {
-			slog.Error("refresh sidebar", "err", err)
-		}
-		a.window.Toast("Added " + p.Name)
+	auth, err := dialogs.BuildAuth(p)
+	if err != nil {
+		a.handleCloneFailure(saved, err.Error())
+		return
 	}
+	if _, statErr := os.Stat(cloneDir); statErr == nil {
+		a.publishLocalSuccess(saved, p.Name, false)
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	defer cancel()
+	if err := gitutils.Clone(ctx, saved.GitURL, saved.GitRef, cloneDir, auth); err != nil {
+		a.handleCloneFailure(saved, err.Error())
+		return
+	}
+	a.publishLocalSuccess(saved, p.Name, true)
+	_ = bc
+}
+
+func (a *App) publishLocalSuccess(saved config.ProjectConfig, name string, cloned bool) {
+	glib.IdleAdd(func() bool {
+		backends, err := config.BuildBackends(a.cfg)
+		if err != nil {
+			slog.Error("rebuild backends", "err", err)
+			if a.window != nil {
+				a.window.ToastError("Couldn't rebuild backends: " + err.Error())
+			}
+			return false
+		}
+		a.backends = backends
+		if a.window != nil {
+			if err := a.window.Refresh(backends); err != nil {
+				slog.Error("refresh sidebar", "err", err)
+			}
+			if cloned {
+				a.window.Toast("Cloned " + name)
+			} else {
+				a.window.Toast("Added " + name)
+			}
+		}
+		return false
+	})
+}
+
+func (a *App) handleCloneFailure(saved config.ProjectConfig, msg string) {
+	slog.Error("clone failed", "err", msg, "url", saved.GitURL, "ref", saved.GitRef)
+	if remErr := a.cfg.RemoveLocalProject(saved.ID); remErr != nil {
+		slog.Warn("rollback after clone failure", "err", remErr)
+	}
+	glib.IdleAdd(func() bool {
+		if a.window != nil {
+			a.window.ToastError("Clone failed: " + msg)
+		}
+		return false
+	})
 }
 
 func (a *App) onPreferences() {
@@ -296,4 +381,131 @@ func (a *App) completeAddRemote(form dialogs.RemoteForm) {
 		slog.Error("refresh sidebar", "err", err)
 	}
 	a.window.Toast("Connected to " + form.Organization)
+}
+
+func (a *App) projectFor(ws domain.Workspace) (config.ProjectConfig, bool) {
+	if a.cfg == nil {
+		return config.ProjectConfig{}, false
+	}
+	for _, bc := range a.cfg.Backends {
+		if bc.Type != "local" || bc.ID != ws.BackendID {
+			continue
+		}
+		for _, p := range bc.Projects {
+			if p.ID == ws.ProjectID {
+				return p, true
+			}
+		}
+	}
+	return config.ProjectConfig{}, false
+}
+
+func (a *App) syncProject(ws domain.Workspace) {
+	if a.window == nil {
+		return
+	}
+	p, ok := a.projectFor(ws)
+	if !ok || p.GitURL == "" {
+		a.window.ToastError("Workspace has no associated git repo")
+		return
+	}
+	dlg := adw.NewAlertDialog(
+		"Sync from git remote?",
+		"This fetches the latest commits and resets the working clone to the remote — any local edits inside the clone are discarded.",
+	)
+	dlg.AddResponse("cancel", "Cancel")
+	dlg.AddResponse("sync", "Sync")
+	dlg.SetResponseAppearance("sync", adw.ResponseSuggested)
+	dlg.SetDefaultResponse("sync")
+	dlg.SetCloseResponse("cancel")
+	dlg.ConnectResponse(func(resp string) {
+		if resp != "sync" {
+			return
+		}
+		go a.runSync(ws, p)
+	})
+	dlg.Present(a.window.GtkWindow())
+}
+
+func (a *App) runSync(ws domain.Workspace, p config.ProjectConfig) {
+	cloneDir, err := local.CloneDir(p.GitURL, p.GitRef)
+	if err != nil {
+		a.toastFromGoroutine("Sync failed: " + err.Error())
+		return
+	}
+	auth, err := dialogs.BuildAuth(dialogs.LocalProject{
+		GitURL:      p.GitURL,
+		Username:    p.GitUsername,
+		SSHKeyLabel: p.SSHKeyLabel,
+	})
+	if err != nil {
+		a.toastFromGoroutine("Sync failed: " + err.Error())
+		return
+	}
+	glib.IdleAdd(func() bool {
+		if a.window != nil {
+			a.window.SetWorkspacePageSyncBusy(true)
+		}
+		return false
+	})
+	defer glib.IdleAdd(func() bool {
+		if a.window != nil {
+			a.window.SetWorkspacePageSyncBusy(false)
+		}
+		return false
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	defer cancel()
+	if err := gitutils.Sync(ctx, cloneDir, p.GitRef, auth); err != nil {
+		slog.Error("git sync", "err", err, "ws", ws.ID)
+		a.toastFromGoroutine("Sync failed: " + err.Error())
+		return
+	}
+	a.toastFromGoroutine("Synced " + p.Name)
+}
+
+func (a *App) openProjectDirectory(ws domain.Workspace) {
+	if a.window == nil {
+		return
+	}
+	dir := ws.WorkingDirectory
+	if dir == "" {
+		a.window.ToastError("Workspace has no working directory")
+		return
+	}
+	launcher := gtk.NewFileLauncher(gio.NewFileForPath(dir))
+	launcher.Launch(context.Background(), a.window.GtkWindow(), func(res gio.AsyncResulter) {
+		if err := launcher.LaunchFinish(res); err != nil {
+			slog.Warn("open workspace directory", "err", err, "dir", dir)
+			if a.window != nil {
+				a.window.ToastError("Couldn't open directory: " + err.Error())
+			}
+		}
+	})
+}
+
+func (a *App) addSubpathFromExisting(ws domain.Workspace) {
+	if a.window == nil {
+		return
+	}
+	src, ok := a.projectFor(ws)
+	if !ok || src.GitURL == "" {
+		return
+	}
+	dialogs.AddSubpathFor(a.window.GtkWindow(), dialogs.ProjectSource{
+		Name:        src.Name,
+		GitURL:      src.GitURL,
+		GitRef:      src.GitRef,
+		GitUsername: src.GitUsername,
+		SSHKeyLabel: src.SSHKeyLabel,
+	}, a.completeAddLocal)
+}
+
+func (a *App) toastFromGoroutine(msg string) {
+	glib.IdleAdd(func() bool {
+		if a.window != nil {
+			a.window.Toast(msg)
+		}
+		return false
+	})
 }

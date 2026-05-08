@@ -49,11 +49,31 @@ type Window struct {
 
 	// onRemoveProject is invoked when the user confirms Remove on a
 	// sidebar row. The app handles the config mutation + Refresh.
-	onRemoveProject func(domain.Workspace)
+	onRemoveProject     func(domain.Workspace)
+	onSync              func(domain.Workspace)
+	onOpenDirectory     func(domain.Workspace)
+	onAddSubpath        func(domain.Workspace)
 }
 
 func (w *Window) SetOnRemoveProject(fn func(domain.Workspace)) {
 	w.onRemoveProject = fn
+}
+
+func (w *Window) SetOnSync(fn func(domain.Workspace)) {
+	w.onSync = fn
+}
+
+func (w *Window) SetOnOpenDirectory(fn func(domain.Workspace)) {
+	w.onOpenDirectory = fn
+}
+
+func (w *Window) SetOnAddSubpath(fn func(domain.Workspace)) {
+	w.onAddSubpath = fn
+}
+
+// SetWorkspacePageSyncBusy proxies the workspace page busy indicator from app handlers.
+func (w *Window) SetWorkspacePageSyncBusy(busy bool) {
+	w.workspacePage.SetSyncBusy(busy)
 }
 
 // New populates the sidebar from backends. Pass the app-shared lock
@@ -93,6 +113,16 @@ func New(app *adw.Application, backends []domain.Backend, locks *runner.Workspac
 	w.workspacePage.SetOnAddVariable(w.addVariable)
 	w.workspacePage.SetOnRemoveVariable(w.removeVariable)
 	w.workspacePage.SetOnOpenSettings(w.openWorkspaceSettings)
+	w.workspacePage.SetOnSync(func(ws domain.Workspace) {
+		if w.onSync != nil {
+			w.onSync(ws)
+		}
+	})
+	w.workspacePage.SetOnOpenDirectory(func(ws domain.Workspace) {
+		if w.onOpenDirectory != nil {
+			w.onOpenDirectory(ws)
+		}
+	})
 	w.runPage.SetOnBack(w.showWorkspaceView)
 	w.runPage.SetOnStatus(func(status domain.RunStatus, _ string) {
 		w.contentTitle.SetSubtitle(string(status))
@@ -289,14 +319,31 @@ func (w *Window) attachRowKebab(row *adw.ActionRow, ws domain.Workspace) {
 	popover := gtk.NewPopover()
 	popover.SetHasArrow(true)
 
+	box := gtk.NewBox(gtk.OrientationVertical, 0)
+
+	if ws.GitURL != "" {
+		addSubpathBtn := gtk.NewButtonWithLabel("Add another subpath from this repo…")
+		addSubpathBtn.AddCSSClass("flat")
+		addSubpathBtn.SetHAlign(gtk.AlignStart)
+		addSubpathBtn.ConnectClicked(func() {
+			popover.Popdown()
+			if w.onAddSubpath != nil {
+				w.onAddSubpath(ws)
+			}
+		})
+		box.Append(addSubpathBtn)
+	}
+
 	removeBtn := gtk.NewButtonWithLabel("Remove project")
 	removeBtn.AddCSSClass("flat")
 	removeBtn.AddCSSClass("destructive-action")
+	removeBtn.SetHAlign(gtk.AlignStart)
 	removeBtn.ConnectClicked(func() {
 		popover.Popdown()
 		w.confirmRemoveProject(ws)
 	})
-	popover.SetChild(removeBtn)
+	box.Append(removeBtn)
+	popover.SetChild(box)
 
 	menu := gtk.NewMenuButton()
 	menu.SetIconName("view-more-symbolic")

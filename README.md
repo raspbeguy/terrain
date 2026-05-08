@@ -10,7 +10,7 @@ A native GNOME GUI for [Terraform](https://www.terraform.io/) and
 
 ## Features
 
-- **Workspaces** — group local projects and remote backends in one sidebar
+- **Workspaces** — group local projects (cloned from a git URL) and remote backends in one sidebar
 - **Runs** — streamed `tofu plan`/`apply` with cancel; remote runs via API polling
 - **Plan diff** — TFE-style per-resource changes with action badges (`+`/`~`/`−`/`−/+`) and attribute-level before/after
 - **State viewer** — resource tree with attribute display, refreshes via `tofu show -json`

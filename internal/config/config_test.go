@@ -52,20 +52,18 @@ func TestSaveLoad_RoundTrip(t *testing.T) {
 		Type: "local",
 		Name: "Local",
 		Projects: []ProjectConfig{
-			{ID: "p1", Name: "infra", Path: "/home/dev/infra"},
+			{ID: "p1", Name: "infra", GitURL: "https://example.com/infra.git", Subpath: "envs/prod"},
 		},
 	})
 	if err := c.Save(); err != nil {
 		t.Fatalf("Save: %v", err)
 	}
 
-	// File must exist where we expect.
 	expected := filepath.Join(dir, "terrain", "config.toml")
 	if _, err := os.Stat(expected); err != nil {
 		t.Fatalf("config not at %s: %v", expected, err)
 	}
 
-	// Round-trip.
 	got, err := Load()
 	if err != nil {
 		t.Fatalf("Load: %v", err)
@@ -76,16 +74,21 @@ func TestSaveLoad_RoundTrip(t *testing.T) {
 	if len(got.Backends) != 1 {
 		t.Fatalf("expected 1 backend, got %d", len(got.Backends))
 	}
-	if got.Backends[0].Projects[0].Path != "/home/dev/infra" {
-		t.Errorf("project path round-trip failed: %+v", got.Backends[0].Projects[0])
+	p := got.Backends[0].Projects[0]
+	if p.GitURL != "https://example.com/infra.git" || p.Subpath != "envs/prod" {
+		t.Errorf("project round-trip failed: %+v", p)
 	}
+}
+
+func mkProj(name, url, subpath string) ProjectConfig {
+	return ProjectConfig{Name: name, GitURL: url, Subpath: subpath}
 }
 
 func TestAddLocalProject_CreatesBackendOnFirstCall(t *testing.T) {
 	withConfigDir(t)
 	c := defaultConfig()
 
-	bc, p, err := c.AddLocalProject("infra", "/home/dev/infra")
+	bc, p, err := c.AddLocalProject(mkProj("infra", "https://example.com/infra.git", ""))
 	if err != nil {
 		t.Fatalf("AddLocalProject: %v", err)
 	}
@@ -104,10 +107,10 @@ func TestAddLocalProject_AppendsToExistingLocal(t *testing.T) {
 	withConfigDir(t)
 	c := defaultConfig()
 
-	if _, _, err := c.AddLocalProject("a", "/home/dev/a"); err != nil {
+	if _, _, err := c.AddLocalProject(mkProj("a", "https://example.com/a.git", "")); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := c.AddLocalProject("b", "/home/dev/b"); err != nil {
+	if _, _, err := c.AddLocalProject(mkProj("b", "https://example.com/b.git", "")); err != nil {
 		t.Fatal(err)
 	}
 	if len(c.Backends) != 1 {
@@ -118,28 +121,23 @@ func TestAddLocalProject_AppendsToExistingLocal(t *testing.T) {
 	}
 }
 
-func TestAddLocalProject_RelativePathBecomesAbsolute(t *testing.T) {
+func TestAddLocalProject_RejectsMissingURL(t *testing.T) {
 	withConfigDir(t)
 	c := defaultConfig()
 
-	rel := "./relative"
-	_, p, err := c.AddLocalProject("rel", rel)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !filepath.IsAbs(p.Path) {
-		t.Errorf("expected absolute path, got %q", p.Path)
+	if _, _, err := c.AddLocalProject(ProjectConfig{Name: "no-url"}); err == nil {
+		t.Errorf("expected error for empty git_url")
 	}
 }
 
 func TestRemoveLocalProject_RemovesOneOfMany(t *testing.T) {
 	withConfigDir(t)
 	c := defaultConfig()
-	_, a, err := c.AddLocalProject("a", "/home/dev/a")
+	_, a, err := c.AddLocalProject(mkProj("a", "https://example.com/a.git", ""))
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, b, err := c.AddLocalProject("b", "/home/dev/b")
+	_, b, err := c.AddLocalProject(mkProj("b", "https://example.com/b.git", ""))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -158,7 +156,7 @@ func TestRemoveLocalProject_RemovesOneOfMany(t *testing.T) {
 func TestRemoveLocalProject_DropsBackendWhenEmpty(t *testing.T) {
 	withConfigDir(t)
 	c := defaultConfig()
-	_, p, err := c.AddLocalProject("only", "/home/dev/only")
+	_, p, err := c.AddLocalProject(mkProj("only", "https://example.com/only.git", ""))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -174,12 +172,48 @@ func TestRemoveLocalProject_DropsBackendWhenEmpty(t *testing.T) {
 func TestRemoveLocalProject_NotFound(t *testing.T) {
 	withConfigDir(t)
 	c := defaultConfig()
-	if _, _, err := c.AddLocalProject("a", "/home/dev/a"); err != nil {
+	if _, _, err := c.AddLocalProject(mkProj("a", "https://example.com/a.git", "")); err != nil {
 		t.Fatal(err)
 	}
 	err := c.RemoveLocalProject("does-not-exist")
 	if !errors.Is(err, ErrProjectNotFound) {
 		t.Errorf("expected ErrProjectNotFound, got %v", err)
+	}
+}
+
+func TestLoad_DropsLegacyPathOnlyProject(t *testing.T) {
+	dir := withConfigDir(t)
+	cfgPath := filepath.Join(dir, "terrain", "config.toml")
+	if err := os.MkdirAll(filepath.Dir(cfgPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	legacy := `[[backend]]
+id = "local"
+type = "local"
+name = "Local"
+
+[[backend.projects]]
+id = "p1"
+name = "infra"
+path = "/home/dev/infra"
+
+[[backend.projects]]
+id = "p2"
+name = "git"
+git_url = "https://example.com/git.git"
+`
+	if err := os.WriteFile(cfgPath, []byte(legacy), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	c, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if len(c.Backends) != 1 || len(c.Backends[0].Projects) != 1 {
+		t.Fatalf("expected 1 project after legacy skip, got %+v", c.Backends)
+	}
+	if c.Backends[0].Projects[0].ID != "p2" {
+		t.Errorf("expected p2 retained, got %+v", c.Backends[0].Projects[0])
 	}
 }
 
@@ -259,7 +293,7 @@ func TestBuildBackends_LocalOnly(t *testing.T) {
 			Type: "local",
 			Name: "Local",
 			Projects: []ProjectConfig{
-				{ID: "p1", Name: "infra", Path: "/home/dev/infra"},
+				{ID: "p1", Name: "infra", GitURL: "https://example.com/infra.git"},
 			},
 		},
 	}

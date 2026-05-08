@@ -16,6 +16,10 @@ type Workspace struct {
 	ProjectID   string
 	// WorkingDirectory is empty for the project root.
 	WorkingDirectory string
+	// GitURL/GitRef/Subpath populated for local workspaces (clone-backed); empty for remote.
+	GitURL  string
+	GitRef  string
+	Subpath string
 	// TerraformVersion is empty when undeclared (local auto-detects).
 	TerraformVersion string
 	// ExecutionMode mirrors TFE ("local"/"remote"/"agent"); local
