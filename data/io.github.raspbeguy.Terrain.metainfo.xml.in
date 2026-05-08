@@ -15,20 +15,24 @@
       and OpenTofu workflows, inspired by Terraform Enterprise and OTF.
     </p>
     <p>
-      It supports both local working directories (via the tofu/terraform
-      CLI) and remote backends (HCP Terraform, self-hosted Terraform
-      Enterprise, OTF) through a single unified interface — workspaces,
-      runs, variables, state, and structured plan diffs render the same
-      whether the data comes from a subprocess or a remote API.
+      It supports both local projects (cloned from a git URL into the
+      app's own data directory) and remote backends (HCP Terraform,
+      self-hosted Terraform Enterprise, OTF) through a single unified
+      interface — workspaces, runs, variables, state, and structured
+      plan diffs render the same whether the data comes from a
+      subprocess or a remote API.
     </p>
     <p>Features:</p>
     <ul>
-      <li>Workspaces and runs with streamed plan/apply logs</li>
+      <li>Local projects added by git URL + optional subpath; multiple subpaths share one clone</li>
+      <li>Terraform workspaces surfaced as first-class sidebar entries with create/delete actions</li>
+      <li>Streamed plan/apply runs with cancel; remote runs via API polling</li>
       <li>TFE-style per-resource plan diffs with action badges and attribute-level changes</li>
-      <li>State visualization: resource tree with attribute viewer</li>
+      <li>State visualization: resource tree with attribute viewer and history of past versions</li>
       <li>Variable management with sensitive-value masking via the system keyring</li>
       <li>Run history persisted on disk (local) or fetched from the API (remote)</li>
-      <li>Multiple backends side-by-side in one sidebar — switch between projects without restarting</li>
+      <li>Managed binaries: Terrain downloads and caches official OpenTofu / Terraform releases per workspace</li>
+      <li>In-app SSH key management and HTTPS token storage for git authentication, all sandbox-clean</li>
     </ul>
     <p>
       Sensitive credentials are stored in the platform secret service

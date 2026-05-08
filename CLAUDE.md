@@ -93,12 +93,17 @@ nil-widget crashes, and missing gresource entries automatically.
    `managedResolver` downloads + caches official releases under
    `$XDG_DATA_HOME/terrain/binaries/<engine>/<version>/` and verifies
    them against the upstream `_SHA256SUMS` file. The choice is per-
-   workspace via `WorkspaceSettings.BinarySource` — `host` (zero value)
-   keeps the existing behavior; `managed` pulls the version named by
-   `WorkspaceSettings.ManagedEngine` + `ManagedVersion`. The shared
-   resolver singleton (`sharedManagedResolver()`) means UI-triggered
-   installs in Preferences and run-time resolutions in `runWorker` use
-   the same per-(engine, version) install lock.
+   workspace via `WorkspaceSettings.BinarySource` — zero value resolves
+   to `managed` (via `BinarySource.Effective()`); explicit `host` uses
+   PATH; `managed` pulls the version named by
+   `WorkspaceSettings.ManagedEngine` + `ManagedVersion`, falling back
+   to `AppConfig.DefaultEngine` via `EffectiveManagedEngine` when
+   ManagedEngine is empty. The shared resolver singleton
+   (`sharedManagedResolver()`) means UI-triggered installs in
+   Preferences and run-time resolutions in `runWorker` use the same
+   per-(engine, version) install lock. Workspace overview shows a
+   banner when the effective managed engine has no installed binary
+   yet.
 
 8. **Run mode lives per-workspace, not in `domain.Workspace.ExecutionMode`**.
    The TFE-mirror field is shared with the remote backend and has a fixed
@@ -129,68 +134,95 @@ nil-widget crashes, and missing gresource entries automatically.
    the Flathub manifest ship without `--filesystem=home` or
    `--talk-name=org.freedesktop.Flatpak`.
 
+10. **Tofu workspaces are first-class**. One `domain.Workspace` per
+    `tofu workspace` (default + any extra). Discovery is dynamic
+    (never persisted in `config.toml`): `RefreshWorkspaces` runs
+    `tofu workspace list -no-color`, falling back to scanning
+    `terraform.tfstate.d/` and finally to `["default"]`. Cache lives
+    on `*local.Backend` (`wsCache map[projectID][]string`); `Workspaces()`
+    reads it. Refresh fires on app startup (one goroutine per project),
+    after every run, after sync from git, and on user demand via the
+    project-header kebab. Run pipeline pins each invocation by
+    appending `TF_WORKSPACE=<ws.Name>` to `extraEnv` at the single
+    chokepoint in `run.go`. New / delete workspace go through
+    `Backend.CreateTofuWorkspace` / `DeleteTofuWorkspace`, which
+    auto-init the clone if needed.
+
 ## Package layout
 
 ```
 cmd/terrain/                main, --diagnose, --debug, --version flags
 internal/
-  domain/                   Backend interface, Workspace, Run, Variable,
-                            VariableSet, StateVersion, RunStream, etc.
-                            NO gotk4 imports.
+  domain/                   Backend interface, Workspace (incl. GitURL/
+                            GitRef/Subpath), Run, Variable, VariableSet,
+                            StateVersion, RunStream, etc. NO gotk4 imports.
   backend/local/            tofu/terraform CLI runner. exec.go (subprocess
-                            line streaming + SIGINT cancel; Cancel hooks
-                            chain so the runtime layer can install a pre-
-                            cancel before SIGINT-to-wrapper), run.go (run
-                            worker), runtime.go (Runtime interface +
-                            hostRuntime + containerRuntime; path-translation
-                            of -out=/-var-file=/positional plan paths is a
-                            pure function `translateArgs`), wssettings.go
-                            (per-workspace settings.json: run_mode +
-                            image), variables.go (hcl + secrets), varsets.go
-                            (per-set JSON manifest), snapshot.go (state
-                            history + retention), materialize.go (TFE-style
-                            var precedence), envindex.go (env-category index).
-  backend/remote/           hashicorp/go-tfe wrapper. backend.go, run.go
-                            (polling), variables.go, state.go, compat.go
-                            (probing), state.go (state versions list/load).
-  hcl/                      hashicorp/hcl/v2 helpers. variables.go (parse),
-                            varwrite.go (hclwrite round-trip).
-  config/                   $XDG_CONFIG_HOME/terrain/config.toml registry,
-                            BackendConfig {local,remote}, BuildBackends.
-  secrets/                  zalando/go-keyring wrapper (libsecret on Linux).
-                            ResolveToken pattern: keyring first, plaintext
-                            config fallback with warning.
-  runner/                   history.go (ndjson run log per workspace),
-                            locks.go (per-workspace mutex registry).
+                            line streaming + SIGINT cancel), run.go (run
+                            worker, TF_WORKSPACE injection), runtime.go
+                            (Runtime: hostRuntime + containerRuntime +
+                            bubblewrapRuntime), wssettings.go (per-workspace
+                            settings.json + Effective helpers for default-
+                            managed), wslist.go (tofu-workspace cache,
+                            RefreshWorkspaces / Create / Delete), wsname.go
+                            (validator), gitrepo.go (clone hash, GC),
+                            variables.go, varsets.go, snapshot.go,
+                            materialize.go, envindex.go, sandbox.go,
+                            managedbin.go, latestversion.go, cleanup.go.
+  backend/remote/           hashicorp/go-tfe wrapper. backend.go, run.go,
+                            variables.go, state.go, compat.go.
+  hcl/                      hashicorp/hcl/v2 helpers (parse + hclwrite).
+  config/                   $XDG_CONFIG_HOME/terrain/config.toml registry.
+                            ProjectConfig is git-shaped: GitURL + GitRef +
+                            Subpath + SSHKeyLabel + GitUsername.
+  gitutils/                 pure-Go go-git wrapper: Clone, Sync, LsRemote,
+                            HTTPSBasicAuth, SSHKeyAuth.
+  sshkeys/                  terrain-managed ed25519 keypairs at
+                            $XDG_DATA_HOME/terrain/ssh-keys/<label>/.
+  secrets/                  zalando/go-keyring wrapper. TokenKey for
+                            backend tokens, GitTokenKey for HTTPS git
+                            credentials scoped per host.
+  runner/                   history.go (ndjson run log), locks.go
+                            (per-workspace mutex registry).
   resources/                gresource bundle embedded via go:embed; build
-                            tag `embed_gresource` toggles between empty
-                            (dev) and populated (meson-built).
+                            tag `embed_gresource` toggles populated vs empty.
   ui/
-    app.go                  AdwApplication, gio.SimpleActions, accelerators.
-    window/                 main window controller, sidebar grouping,
-                            backend lookup, capability type-asserts.
+    app.go                  AdwApplication, gio.SimpleActions, accelerators,
+                            workspace-discovery goroutines on activate.
+    window/                 main window controller, sidebar with project
+                            headers + nested tofu-workspace rows, kebab
+                            split (project actions on header, workspace
+                            actions on row).
     bridge/                 PumpRun: domain channels → GTK main thread.
-    dialogs/                AddLocal, AddRemote, Preferences, EditVariable,
-                            Varsets, StateDiff.
+    dialogs/                addlocal (form: URL/ref/subpath/auth + Test),
+                            addremote, addremote_idle (one-shot Test),
+                            preferences (incl. SSH Keys + Binaries pages),
+                            sshkeys (generate/import), workspace
+                            (New Workspace alert), wssettings (per-workspace
+                            settings: run mode, binary source, image),
+                            varedit, varsets, statediff, managedbins.
     views/run/              run detail (log + plan diff tabs).
-    views/workspace/        workspace detail (overview + runs + vars + state).
+    views/workspace/        workspace detail (overview with Repository row
+                            + sync/open buttons + binary banner; runs;
+                            variables; state).
     widgets/                LogView, PlanDiff, StateTree, StateDiff, VarList.
     uihelpers/              MustCast for GtkBuilder objects.
 data/
-  ui/blueprints/            *.blp source files (8 files: window, workspace-
-                            detail, run-detail, preferences, add-remote,
-                            var-edit, varsets, state-diff)
+  ui/blueprints/            *.blp source files (12): window, workspace-
+                            detail, workspace-settings, run-detail,
+                            preferences, add-remote, add-local,
+                            ssh-key-import, var-edit, varsets,
+                            state-diff, managed-binary-install.
   io.github.raspbeguy.Terrain.{desktop.in, metainfo.xml.in, gschema.xml,
-                                gresource.xml, svg}
+                                gresource.xml}
+docs/                       GitHub Pages landing site + the app icon SVG
+                            (installed by meson into the icon theme).
 build-aux/
-  flatpak/                  Flatpak manifest. Targets GNOME 50 + golang
-                            Sdk extension (any current branch); inherits
-                            GOTOOLCHAIN=auto so go.mod's pinned version
-                            gets fetched.
-  meson/                    go-build.sh (custom_target wrapper, runs go
-                            build from source root with absolute output
-                            path) + smoke.sh (xvfb boot smoke test for
-                            meson test).
+  flatpak/                  Flatpak manifest + flatpak-go-mod-generated
+                            vendor sources. Targets GNOME 50 + golang Sdk
+                            extension 25.08. Manifest sets
+                            GOTOOLCHAIN=local; finish-args: ipc, network,
+                            wayland/X11, dri, talk-name=org.freedesktop.secrets.
+  meson/                    go-build.sh + smoke.sh.
 testdata/                   Fixtures used by integration tests.
 ```
 
@@ -259,9 +291,11 @@ testdata/                   Fixtures used by integration tests.
     variable name index (names only; values in keyring). Same out-of-
     project rationale as overrides.tfvars.
   - `$XDG_DATA_HOME/terrain/<backend>/<ws>/settings.json` — per-workspace
-    overrides for the runtime layer: `{run_mode: "subprocess"|"container",
-    image: "..."}`. Zero value = inherit `AppConfig.DefaultRunMode` /
-    `DefaultImageTofu` / `DefaultImageTerraform`. Edited via the gear
+    overrides: `run_mode`, `image`, `binary_source`, `managed_engine`,
+    `managed_track_latest`, `managed_version`. Zero values inherit:
+    `run_mode` → `AppConfig.DefaultRunMode`; `image` → engine-specific
+    default; `binary_source` → managed (via `BinarySource.Effective()`);
+    `managed_engine` → `AppConfig.DefaultEngine`. Edited via the gear
     button in the workspace overview header.
   - `$XDG_CACHE_HOME/terrain/<backend>/<ws>/plugins-container/` — provider
     plugin cache mounted into the container as `TF_PLUGIN_CACHE_DIR`.

@@ -10,13 +10,17 @@ A native GNOME GUI for [Terraform](https://www.terraform.io/) and
 
 ## Features
 
-- **Workspaces** — group local projects (cloned from a git URL) and remote backends in one sidebar
+- **Local projects from git** — point at a `git@…` or `https://…` URL + optional subpath; Terrain clones into its own data dir, no `~/code` access required. Multiple subpaths share one clone.
+- **Tofu workspaces** — discovered via `tofu workspace list`, surfaced as nested rows under each project; create/delete from the sidebar; runs pinned via `TF_WORKSPACE`
+- **Workspaces sidebar** — local projects and remote backends (HCP / TFE / OTF) in one tree
 - **Runs** — streamed `tofu plan`/`apply` with cancel; remote runs via API polling
 - **Plan diff** — TFE-style per-resource changes with action badges (`+`/`~`/`−`/`−/+`) and attribute-level before/after
-- **State viewer** — resource tree with attribute display, refreshes via `tofu show -json`
-- **Variables** — read/write with sensitive-value masking via the system keyring
+- **State viewer** — resource tree with attribute display, history of past versions, side-by-side diff
+- **Variables** — read/write with sensitive-value masking via the system keyring; variable sets too
 - **Run history** — past runs persisted to disk (local) or fetched from API (remote), clickable for read-only replay
-- **Hybrid backends** — local CLI runner + remote OTF / HCP Terraform / Terraform Enterprise
+- **Managed binaries** — Terrain downloads + caches official OpenTofu / Terraform releases per workspace (verified against upstream `_SHA256SUMS`); default for new workspaces, no host install required
+- **Git auth in-app** — terrain-managed ed25519 SSH keys (generate or import) and libsecret-stored HTTPS tokens, both sandbox-clean
+- **Sync from git remote** — one-click `fetch + reset --hard` against the upstream repo
 
 ## Install
 
@@ -87,22 +91,27 @@ flatpak run io.github.raspbeguy.Terrain
 cmd/terrain/                  entry point (--diagnose, --debug, --version)
 internal/
   domain/                     Backend, Workspace, Run, Variable types — no GTK
-  backend/local/              tofu/terraform CLI runner + history
+  backend/local/              tofu/terraform CLI runner + history + managed binaries + tofu-workspace cache
   backend/remote/             go-tfe wrapper for HCP/TFE/OTF
   hcl/                        HCL parse / hclwrite roundtrip
-  config/                     XDG TOML registry
-  secrets/                    libsecret/Keychain wrapper
+  config/                     XDG TOML registry (project = git_url + ref + subpath)
+  gitutils/                   pure-Go go-git wrapper: clone / sync / ls-remote
+  sshkeys/                    terrain-managed ed25519 keypairs under $XDG_DATA_HOME
+  secrets/                    libsecret/Keychain wrapper (backend tokens + git HTTPS tokens)
   resources/                  embedded gresource bundle
   runner/                     run history (ndjson per workspace)
   ui/
     app.go                    AdwApplication + actions + shortcuts
     window/                   main window controller
     bridge/                   ONLY package crossing domain → GTK via glib.IdleAdd
-    dialogs/                  Add Local Project, Add Remote Backend, Edit Variable, Preferences
+    dialogs/                  Add Local, Add Remote, Preferences, Edit Variable, Varsets,
+                              State Diff, Workspace Settings, Managed Binary Install,
+                              SSH Keys, New / Delete Workspace
     views/run/                run detail (log + plan diff)
     views/workspace/          workspace detail (overview / runs / variables / state)
     widgets/                  LogView, PlanDiff, StateTree, VarList
-data/                         .desktop, metainfo, gschema, icons, blueprints
+data/                         .desktop, metainfo, gschema, gresource manifest, blueprints
+docs/                         GitHub Pages landing site + app icon SVG
 build-aux/                    meson scripts, Flatpak manifest, packaging templates
 testdata/                     fixtures used by integration tests
 ```

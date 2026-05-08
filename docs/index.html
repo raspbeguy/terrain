@@ -21,7 +21,7 @@
       <div class="hero-text">
         <h1>Terrain</h1>
         <p class="tagline">A native GNOME GUI for Terraform and OpenTofu.</p>
-        <p class="lede">Workspaces, streamed runs, plan diffs, state viewer, variable management — local working dirs and remote backends (HCP, Terraform Enterprise, OTF) under one roof.</p>
+        <p class="lede">Workspaces, streamed runs, plan diffs, state viewer, variable management — git-cloned local projects (with terraform workspace support) alongside remote backends (HCP, Terraform Enterprise, OTF) under one roof.</p>
         <div class="cta">
           <a class="btn primary" href="https://github.com/raspbeguy/terrain/releases/latest">Download</a>
           <a class="btn" href="https://github.com/raspbeguy/terrain">View on GitHub</a>
@@ -65,8 +65,12 @@
       <h2>What it does</h2>
       <div class="feature-grid">
         <article>
-          <h3>Workspaces</h3>
-          <p>Group local projects (cloned from a git URL) and remote workspaces in one sidebar. Switch between them without restarting.</p>
+          <h3>Local projects from git</h3>
+          <p>Point at a <code>git@…</code> or <code>https://…</code> URL with an optional subpath; Terrain clones into its own data dir — no <code>~/code</code> access required. Multiple subpaths share one clone.</p>
+        </article>
+        <article>
+          <h3>Tofu workspaces</h3>
+          <p>Discovered via <code>tofu workspace list</code> and surfaced as nested rows under each project. Create or delete from the sidebar; runs are pinned via <code>TF_WORKSPACE</code>.</p>
         </article>
         <article>
           <h3>Streamed runs</h3>
@@ -83,6 +87,14 @@
         <article>
           <h3>Variables</h3>
           <p>Read and edit; sensitive values masked and persisted to the system keyring (libsecret), never plaintext on disk. Variable sets too.</p>
+        </article>
+        <article>
+          <h3>Managed binaries</h3>
+          <p>Default for new workspaces. Terrain downloads + caches official OpenTofu / Terraform releases per workspace, verified against upstream <code>_SHA256SUMS</code> — no host install required.</p>
+        </article>
+        <article>
+          <h3>Git auth in-app</h3>
+          <p>Generate or import ed25519 SSH keys from Preferences; HTTPS tokens stored in libsecret. Both stay inside the sandbox — no <code>~/.ssh</code> or ssh-agent socket needed.</p>
         </article>
         <article>
           <h3>Hybrid backends</h3>
