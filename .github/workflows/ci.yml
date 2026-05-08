@@ -34,6 +34,17 @@ jobs:
 
       - uses: actions/checkout@v6
 
+      - name: Restore Go caches
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-alpine-go-${{ hashFiles('go.sum') }}-${{ hashFiles('**/*.go') }}
+          restore-keys: |
+            ${{ runner.os }}-alpine-go-${{ hashFiles('go.sum') }}-
+            ${{ runner.os }}-alpine-go-
+
       - name: go vet
         run: go vet ./...
 
@@ -52,6 +63,17 @@ jobs:
             meson samurai xvfb-run libxml2-utils
 
       - uses: actions/checkout@v6
+
+      - name: Restore Go caches
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-alpine-go-${{ hashFiles('go.sum') }}-${{ hashFiles('**/*.go') }}
+          restore-keys: |
+            ${{ runner.os }}-alpine-go-${{ hashFiles('go.sum') }}-
+            ${{ runner.os }}-alpine-go-
 
       - name: meson setup
         run: meson setup build

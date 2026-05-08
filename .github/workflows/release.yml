@@ -76,6 +76,7 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
+          cache: true
 
       - name: Build with meson
         env:
@@ -114,9 +115,25 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      - name: Restore Go caches
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-musl-${{ matrix.goarch }}-go-${{ hashFiles('go.sum') }}-${{ hashFiles('**/*.go') }}
+          restore-keys: |
+            ${{ runner.os }}-musl-${{ matrix.goarch }}-go-${{ hashFiles('go.sum') }}-
+            ${{ runner.os }}-musl-${{ matrix.goarch }}-go-
+
       - name: Build inside Alpine
         run: |
-          docker run --rm -v "$PWD":/work -w /work alpine:edge sh -c '
+          mkdir -p ~/.cache/go-build ~/go/pkg/mod
+          docker run --rm \
+            -v "$PWD":/work -w /work \
+            -v "$HOME/.cache/go-build":/root/.cache/go-build \
+            -v "$HOME/go/pkg/mod":/root/go/pkg/mod \
+            alpine:edge sh -c '
             set -e
             apk add --no-cache \
               build-base musl-dev pkgconf meson ninja blueprint-compiler \
