@@ -10,6 +10,8 @@ build-options:
   env:
     GOFLAGS: -mod=vendor
     GOTOOLCHAIN: local
+    # Pin GOCACHE so meson compile and meson install share Go's build cache (custom_target build_always_stale=true triggers go build twice).
+    GOCACHE: /run/build/terrain/.gocache
 command: terrain
 cleanup:
   - /include
