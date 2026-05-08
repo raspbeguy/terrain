@@ -102,7 +102,29 @@
   </screenshots>
 
   <releases>
-    <release version="@VERSION@" date="2026-05-06">
+    <release version="@VERSION@" date="2026-05-08">
+      <description>
+        <p>
+          Local projects are now added by git URL plus an optional subpath
+          rather than a filesystem folder picker; multiple subpaths share
+          one clone. Terraform workspaces appear as first-class sidebar
+          entries (create / delete from the kebab; runs pinned via
+          TF_WORKSPACE).
+        </p>
+        <p>
+          Managed binary mode is the default for new workspaces — Terrain
+          downloads and caches official OpenTofu / Terraform releases
+          per-version; runs never hit the network. Container and
+          bubblewrap run modes were removed.
+        </p>
+        <p>
+          In-app SSH key management plus libsecret-stored HTTPS git
+          tokens for forge authentication. One-click "Sync from git
+          remote" on every workspace.
+        </p>
+      </description>
+    </release>
+    <release version="0.0.1" date="2026-05-06">
       <description>
         <p>
           Initial release. Manage local Terraform and OpenTofu projects
