@@ -48,8 +48,10 @@ type VarsetsDialog struct {
 
 	projects   []ProjectChoice
 	workspaces []domain.Workspace
-	// wsRows is rebuilt on each openDetail rather than diffed.
-	wsRows []*adw.SwitchRow
+	// listRows / detailVarRows / wsRows track Add()-ed children so we can Remove() them by reference (group.FirstChild() returns the internal Box, not added rows).
+	listRows      []gtk.Widgetter
+	detailVarRows []gtk.Widgetter
+	wsRows        []gtk.Widgetter
 	// suppressNotify gates the autosave handlers while we populate the
 	// form programmatically.
 	suppressNotify bool
@@ -113,7 +115,10 @@ func newVarsetsDialog(backend VarsetsBackend, projects []ProjectChoice, workspac
 }
 
 func (d *VarsetsDialog) refreshList() {
-	clearGroup(d.listGroup)
+	for _, r := range d.listRows {
+		d.listGroup.Remove(r)
+	}
+	d.listRows = d.listRows[:0]
 	sets, err := d.backend.VariableSets(context.Background())
 	if err != nil {
 		slog.Warn("list variable sets", "err", err)
@@ -124,6 +129,7 @@ func (d *VarsetsDialog) refreshList() {
 		empty.SetSubtitle("Click \"New Set\" above to create one.")
 		empty.AddCSSClass("dim-label")
 		d.listGroup.Add(empty)
+		d.listRows = append(d.listRows, empty)
 		return
 	}
 	for _, set := range sets {
@@ -131,6 +137,7 @@ func (d *VarsetsDialog) refreshList() {
 		set := set
 		row.ConnectActivated(func() { d.openDetail(set) })
 		d.listGroup.Add(row)
+		d.listRows = append(d.listRows, row)
 	}
 }
 
@@ -189,6 +196,7 @@ func (d *VarsetsDialog) populateWorkspaceSwitches(set domain.VariableSet) {
 		empty.SetSubtitle("Add a local project to populate this list.")
 		empty.AddCSSClass("dim-label")
 		d.detailWsGrp.Add(empty)
+		d.wsRows = append(d.wsRows, empty)
 		return
 	}
 
@@ -295,13 +303,17 @@ func indexToScope(i uint) domain.VariableScope {
 }
 
 func (d *VarsetsDialog) populateDetailVars(set domain.VariableSet) {
-	clearGroup(d.detailVarsGrp)
+	for _, r := range d.detailVarRows {
+		d.detailVarsGrp.Remove(r)
+	}
+	d.detailVarRows = d.detailVarRows[:0]
 	if len(set.Variables) == 0 {
 		empty := adw.NewActionRow()
 		empty.SetTitle("No variables yet")
 		empty.SetSubtitle("Use the + button above to add one.")
 		empty.AddCSSClass("dim-label")
 		d.detailVarsGrp.Add(empty)
+		d.detailVarRows = append(d.detailVarRows, empty)
 		return
 	}
 	for _, v := range set.Variables {
@@ -309,6 +321,7 @@ func (d *VarsetsDialog) populateDetailVars(set domain.VariableSet) {
 		v := v
 		row.ConnectActivated(func() { d.editVar(v) })
 		d.detailVarsGrp.Add(row)
+		d.detailVarRows = append(d.detailVarRows, row)
 	}
 }
 
@@ -396,27 +409,6 @@ func (d *VarsetsDialog) onDelete() {
 	d.current = domain.VariableSet{}
 	d.refreshList()
 	d.nav.PopToTag("list")
-}
-
-func clearGroup(g *adw.PreferencesGroup) {
-	for {
-		// Workaround: AdwPreferencesGroup doesn't expose a "remove all"
-		// helper. We walk the underlying ListBox the group hosts.
-		row := g.FirstChild()
-		if row == nil {
-			return
-		}
-		// The group's first child is its internal Box; we want children of
-		// that Box. Use Adw's RemoveCSS pattern via Remove(child) on the
-		// AdwPreferencesGroup itself which DOES exist.
-		if rmer, ok := any(g).(interface{ Remove(child gtk.Widgetter) }); ok {
-			rmer.Remove(row)
-			continue
-		}
-		// Fallback: bail out if the API surface ever changes — better than
-		// looping forever.
-		return
-	}
 }
 
 func pluralize(n int, label string) string {

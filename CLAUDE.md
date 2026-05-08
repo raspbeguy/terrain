@@ -20,12 +20,11 @@ go test ./internal/...          # ~80 tests across domain / local / config / hcl
 go vet ./...
 meson test -C build             # 3 tests: validate-desktop, validate-metainfo, boot-smoke
 
-# Flatpak (built and tested before; ~1h fresh, much faster incrementally)
-# --force-clean wipes the output staging dir (build-flatpak/) so flatpak-
-# builder doesn't refuse to start a new build. It does NOT touch the cache
-# (.flatpak-builder/), so ccache + downloaded sources + cgo intermediates
-# are reused — incremental rebuilds are seconds-to-minutes after the first
-# fresh build is done. Always pass --force-clean for repeated runs.
+# Flatpak: always ~1h, every time. ccache + warm .flatpak-builder/ cache
+# do NOT speed up subsequent builds in practice on this VM — the gotk4 cgo
+# build dominates and runs from scratch each time. Quote ~60 min ETA when
+# planning, regardless of cache state. --force-clean is still required so
+# flatpak-builder doesn't refuse to start.
 flatpak-builder --user --force-clean --ccache --repo=build-flatpak-repo \
     build-flatpak build-aux/flatpak/io.github.raspbeguy.Terrain.yml
 flatpak build-bundle build-flatpak-repo terrain.flatpak io.github.raspbeguy.Terrain
