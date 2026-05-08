@@ -24,6 +24,7 @@ type Page struct {
 	subpathRow         *adw.ActionRow
 	openDirBtn         *gtk.Button
 	syncBtn            *gtk.Button
+	binaryBanner       *adw.Banner
 	engineRow          *adw.ActionRow
 	versionRow         *adw.ActionRow
 	resourcesRow       *adw.ActionRow
@@ -64,6 +65,8 @@ type Page struct {
 	onOpenSettings      func(domain.Workspace)
 	onSync              func(domain.Workspace)
 	onOpenDirectory     func(domain.Workspace)
+	onCheckBinary       func(domain.Workspace) string
+	onOpenBinaryPrefs   func()
 }
 
 func (p *Page) SetOnOpenSettings(fn func(domain.Workspace)) {
@@ -85,6 +88,7 @@ func New() *Page {
 		subpathRow:      uihelpers.MustCast[*adw.ActionRow](builder, "workspace_subpath_row"),
 		openDirBtn:      uihelpers.MustCast[*gtk.Button](builder, "workspace_open_dir_button"),
 		syncBtn:         uihelpers.MustCast[*gtk.Button](builder, "workspace_sync_button"),
+		binaryBanner:    uihelpers.MustCast[*adw.Banner](builder, "workspace_binary_banner"),
 		engineRow:       uihelpers.MustCast[*adw.ActionRow](builder, "workspace_engine_row"),
 		versionRow:      uihelpers.MustCast[*adw.ActionRow](builder, "workspace_version_row"),
 		resourcesRow:    uihelpers.MustCast[*adw.ActionRow](builder, "workspace_resources_row"),
@@ -530,8 +534,23 @@ func (p *Page) Bind(ws domain.Workspace) {
 
 	p.engineRow.SetSubtitle(displayOrDash(ws.ExecutionMode))
 	p.versionRow.SetSubtitle(displayOrDash(ws.TerraformVersion))
+	p.refreshBinaryBanner(ws)
 	p.refreshRuns()
 	p.refreshVariables()
+}
+
+func (p *Page) refreshBinaryBanner(ws domain.Workspace) {
+	if p.onCheckBinary == nil {
+		p.binaryBanner.SetRevealed(false)
+		return
+	}
+	msg := p.onCheckBinary(ws)
+	if msg == "" {
+		p.binaryBanner.SetRevealed(false)
+		return
+	}
+	p.binaryBanner.SetTitle(msg)
+	p.binaryBanner.SetRevealed(true)
 }
 
 // SetOnSync wires the "Sync from git remote" suffix button.
@@ -543,6 +562,21 @@ func (p *Page) SetOnOpenDirectory(fn func(domain.Workspace)) { p.onOpenDirectory
 // SetSyncBusy disables the sync button and shows a spinner-ish state.
 func (p *Page) SetSyncBusy(busy bool) {
 	p.syncBtn.SetSensitive(!busy)
+}
+
+// SetOnCheckBinary wires the binary-status check; empty return = no banner.
+func (p *Page) SetOnCheckBinary(fn func(domain.Workspace) string) {
+	p.onCheckBinary = fn
+}
+
+// SetOnOpenBinaryPrefs wires the banner's Open Preferences button.
+func (p *Page) SetOnOpenBinaryPrefs(fn func()) {
+	p.onOpenBinaryPrefs = fn
+	p.binaryBanner.ConnectButtonClicked(func() {
+		if p.onOpenBinaryPrefs != nil {
+			p.onOpenBinaryPrefs()
+		}
+	})
 }
 
 func displayOrDash(s string) string {

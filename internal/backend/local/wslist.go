@@ -198,7 +198,8 @@ func ensureTofuInit(ctx context.Context, workDir string, bin BinaryInfo) error {
 func (b *Backend) workspaceBin(ctx context.Context, projectID string) (BinaryInfo, error) {
 	wsID := b.id + ":" + projectID + ":default"
 	settings, _ := LoadWorkspaceSettings(b.id, wsID)
-	return b.binaryResolver(settings).Resolve(ctx, settings.ManagedEngine, settings.ManagedVersion)
+	engine := settings.EffectiveManagedEngine(b.defaults.Engine)
+	return b.binaryResolver(settings).Resolve(ctx, engine, settings.ManagedVersion)
 }
 
 func (b *Backend) projectByID(projectID string) (Project, bool) {

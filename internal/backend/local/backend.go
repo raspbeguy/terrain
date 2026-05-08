@@ -61,11 +61,14 @@ func New(id, name string) *Backend {
 
 // binaryResolver: shared singleton in managed mode so UI installs and runs see one lock.
 func (b *Backend) binaryResolver(s WorkspaceSettings) BinaryResolver {
-	if s.BinarySource == BinarySourceManaged {
+	if s.BinarySource.Effective() == BinarySourceManaged {
 		return sharedManagedResolver()
 	}
 	return pathResolver{}
 }
+
+// DefaultEngine exposes b.defaults.Engine for callers that need to resolve effective managed engine.
+func (b *Backend) DefaultEngine() string { return b.defaults.Engine }
 
 // SetRuntimeDefaults must be called before the backend is published.
 func (b *Backend) SetRuntimeDefaults(d RuntimeDefaults) {

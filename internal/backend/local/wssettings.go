@@ -20,7 +20,7 @@ const (
 	RunModeBubblewrap RunMode = "bubblewrap"
 )
 
-// BinarySource: zero value falls through to host PATH.
+// BinarySource: zero value resolves to managed.
 type BinarySource string
 
 const (
@@ -28,6 +28,14 @@ const (
 	BinarySourceHost    BinarySource = "host"
 	BinarySourceManaged BinarySource = "managed"
 )
+
+// Effective returns the source actually used at runtime; empty becomes managed.
+func (s BinarySource) Effective() BinarySource {
+	if s == "" {
+		return BinarySourceManaged
+	}
+	return s
+}
 
 // WorkspaceSettings persists per-workspace overrides under
 // $XDG_DATA_HOME/terrain/<backend>/<ws>/settings.json. Zero value =
@@ -41,6 +49,17 @@ type WorkspaceSettings struct {
 	ManagedEngine      string       `json:"managed_engine,omitempty"`  // "tofu" or "terraform"
 	ManagedVersion     string       `json:"managed_version,omitempty"` // ignored when ManagedTrackLatest is true
 	ManagedTrackLatest bool         `json:"managed_track_latest,omitempty"`
+}
+
+// EffectiveManagedEngine returns the user's pick if set, else the app default, else "tofu".
+func (s WorkspaceSettings) EffectiveManagedEngine(appDefault string) string {
+	if s.ManagedEngine != "" {
+		return s.ManagedEngine
+	}
+	if appDefault != "" {
+		return appDefault
+	}
+	return "tofu"
 }
 
 // LoadWorkspaceSettings returns the zero value when the file is missing.

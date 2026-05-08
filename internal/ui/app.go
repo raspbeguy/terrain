@@ -130,6 +130,8 @@ func (a *App) onActivate() {
 	w.SetOnNewWorkspace(a.newWorkspace)
 	w.SetOnDeleteWorkspace(a.deleteWorkspace)
 	w.SetOnRefreshWorkspaces(a.refreshWorkspaces)
+	w.SetOnCheckBinary(a.checkBinary)
+	w.SetOnOpenBinaryPrefs(a.onPreferences)
 	w.Present()
 	a.refreshAllLocalWorkspacesAsync()
 }
@@ -658,4 +660,27 @@ func (a *App) toastErrorFromGoroutine(msg string) {
 		}
 		return false
 	})
+}
+
+// checkBinary returns a banner message when the workspace is in managed mode and no managed binary is installed for its engine yet; empty otherwise.
+func (a *App) checkBinary(ws domain.Workspace) string {
+	lb := a.localBackendFor(ws.BackendID)
+	if lb == nil {
+		return ""
+	}
+	settings, _ := local.LoadWorkspaceSettings(lb.ID(), ws.ID)
+	if settings.BinarySource.Effective() != local.BinarySourceManaged {
+		return ""
+	}
+	engine := settings.EffectiveManagedEngine(lb.DefaultEngine())
+	installed, err := local.ListManagedBinaries()
+	if err != nil {
+		return ""
+	}
+	for _, b := range installed {
+		if b.Engine == engine {
+			return ""
+		}
+	}
+	return "No managed " + engine + " binary installed yet. Install one in Preferences → Binaries, or set this workspace to use the host binary."
 }

@@ -56,6 +56,8 @@ type Window struct {
 	onNewWorkspace      func(domain.Workspace)
 	onDeleteWorkspace   func(domain.Workspace)
 	onRefreshWorkspaces func(domain.Workspace)
+	onCheckBinary       func(domain.Workspace) string
+	onOpenBinaryPrefs   func()
 }
 
 func (w *Window) SetOnRemoveProject(fn func(domain.Workspace)) {
@@ -84,6 +86,14 @@ func (w *Window) SetOnDeleteWorkspace(fn func(domain.Workspace)) {
 
 func (w *Window) SetOnRefreshWorkspaces(fn func(domain.Workspace)) {
 	w.onRefreshWorkspaces = fn
+}
+
+func (w *Window) SetOnCheckBinary(fn func(domain.Workspace) string) {
+	w.onCheckBinary = fn
+}
+
+func (w *Window) SetOnOpenBinaryPrefs(fn func()) {
+	w.onOpenBinaryPrefs = fn
 }
 
 // SetWorkspacePageSyncBusy proxies the workspace page busy indicator from app handlers.
@@ -136,6 +146,17 @@ func New(app *adw.Application, backends []domain.Backend, locks *runner.Workspac
 	w.workspacePage.SetOnOpenDirectory(func(ws domain.Workspace) {
 		if w.onOpenDirectory != nil {
 			w.onOpenDirectory(ws)
+		}
+	})
+	w.workspacePage.SetOnCheckBinary(func(ws domain.Workspace) string {
+		if w.onCheckBinary != nil {
+			return w.onCheckBinary(ws)
+		}
+		return ""
+	})
+	w.workspacePage.SetOnOpenBinaryPrefs(func() {
+		if w.onOpenBinaryPrefs != nil {
+			w.onOpenBinaryPrefs()
 		}
 	})
 	w.runPage.SetOnBack(w.showWorkspaceView)

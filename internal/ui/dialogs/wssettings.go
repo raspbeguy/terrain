@@ -60,7 +60,7 @@ func NewWorkspaceSettings(backendID, workspaceID string) *WorkspaceSettings {
 	}
 	w.imageRow.SetText(current.Image)
 
-	if current.BinarySource == local.BinarySourceManaged {
+	if current.BinarySource == local.BinarySourceHost {
 		w.binarySourceRow.SetSelected(1)
 	} else {
 		w.binarySourceRow.SetSelected(0)
@@ -92,7 +92,7 @@ func (w *WorkspaceSettings) Present(parent *gtk.Window) {
 }
 
 func (w *WorkspaceSettings) updateManagedVisibility() {
-	managed := w.binarySourceRow.Selected() == 1
+	managed := w.binarySourceRow.Selected() == 0
 	w.managedEngineRow.SetVisible(managed)
 	w.managedTrackLatest.SetVisible(managed)
 	w.managedVerRow.SetVisible(managed)
@@ -145,9 +145,9 @@ func (w *WorkspaceSettings) selectedRunMode() local.RunMode {
 
 func (w *WorkspaceSettings) selectedBinarySource() local.BinarySource {
 	if w.binarySourceRow.Selected() == 1 {
-		return local.BinarySourceManaged
+		return local.BinarySourceHost
 	}
-	return local.BinarySourceUnset
+	return local.BinarySourceManaged
 }
 
 func (w *WorkspaceSettings) selectedManagedEngine() string {
