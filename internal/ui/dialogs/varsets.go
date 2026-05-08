@@ -58,6 +58,7 @@ type VarsetsDialog struct {
 
 	backend VarsetsBackend
 	current domain.VariableSet
+	parent  *gtk.Window
 }
 
 func PresentVarsets(parent *gtk.Window, backend VarsetsBackend, projects []ProjectChoice, workspaces []domain.Workspace) {
@@ -66,6 +67,7 @@ func PresentVarsets(parent *gtk.Window, backend VarsetsBackend, projects []Proje
 		return
 	}
 	d := newVarsetsDialog(backend, projects, workspaces)
+	d.parent = parent
 	d.refreshList()
 	d.dialog.Present(parent)
 }
@@ -371,13 +373,11 @@ func (d *VarsetsDialog) onAddVar() {
 	if d.current.ID == "" {
 		return
 	}
-	parent, _ := d.dialog.Parent().(*gtk.Window)
-	EditVariable(parent, VarEditAdd, domain.Variable{}, d.saveVar)
+	EditVariable(d.parent, VarEditAdd, domain.Variable{}, d.saveVar)
 }
 
 func (d *VarsetsDialog) editVar(v domain.Variable) {
-	parent, _ := d.dialog.Parent().(*gtk.Window)
-	EditVariable(parent, VarEditEdit, v, d.saveVar)
+	EditVariable(d.parent, VarEditEdit, v, d.saveVar)
 }
 
 func (d *VarsetsDialog) saveVar(v domain.Variable) {
