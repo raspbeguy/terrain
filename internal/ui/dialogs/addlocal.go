@@ -86,12 +86,20 @@ func AddLocal(parent *gtk.Window, existingClones []ExistingClone, onSubmitted fu
 		addBtn.SetSensitive(ok)
 	}
 
+	nameAuto := true
+	suppressNameChange := false
+	setNameAuto := func(s string) {
+		suppressNameChange = true
+		nameRow.SetText(s)
+		suppressNameChange = false
+		nameAuto = true
+	}
 	deriveName := func() {
-		if strings.TrimSpace(nameRow.Text()) != "" {
+		if !nameAuto {
 			return
 		}
 		if name := deriveProjectName(urlRow.Text(), subpathRow.Text()); name != "" {
-			nameRow.SetText(name)
+			setNameAuto(name)
 		}
 	}
 
@@ -109,7 +117,12 @@ func AddLocal(parent *gtk.Window, existingClones []ExistingClone, onSubmitted fu
 		deriveName()
 		updateAddSensitivity()
 	})
-	nameRow.ConnectChanged(updateAddSensitivity)
+	nameRow.ConnectChanged(func() {
+		if !suppressNameChange {
+			nameAuto = false
+		}
+		updateAddSensitivity()
+	})
 
 	updateAuthVisibility()
 	updateAddSensitivity()
@@ -229,11 +242,21 @@ func AddSubpathFor(parent *gtk.Window, src ProjectSource, onSubmitted func(Local
 	box.Append(nameEntry)
 	dlg.SetExtraChild(box)
 
+	nameAuto := true
+	suppressNameChange := false
 	subpathEntry.ConnectChanged(func() {
-		if strings.TrimSpace(nameEntry.Text()) == "" {
-			if name := deriveProjectName(src.GitURL, subpathEntry.Text()); name != "" {
-				nameEntry.SetText(name)
-			}
+		if !nameAuto {
+			return
+		}
+		if name := deriveProjectName(src.GitURL, subpathEntry.Text()); name != "" {
+			suppressNameChange = true
+			nameEntry.SetText(name)
+			suppressNameChange = false
+		}
+	})
+	nameEntry.ConnectChanged(func() {
+		if !suppressNameChange {
+			nameAuto = false
 		}
 	})
 
