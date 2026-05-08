@@ -5,6 +5,7 @@ package local
 import (
 	"context"
 	"path/filepath"
+	"sync"
 
 	"github.com/raspbeguy/terrain/internal/domain"
 	"github.com/raspbeguy/terrain/internal/runner"
@@ -41,6 +42,9 @@ type Backend struct {
 	name     string
 	projects []Project
 	defaults RuntimeDefaults
+
+	wsMu    sync.RWMutex
+	wsCache map[string][]string
 }
 
 type RuntimeDefaults struct {
@@ -88,18 +92,20 @@ func (b *Backend) Workspaces(_ context.Context) ([]domain.Workspace, error) {
 		if err != nil {
 			return nil, err
 		}
-		out = append(out, domain.Workspace{
-			ID:               b.id + ":" + p.ID + ":default",
-			BackendID:        b.id,
-			Name:             "default",
-			ProjectName:      p.Name,
-			ProjectID:        p.ID,
-			WorkingDirectory: dir,
-			GitURL:           p.GitURL,
-			GitRef:           p.GitRef,
-			Subpath:          p.Subpath,
-			ExecutionMode:    "local",
-		})
+		for _, name := range b.workspaceCache(p.ID) {
+			out = append(out, domain.Workspace{
+				ID:               b.id + ":" + p.ID + ":" + name,
+				BackendID:        b.id,
+				Name:             name,
+				ProjectName:      p.Name,
+				ProjectID:        p.ID,
+				WorkingDirectory: dir,
+				GitURL:           p.GitURL,
+				GitRef:           p.GitRef,
+				Subpath:          p.Subpath,
+				ExecutionMode:    "local",
+			})
+		}
 	}
 	return out, nil
 }

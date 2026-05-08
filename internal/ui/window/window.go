@@ -53,6 +53,9 @@ type Window struct {
 	onSync              func(domain.Workspace)
 	onOpenDirectory     func(domain.Workspace)
 	onAddSubpath        func(domain.Workspace)
+	onNewWorkspace      func(domain.Workspace)
+	onDeleteWorkspace   func(domain.Workspace)
+	onRefreshWorkspaces func(domain.Workspace)
 }
 
 func (w *Window) SetOnRemoveProject(fn func(domain.Workspace)) {
@@ -69,6 +72,18 @@ func (w *Window) SetOnOpenDirectory(fn func(domain.Workspace)) {
 
 func (w *Window) SetOnAddSubpath(fn func(domain.Workspace)) {
 	w.onAddSubpath = fn
+}
+
+func (w *Window) SetOnNewWorkspace(fn func(domain.Workspace)) {
+	w.onNewWorkspace = fn
+}
+
+func (w *Window) SetOnDeleteWorkspace(fn func(domain.Workspace)) {
+	w.onDeleteWorkspace = fn
+}
+
+func (w *Window) SetOnRefreshWorkspaces(fn func(domain.Workspace)) {
+	w.onRefreshWorkspaces = fn
 }
 
 // SetWorkspacePageSyncBusy proxies the workspace page busy indicator from app handlers.
@@ -283,8 +298,13 @@ func (w *Window) rebuildSidebar() {
 	w.sidebarStack.SetVisibleChildName("list")
 	for _, ws := range w.workspaces {
 		row := adw.NewActionRow()
-		row.SetTitle(ws.ProjectName)
-		row.SetSubtitle(ws.Name)
+		if ws.BackendID != "" && isLocalBackendID(w.backends, ws.BackendID) {
+			row.SetTitle(ws.Name)
+			row.AddCSSClass("terrain-workspace-row")
+		} else {
+			row.SetTitle(ws.ProjectName)
+			row.SetSubtitle(ws.Name)
+		}
 		row.SetActivatable(true)
 		w.attachRowKebab(row, ws)
 		w.sidebarList.Append(row)
@@ -309,40 +329,28 @@ func (w *Window) rebuildSidebar() {
 	}
 }
 
-// attachRowKebab adds a kebab menu with a Remove-project action.
-// Local-only — remote workspaces are managed at the backend level.
+// attachRowKebab handles workspace-scoped actions only; project-scoped ones live on the project header.
 func (w *Window) attachRowKebab(row *adw.ActionRow, ws domain.Workspace) {
 	if ws.BackendID == "" || !isLocalBackendID(w.backends, ws.BackendID) {
+		return
+	}
+	if ws.Name == "default" {
 		return
 	}
 
 	popover := gtk.NewPopover()
 	popover.SetHasArrow(true)
-
 	box := gtk.NewBox(gtk.OrientationVertical, 0)
 
-	if ws.GitURL != "" {
-		addSubpathBtn := gtk.NewButtonWithLabel("Add another subpath from this repo…")
-		addSubpathBtn.AddCSSClass("flat")
-		addSubpathBtn.SetHAlign(gtk.AlignStart)
-		addSubpathBtn.ConnectClicked(func() {
-			popover.Popdown()
-			if w.onAddSubpath != nil {
-				w.onAddSubpath(ws)
-			}
-		})
-		box.Append(addSubpathBtn)
-	}
-
-	removeBtn := gtk.NewButtonWithLabel("Remove project")
-	removeBtn.AddCSSClass("flat")
-	removeBtn.AddCSSClass("destructive-action")
-	removeBtn.SetHAlign(gtk.AlignStart)
-	removeBtn.ConnectClicked(func() {
+	deleteBtn := gtk.NewButtonWithLabel("Delete workspace")
+	deleteBtn.AddCSSClass("flat")
+	deleteBtn.AddCSSClass("destructive-action")
+	deleteBtn.SetHAlign(gtk.AlignStart)
+	deleteBtn.ConnectClicked(func() {
 		popover.Popdown()
-		w.confirmRemoveProject(ws)
+		w.confirmDeleteWorkspace(ws)
 	})
-	box.Append(removeBtn)
+	box.Append(deleteBtn)
 	popover.SetChild(box)
 
 	menu := gtk.NewMenuButton()
@@ -355,6 +363,96 @@ func (w *Window) attachRowKebab(row *adw.ActionRow, ws domain.Workspace) {
 	row.AddSuffix(menu)
 }
 
+// projectHeaderWidget hosts the project-scoped kebab above its workspace rows.
+func (w *Window) projectHeaderWidget(ws domain.Workspace) gtk.Widgetter {
+	box := gtk.NewBox(gtk.OrientationHorizontal, 8)
+	box.SetMarginTop(8)
+	box.SetMarginStart(12)
+	box.SetMarginEnd(8)
+	box.SetMarginBottom(2)
+
+	titleBox := gtk.NewBox(gtk.OrientationVertical, 0)
+	titleBox.SetHExpand(true)
+	title := gtk.NewLabel(ws.ProjectName)
+	title.AddCSSClass("heading")
+	title.SetXAlign(0)
+	titleBox.Append(title)
+	if ws.GitURL != "" {
+		ref := ws.GitRef
+		if ref == "" {
+			ref = "default branch"
+		}
+		sub := gtk.NewLabel(ws.GitURL + " @ " + ref)
+		sub.AddCSSClass("caption")
+		sub.AddCSSClass("dim-label")
+		sub.SetXAlign(0)
+		sub.SetEllipsize(3)
+		titleBox.Append(sub)
+	}
+	box.Append(titleBox)
+
+	popover := gtk.NewPopover()
+	popover.SetHasArrow(true)
+	pbox := gtk.NewBox(gtk.OrientationVertical, 0)
+
+	newBtn := gtk.NewButtonWithLabel("New workspace…")
+	newBtn.AddCSSClass("flat")
+	newBtn.SetHAlign(gtk.AlignStart)
+	newBtn.ConnectClicked(func() {
+		popover.Popdown()
+		if w.onNewWorkspace != nil {
+			w.onNewWorkspace(ws)
+		}
+	})
+	pbox.Append(newBtn)
+
+	refreshBtn := gtk.NewButtonWithLabel("Refresh workspaces")
+	refreshBtn.AddCSSClass("flat")
+	refreshBtn.SetHAlign(gtk.AlignStart)
+	refreshBtn.ConnectClicked(func() {
+		popover.Popdown()
+		if w.onRefreshWorkspaces != nil {
+			w.onRefreshWorkspaces(ws)
+		}
+	})
+	pbox.Append(refreshBtn)
+
+	if ws.GitURL != "" {
+		addSubpathBtn := gtk.NewButtonWithLabel("Add another subpath from this repo…")
+		addSubpathBtn.AddCSSClass("flat")
+		addSubpathBtn.SetHAlign(gtk.AlignStart)
+		addSubpathBtn.ConnectClicked(func() {
+			popover.Popdown()
+			if w.onAddSubpath != nil {
+				w.onAddSubpath(ws)
+			}
+		})
+		pbox.Append(addSubpathBtn)
+	}
+
+	removeBtn := gtk.NewButtonWithLabel("Remove project")
+	removeBtn.AddCSSClass("flat")
+	removeBtn.AddCSSClass("destructive-action")
+	removeBtn.SetHAlign(gtk.AlignStart)
+	removeBtn.ConnectClicked(func() {
+		popover.Popdown()
+		w.confirmRemoveProject(ws)
+	})
+	pbox.Append(removeBtn)
+
+	popover.SetChild(pbox)
+
+	menu := gtk.NewMenuButton()
+	menu.SetIconName("view-more-symbolic")
+	menu.AddCSSClass("flat")
+	menu.SetVAlign(gtk.AlignCenter)
+	menu.SetPopover(popover)
+	menu.SetTooltipText("Project actions")
+	box.Append(menu)
+
+	return box
+}
+
 func isLocalBackendID(backends []domain.Backend, id string) bool {
 	for _, b := range backends {
 		if b.ID() == id {
@@ -362,6 +460,24 @@ func isLocalBackendID(backends []domain.Backend, id string) bool {
 		}
 	}
 	return false
+}
+
+func (w *Window) confirmDeleteWorkspace(ws domain.Workspace) {
+	dlg := adw.NewAlertDialog(
+		"Delete workspace?",
+		fmt.Sprintf("This deletes workspace %q from %q. The on-disk Terraform state for this workspace is wiped — this cannot be undone.", ws.Name, ws.ProjectName),
+	)
+	dlg.AddResponse("cancel", "Cancel")
+	dlg.AddResponse("delete", "Delete")
+	dlg.SetResponseAppearance("delete", adw.ResponseDestructive)
+	dlg.SetDefaultResponse("cancel")
+	dlg.SetCloseResponse("cancel")
+	dlg.ConnectResponse(func(resp string) {
+		if resp == "delete" && w.onDeleteWorkspace != nil {
+			w.onDeleteWorkspace(ws)
+		}
+	})
+	dlg.Present(&w.root.Window)
 }
 
 func (w *Window) confirmRemoveProject(ws domain.Workspace) {
@@ -410,40 +526,55 @@ func (w *Window) sidebarFilter(row *gtk.ListBoxRow) bool {
 	return strings.Contains(hay, w.searchFilter)
 }
 
-// sidebarHeaderFunc inserts a section header above the first row of each
-// backend group.
+// sidebarHeaderFunc inserts a backend label at each backend break and a project header at each (backend, project) break for local backends.
 func (w *Window) sidebarHeaderFunc(row, before *gtk.ListBoxRow) {
 	idx := row.Index()
 	if idx < 0 || int(idx) >= len(w.workspaces) {
 		row.SetHeader(nil)
 		return
 	}
-	currentBackend := w.workspaces[idx].BackendID
-
+	cur := w.workspaces[idx]
+	var prev *domain.Workspace
 	if before != nil {
 		prevIdx := before.Index()
-		if prevIdx >= 0 && int(prevIdx) < len(w.workspaces) &&
-			w.workspaces[prevIdx].BackendID == currentBackend {
-			row.SetHeader(nil)
-			return
+		if prevIdx >= 0 && int(prevIdx) < len(w.workspaces) {
+			p := w.workspaces[prevIdx]
+			prev = &p
 		}
 	}
 
-	backend := w.findBackend(currentBackend)
-	name := currentBackend
-	if backend != nil {
-		name = backend.DisplayName()
+	switch {
+	case prev == nil || prev.BackendID != cur.BackendID:
+		row.SetHeader(w.backendOrProjectHeader(cur, true))
+	case isLocalBackendID(w.backends, cur.BackendID) && prev.ProjectID != cur.ProjectID:
+		row.SetHeader(w.projectHeaderWidget(cur))
+	default:
+		row.SetHeader(nil)
 	}
+}
 
-	label := gtk.NewLabel(name)
-	label.AddCSSClass("heading")
-	label.AddCSSClass("dim-label")
-	label.SetXAlign(0)
-	label.SetMarginTop(8)
-	label.SetMarginStart(12)
-	label.SetMarginEnd(12)
-	label.SetMarginBottom(4)
-	row.SetHeader(label)
+func (w *Window) backendOrProjectHeader(ws domain.Workspace, includeBackendLabel bool) gtk.Widgetter {
+	box := gtk.NewBox(gtk.OrientationVertical, 0)
+	if includeBackendLabel {
+		backend := w.findBackend(ws.BackendID)
+		name := ws.BackendID
+		if backend != nil {
+			name = backend.DisplayName()
+		}
+		label := gtk.NewLabel(name)
+		label.AddCSSClass("heading")
+		label.AddCSSClass("dim-label")
+		label.SetXAlign(0)
+		label.SetMarginTop(8)
+		label.SetMarginStart(12)
+		label.SetMarginEnd(12)
+		label.SetMarginBottom(4)
+		box.Append(label)
+	}
+	if isLocalBackendID(w.backends, ws.BackendID) {
+		box.Append(w.projectHeaderWidget(ws))
+	}
+	return box
 }
 
 func (w *Window) onRowActivated(row *gtk.ListBoxRow) {

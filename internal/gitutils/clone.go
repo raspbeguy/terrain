@@ -154,19 +154,6 @@ func LsRemote(ctx context.Context, url, ref string, auth Auth) (string, error) {
 	return "", fmt.Errorf("ref %q not found at %s", ref, url)
 }
 
-// HeadCommit returns the current HEAD hash of an existing clone.
-func HeadCommit(dir string) (string, error) {
-	repo, err := git.PlainOpen(dir)
-	if err != nil {
-		return "", fmt.Errorf("open %s: %w", dir, err)
-	}
-	h, err := repo.Head()
-	if err != nil {
-		return "", fmt.Errorf("head %s: %w", dir, err)
-	}
-	return h.Hash().String(), nil
-}
-
 func resolveRef(ref string) plumbing.ReferenceName {
 	if ref == "" {
 		return ""

@@ -132,6 +132,13 @@ func runWorker(
 	// every prior channel is drained.
 	defer func() {
 		recordHistory(run, runDir, lastStatus, finalErr, exitCode)
+		go func() {
+			refreshCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			if err := b.RefreshWorkspaces(refreshCtx, ws.ProjectID); err != nil {
+				slog.Debug("post-run workspace refresh", "ws", ws.ID, "err", err)
+			}
+		}()
 		select {
 		case stream.done <- finalErr:
 		default:
@@ -300,7 +307,7 @@ func runWorker(
 		setStatus(domain.StatusFetching,
 			fmt.Sprintf("running `%s init -input=false`", bin.Name))
 		initCmd := rt.Command(ctx, ws.WorkingDirectory,
-			[]string{"NO_COLOR=1"},
+			[]string{"NO_COLOR=1", "TF_WORKSPACE=" + ws.Name},
 			bin.Path, []string{"init", "-input=false", "-no-color"}, cancelName+"-init")
 		installRuntimeCancel(initCmd, rt, cancelName+"-init")
 		if initErr := streamCommand(ctx, initCmd, teedLogs); initErr != nil {
@@ -332,7 +339,7 @@ func runWorker(
 			fmt.Sprintf("running `%s %s`", bin.Name, formatArgsForLog(args)))
 	}
 
-	extraEnv := append([]string{"NO_COLOR=1"}, rv.envEntries()...)
+	extraEnv := append([]string{"NO_COLOR=1", "TF_WORKSPACE=" + ws.Name}, rv.envEntries()...)
 	cmd := rt.Command(ctx, ws.WorkingDirectory, extraEnv, bin.Path, args, cancelName)
 	installRuntimeCancel(cmd, rt, cancelName)
 

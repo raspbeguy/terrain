@@ -127,7 +127,57 @@ func (a *App) onActivate() {
 	w.SetOnSync(a.syncProject)
 	w.SetOnOpenDirectory(a.openProjectDirectory)
 	w.SetOnAddSubpath(a.addSubpathFromExisting)
+	w.SetOnNewWorkspace(a.newWorkspace)
+	w.SetOnDeleteWorkspace(a.deleteWorkspace)
+	w.SetOnRefreshWorkspaces(a.refreshWorkspaces)
 	w.Present()
+	a.refreshAllLocalWorkspacesAsync()
+}
+
+// refreshAllLocalWorkspacesAsync fires one goroutine per local project; sidebar updates as results arrive.
+func (a *App) refreshAllLocalWorkspacesAsync() {
+	for _, b := range a.backends {
+		lb, ok := b.(*local.Backend)
+		if !ok {
+			continue
+		}
+		for _, p := range a.localProjectIDs(lb) {
+			lb := lb
+			pid := p
+			go func() {
+				ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+				defer cancel()
+				if err := lb.RefreshWorkspaces(ctx, pid); err != nil {
+					slog.Debug("startup workspace refresh", "project", pid, "err", err)
+					return
+				}
+				glib.IdleAdd(func() bool {
+					if a.window != nil {
+						if err := a.window.Refresh(a.backends); err != nil {
+							slog.Warn("refresh after workspace discovery", "err", err)
+						}
+					}
+					return false
+				})
+			}()
+		}
+	}
+}
+
+func (a *App) localProjectIDs(b *local.Backend) []string {
+	if a.cfg == nil {
+		return nil
+	}
+	var out []string
+	for _, bc := range a.cfg.Backends {
+		if bc.Type != "local" || bc.ID != b.ID() {
+			continue
+		}
+		for _, p := range bc.Projects {
+			out = append(out, p.ID)
+		}
+	}
+	return out
 }
 
 func (a *App) removeLocalProject(ws domain.Workspace) {
@@ -199,7 +249,7 @@ func (a *App) completeAddLocal(p dialogs.LocalProject) {
 		SSHKeyLabel: p.SSHKeyLabel,
 		GitUsername: p.Username,
 	}
-	bc, saved, err := a.cfg.AddLocalProject(pc)
+	_, saved, err := a.cfg.AddLocalProject(pc)
 	if err != nil {
 		slog.Error("save project", "err", err, "url", p.GitURL)
 		if a.window != nil {
@@ -208,10 +258,10 @@ func (a *App) completeAddLocal(p dialogs.LocalProject) {
 		return
 	}
 	a.window.Toast("Cloning " + p.Name + "…")
-	go a.cloneAndPublish(bc, saved, p)
+	go a.cloneAndPublish(saved, p)
 }
 
-func (a *App) cloneAndPublish(bc config.BackendConfig, saved config.ProjectConfig, p dialogs.LocalProject) {
+func (a *App) cloneAndPublish(saved config.ProjectConfig, p dialogs.LocalProject) {
 	cloneDir, err := local.CloneDir(saved.GitURL, saved.GitRef)
 	if err != nil {
 		a.handleCloneFailure(saved, "clone path: "+err.Error())
@@ -233,7 +283,6 @@ func (a *App) cloneAndPublish(bc config.BackendConfig, saved config.ProjectConfi
 		return
 	}
 	a.publishLocalSuccess(saved, p.Name, true)
-	_ = bc
 }
 
 func (a *App) publishLocalSuccess(saved config.ProjectConfig, name string, cloned bool) {
@@ -461,6 +510,7 @@ func (a *App) runSync(ws domain.Workspace, p config.ProjectConfig) {
 		a.toastFromGoroutine("Sync failed: " + err.Error())
 		return
 	}
+	a.refreshWorkspacesNow(ws)
 	a.toastFromGoroutine("Synced " + p.Name)
 }
 
@@ -505,6 +555,106 @@ func (a *App) toastFromGoroutine(msg string) {
 	glib.IdleAdd(func() bool {
 		if a.window != nil {
 			a.window.Toast(msg)
+		}
+		return false
+	})
+}
+
+func (a *App) localBackendFor(backendID string) *local.Backend {
+	for _, b := range a.backends {
+		if b.ID() != backendID {
+			continue
+		}
+		if lb, ok := b.(*local.Backend); ok {
+			return lb
+		}
+	}
+	return nil
+}
+
+func (a *App) newWorkspace(ws domain.Workspace) {
+	if a.window == nil {
+		return
+	}
+	lb := a.localBackendFor(ws.BackendID)
+	if lb == nil {
+		return
+	}
+	dialogs.PresentNewWorkspace(a.window.GtkWindow(), ws.ProjectName, func(name string) {
+		go func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+			defer cancel()
+			if err := lb.CreateTofuWorkspace(ctx, ws.ProjectID, name); err != nil {
+				slog.Error("create workspace", "err", err, "project", ws.ProjectID, "name", name)
+				a.toastErrorFromGoroutine("Couldn't create workspace: " + err.Error())
+				return
+			}
+			if err := lb.RefreshWorkspaces(ctx, ws.ProjectID); err != nil {
+				slog.Warn("post-create refresh", "err", err)
+			}
+			a.refreshSidebarFromGoroutine()
+			a.toastFromGoroutine("Created workspace " + name)
+		}()
+	})
+}
+
+func (a *App) deleteWorkspace(ws domain.Workspace) {
+	lb := a.localBackendFor(ws.BackendID)
+	if lb == nil {
+		return
+	}
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		defer cancel()
+		if err := lb.DeleteTofuWorkspace(ctx, ws.ProjectID, ws.Name); err != nil {
+			slog.Error("delete workspace", "err", err, "ws", ws.ID)
+			a.toastErrorFromGoroutine("Couldn't delete workspace: " + err.Error())
+			return
+		}
+		if err := lb.RefreshWorkspaces(ctx, ws.ProjectID); err != nil {
+			slog.Warn("post-delete refresh", "err", err)
+		}
+		a.refreshSidebarFromGoroutine()
+		a.toastFromGoroutine("Deleted workspace " + ws.Name)
+	}()
+}
+
+func (a *App) refreshWorkspaces(ws domain.Workspace) {
+	a.refreshWorkspacesNow(ws)
+}
+
+func (a *App) refreshWorkspacesNow(ws domain.Workspace) {
+	lb := a.localBackendFor(ws.BackendID)
+	if lb == nil {
+		return
+	}
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		if err := lb.RefreshWorkspaces(ctx, ws.ProjectID); err != nil {
+			slog.Warn("manual workspace refresh", "err", err)
+			a.toastErrorFromGoroutine("Refresh failed: " + err.Error())
+			return
+		}
+		a.refreshSidebarFromGoroutine()
+	}()
+}
+
+func (a *App) refreshSidebarFromGoroutine() {
+	glib.IdleAdd(func() bool {
+		if a.window != nil {
+			if err := a.window.Refresh(a.backends); err != nil {
+				slog.Warn("refresh sidebar", "err", err)
+			}
+		}
+		return false
+	})
+}
+
+func (a *App) toastErrorFromGoroutine(msg string) {
+	glib.IdleAdd(func() bool {
+		if a.window != nil {
+			a.window.ToastError(msg)
 		}
 		return false
 	})

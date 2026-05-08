@@ -4,8 +4,6 @@ package sshkeys
 import (
 	"crypto/ed25519"
 	"crypto/rand"
-	"crypto/sha256"
-	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
 	"errors"
@@ -269,16 +267,6 @@ func keysRoot() (string, error) {
 		dataHome = filepath.Join(home, ".local", "share")
 	}
 	return filepath.Join(dataHome, "terrain", "ssh-keys"), nil
-}
-
-// Fingerprint returns the SHA-256 fingerprint of an authorized_keys-format public key string.
-func Fingerprint(authorized string) string {
-	pk, _, _, _, err := gossh.ParseAuthorizedKey([]byte(authorized))
-	if err != nil {
-		h := sha256.Sum256([]byte(authorized))
-		return "SHA256:" + base64.RawStdEncoding.EncodeToString(h[:])
-	}
-	return gossh.FingerprintSHA256(pk)
 }
 
 func normalizeNewlines(b []byte) []byte {
