@@ -97,7 +97,7 @@ func TestStateVersions_ListingAndSorting(t *testing.T) {
 		}
 	}
 
-	// Plus one corrupt entry — it must be silently skipped.
+	// Plus one corrupt entry; it must be silently skipped.
 	corrupt, _ := stateVersionDir(b.id, wsID, "broken")
 	_ = os.MkdirAll(corrupt, 0o755)
 	_ = os.WriteFile(filepath.Join(corrupt, "meta.json"), []byte("{not json"), 0o644)

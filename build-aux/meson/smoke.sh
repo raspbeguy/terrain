@@ -1,14 +1,14 @@
 #!/bin/sh
-# smoke.sh — boot the terrain binary under xvfb-run and verify it reaches
+# smoke.sh: boot the terrain binary under xvfb-run and verify it reaches
 # the "window built" log line without panicking or emitting Gtk-CRITICAL
 # warnings. Run as a meson test after every rebuild that touches UI code.
 #
 # Usage: smoke.sh <binary-path> [duration-seconds]
 #
 # Exit codes:
-#   0   — clean boot, "window built" reached
-#   1   — panic, GTK critical, or did not reach "window built"
-#   77  — skipped (xvfb-run not installed; meson treats this as SKIP)
+#   0   clean boot, "window built" reached
+#   1   panic, GTK critical, or did not reach "window built"
+#   77  skipped (xvfb-run not installed; meson treats this as SKIP)
 
 set -eu
 
@@ -28,7 +28,7 @@ case "$BINARY" in
     *)  BINARY="$(pwd)/$BINARY" ;;
 esac
 if [ ! -x "$BINARY" ]; then
-    echo "smoke: FAIL — binary not found or not executable: $BINARY" >&2
+    echo "smoke: FAIL: binary not found or not executable: $BINARY" >&2
     exit 1
 fi
 
@@ -51,19 +51,19 @@ LOG="$TESTHOME/log"
 
 # We expect the binary to be killed by `timeout` after $DURATION seconds.
 # Capture stdout+stderr and don't fail the script on the timeout's non-zero
-# exit — that's the success signal here.
+# exit: that's the success signal here.
 HOME="$TESTHOME" XDG_CONFIG_HOME="$TESTHOME/.config" XDG_CACHE_HOME="$TESTHOME/.cache" \
     xvfb-run -a timeout "$DURATION" "$BINARY" --debug >"$LOG" 2>&1 || true
 
 # Diagnostics first if something goes wrong.
 if grep -qE 'panic:|Gtk-CRITICAL|nil pointer dereference|fatal error:|SIGSEGV' "$LOG"; then
-    echo "smoke: FAIL — critical error in log:" >&2
+    echo "smoke: FAIL: critical error in log:" >&2
     sed 's/^/  /' "$LOG" >&2
     exit 1
 fi
 
 if ! grep -q 'window built' "$LOG"; then
-    echo "smoke: FAIL — did not reach 'window built' within ${DURATION}s" >&2
+    echo "smoke: FAIL: did not reach 'window built' within ${DURATION}s" >&2
     sed 's/^/  /' "$LOG" >&2
     exit 1
 fi
@@ -73,10 +73,10 @@ fi
 # the user notices them.
 if grep -E 'Gtk-WARNING|GLib-GObject-CRITICAL' "$LOG" \
     | grep -vE 'libEGL|DRI3|dbus-launch|atspi|session bus' >/dev/null 2>&1; then
-    echo "smoke: NOTE — non-environmental Gtk warnings observed:" >&2
+    echo "smoke: NOTE: non-environmental Gtk warnings observed:" >&2
     grep -E 'Gtk-WARNING|GLib-GObject-CRITICAL' "$LOG" \
         | grep -vE 'libEGL|DRI3|dbus-launch|atspi|session bus' \
         | sed 's/^/  /' >&2
 fi
 
-echo "smoke: ok — window built cleanly"
+echo "smoke: ok, window built cleanly"

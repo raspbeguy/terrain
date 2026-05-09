@@ -17,7 +17,7 @@ import (
 )
 
 // varsetManifest is one file per set at
-// $XDG_CONFIG_HOME/terrain/varsets/<id>.json — easier to edit/delete by
+// $XDG_CONFIG_HOME/terrain/varsets/<id>.json; easier to edit/delete by
 // hand than an omnibus index, and one corrupt file doesn't break the rest.
 type varsetManifest struct {
 	ID          string            `json:"id"`
@@ -172,7 +172,7 @@ func (b *Backend) DeleteVariableSet(_ context.Context, setID string) error {
 	}
 	m, err := readVarsetManifest(path)
 	if err != nil {
-		// Corrupt or missing — best-effort path remove and exit.
+		// Corrupt or missing; best-effort path remove and exit.
 		_ = os.Remove(path)
 		return nil
 	}

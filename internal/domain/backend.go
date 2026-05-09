@@ -1,5 +1,5 @@
 // Package domain holds the pure-Go types and interfaces that span the
-// app. Nothing here may import gotk4 / glib / any UI library — the
+// app. Nothing here may import gotk4 / glib / any UI library; the
 // domain stays headless and unit-testable.
 package domain
 

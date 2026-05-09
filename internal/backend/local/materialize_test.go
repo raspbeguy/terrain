@@ -56,7 +56,7 @@ func TestResolvedVars_WriteVarFile_PreservesTypes(t *testing.T) {
 	s := string(data)
 
 	// hclwrite right-aligns `=` when multiple attributes share a body, so
-	// we can't assert exact spacing — match key + value with any run of
+	// we can't assert exact spacing; match key + value with any run of
 	// whitespace between them.
 	matches := func(pat string) bool {
 		return regexp.MustCompile(pat).MatchString(s)

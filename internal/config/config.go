@@ -1,5 +1,5 @@
-// Package config loads and persists $XDG_CONFIG_HOME/terrain/config.toml
-// — the registry of backends and projects. Credentials live in
+// Package config loads and persists $XDG_CONFIG_HOME/terrain/config.toml,
+// the registry of backends and projects. Credentials live in
 // libsecret, not here.
 package config
 
@@ -192,7 +192,7 @@ func (c *Config) MigrateTokens() (int, error) {
 
 // RemoveLocalProject drops the local backend entirely if its last
 // project is removed. On-disk artifacts (cache, state versions,
-// keyring) are NOT touched — re-adding the same path keeps history.
+// keyring) are NOT touched; re-adding the same path keeps history.
 func (c *Config) RemoveLocalProject(projectID string) error {
 	for bi, bc := range c.Backends {
 		if bc.Type != "local" {

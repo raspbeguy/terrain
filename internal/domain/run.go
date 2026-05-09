@@ -155,7 +155,7 @@ type RunEvent struct {
 // close all channels once the run is terminal; Done() closes LAST so a
 // receiver waiting on Done can rely on Events/Logs/Plan being drained.
 //
-// Consumers MUST NOT call any GTK function from these channels — bridge
+// Consumers MUST NOT call any GTK function from these channels; bridge
 // is the only legal crossing point.
 type RunStream interface {
 	Events() <-chan RunEvent

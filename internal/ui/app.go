@@ -462,7 +462,7 @@ func (a *App) syncProject(ws domain.Workspace) {
 	}
 	dlg := adw.NewAlertDialog(
 		"Sync from git remote?",
-		"This fetches the latest commits and resets the working clone to the remote — any local edits inside the clone are discarded.",
+		"This fetches the latest commits and resets the working clone to the remote. Any local edits inside the clone are discarded.",
 	)
 	dlg.AddResponse("cancel", "Cancel")
 	dlg.AddResponse("sync", "Sync")

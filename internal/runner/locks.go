@@ -20,7 +20,7 @@ func (w *WorkspaceLocks) TryAcquire(workspaceID string) (release func(), ok bool
 	return func() { once.Do(m.Unlock) }, true
 }
 
-// Acquire blocks. Use for short critical sections only — runs can take
+// Acquire blocks. Use for short critical sections only; runs can take
 // minutes and should use TryAcquire instead.
 func (w *WorkspaceLocks) Acquire(workspaceID string) (release func()) {
 	m := w.lockFor(workspaceID)

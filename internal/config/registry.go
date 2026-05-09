@@ -12,7 +12,7 @@ import (
 
 // BuildBackends instantiates Backend implementations from the loaded config.
 // Failures for individual backends are logged but don't abort the entire
-// registry — a stale token on a remote backend shouldn't lock the user out
+// registry; a stale token on a remote backend shouldn't lock the user out
 // of their working local projects.
 func BuildBackends(c *Config) ([]domain.Backend, error) {
 	if c == nil {
@@ -50,7 +50,7 @@ func BuildBackends(c *Config) ([]domain.Backend, error) {
 				slog.Warn("skip remote backend", "id", bc.ID, "err", err)
 				continue
 			}
-			// Refresh capabilities asynchronously — UI starts with the
+			// Refresh capabilities asynchronously; UI starts with the
 			// optimistic flavor defaults, switches to refined values once
 			// the API answers. We deliberately don't block startup on
 			// network round-trips; a slow remote shouldn't delay the

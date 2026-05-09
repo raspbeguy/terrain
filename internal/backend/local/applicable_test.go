@@ -24,7 +24,7 @@ func TestApplicableSets_ProjectScopeFilter(t *testing.T) {
 	all := []domain.VariableSet{
 		{ID: "p1", Scope: domain.ScopeProject, ProjectID: "p-1"},
 		{ID: "p2", Scope: domain.ScopeProject, ProjectID: "p-2"},
-		{ID: "p3", Scope: domain.ScopeProject, ProjectID: ""}, // unscoped — must NOT match empty ws.ProjectID
+		{ID: "p3", Scope: domain.ScopeProject, ProjectID: ""}, // unscoped; must NOT match empty ws.ProjectID
 	}
 	got := applicableSets(all, domain.Workspace{ID: "ws", ProjectID: "p-1"})
 	if len(got) != 1 || got[0].ID != "p1" {
@@ -71,7 +71,7 @@ func TestApplicableSets_PrecedenceOrder(t *testing.T) {
 
 func TestApplicableSets_PriorityWithinScope(t *testing.T) {
 	t.Parallel()
-	// Two globals — higher priority should be applied LAST (overrides earlier).
+	// Two globals; higher priority should be applied LAST (overrides earlier).
 	all := []domain.VariableSet{
 		{ID: "low", Scope: domain.ScopeGlobal, Priority: 1},
 		{ID: "high", Scope: domain.ScopeGlobal, Priority: 10},

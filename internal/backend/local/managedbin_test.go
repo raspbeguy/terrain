@@ -239,7 +239,7 @@ func TestReferencedManagedBinaries(t *testing.T) {
 	mustWrite(filepath.Join(dataHome, "terrain", "local", "ws-c", "settings.json"),
 		`{"binary_source":"managed","managed_engine":"terraform","managed_track_latest":true}`)
 
-	// Stray file inside binaries/ — must be skipped.
+	// Stray file inside binaries/; must be skipped.
 	mustWrite(filepath.Join(dataHome, "terrain", "binaries", "junk.json"),
 		`{"binary_source":"managed","managed_engine":"tofu","managed_version":"99.99.99"}`)
 
@@ -253,7 +253,7 @@ func TestReferencedManagedBinaries(t *testing.T) {
 	if refs["tofu/99.99.99"] {
 		t.Errorf("binaries/junk.json should be skipped, got: %v", refs)
 	}
-	// ws-c uses track_latest with no explicit version — not referenced.
+	// ws-c uses track_latest with no explicit version; not referenced.
 	if len(refs) != 1 {
 		t.Errorf("expected 1 reference (ws-a), got %d: %v", len(refs), refs)
 	}
@@ -321,7 +321,7 @@ func TestLatestVersionCacheTTL(t *testing.T) {
 		latestCacheMu.Unlock()
 	}()
 
-	// Pre-cancelled context — confirms we hit the cache, not the network.
+	// Pre-cancelled context; confirms we hit the cache, not the network.
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	got, err := LatestManagedVersion(ctx, "tofu")

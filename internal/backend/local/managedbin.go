@@ -41,7 +41,7 @@ func newManagedResolver() *managedResolver {
 	}
 }
 
-// ErrManagedBinaryMissing tells callers a managed binary isn't installed yet — only the Preferences install dialog should download.
+// ErrManagedBinaryMissing tells callers a managed binary isn't installed yet; only the Preferences install dialog should download.
 var ErrManagedBinaryMissing = errors.New("managed binary not installed")
 
 // Resolve looks up the binary on disk; never downloads. Run pipeline uses this so launching a run never hits the network.

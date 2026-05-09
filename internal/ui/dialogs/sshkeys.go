@@ -17,7 +17,7 @@ const sshImportResource = "/io/github/raspbeguy/Terrain/ssh-key-import.ui"
 
 // PresentSSHGenerate prompts for a label, generates a key, and shows the public key for copy-paste.
 func PresentSSHGenerate(parent *gtk.Window, onDone func()) {
-	d := adw.NewAlertDialog("Generate SSH Key", "Pick a short label — used to refer to the key inside Terrain.")
+	d := adw.NewAlertDialog("Generate SSH Key", "Pick a short label, used to refer to the key inside Terrain.")
 
 	entry := gtk.NewEntry()
 	entry.SetPlaceholderText("e.g. github")
@@ -130,7 +130,7 @@ func PresentSSHImport(parent *gtk.Window, onDone func()) {
 }
 
 func showPublicKey(parent *gtk.Window, info sshkeys.KeyInfo) {
-	d := adw.NewAlertDialog(info.Label+" — public key",
+	d := adw.NewAlertDialog(info.Label+": public key",
 		"Add this to your forge's SSH-keys settings (GitHub: Settings → SSH and GPG keys → New SSH key).")
 	textView := gtk.NewTextView()
 	textView.SetMonospace(true)

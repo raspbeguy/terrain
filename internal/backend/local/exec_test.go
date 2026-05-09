@@ -109,7 +109,7 @@ func TestStreamCommand_jsonParse(t *testing.T) {
 		t.Fatalf("expected 2 lines, got %d", len(collected))
 	}
 
-	// Find the JSON line by content rather than index — order isn't
+	// Find the JSON line by content rather than index; order isn't
 	// guaranteed if stdout writes interleave.
 	var jsonLine, plainLine *domain.LogLine
 	for i := range collected {

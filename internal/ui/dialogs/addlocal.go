@@ -30,7 +30,7 @@ type LocalProject struct {
 	SSHKeyLabel string
 }
 
-// AddLocal presents the form dialog. onOpenPreferences (optional) wires the "Open Preferences" button — its onClosed callback refreshes the SSH-key dropdown when the user returns.
+// AddLocal presents the form dialog. onOpenPreferences (optional) wires the "Open Preferences" button; its onClosed callback refreshes the SSH-key dropdown when the user returns.
 func AddLocal(parent *gtk.Window, existingClones []ExistingClone, onSubmitted func(LocalProject), onOpenPreferences func(onClosed func())) {
 	builder := gtk.NewBuilderFromResource(addLocalResource)
 
@@ -157,7 +157,7 @@ func AddLocal(parent *gtk.Window, existingClones []ExistingClone, onSubmitted fu
 		}
 		if isSSHURL(p.GitURL) {
 			if len(keyLabels) == 0 {
-				return p, errors.New("no SSH keys available — add one in Preferences first")
+				return p, errors.New("no SSH keys available; add one in Preferences first")
 			}
 			p.SSHKeyLabel = keyLabels[sshKeyRow.Selected()]
 		} else {

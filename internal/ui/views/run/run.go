@@ -159,7 +159,7 @@ func (p *Page) requestCancel() {
 }
 
 // LoadHistory replays a finished run from disk artifacts (stdout.log /
-// stderr.log / plan.json). Read-only — only Back stays visible. Requires
+// stderr.log / plan.json). Read-only; only Back stays visible. Requires
 // r.RunDir; remote backends that don't persist locally aren't replayable.
 func (p *Page) LoadHistory(r domain.Run) {
 	p.log.Clear()
@@ -269,7 +269,7 @@ func truncateRunID(id string) string {
 }
 
 // embedInBin sets the child of an Adw.Bin (or any widget exposing
-// SetChild(gtk.Widgetter)) without importing the adw package — keeps run.go
+// SetChild(gtk.Widgetter)) without importing the adw package; keeps run.go
 // from depending on libadwaita just to stuff a child widget.
 func embedInBin(b *gtk.Builder, id string, child gtk.Widgetter) {
 	obj := b.GetObject(id)

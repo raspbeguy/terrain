@@ -20,7 +20,7 @@ type Project struct {
 	SSHKeyLabel string
 	GitUsername string
 
-	// dirOverride is a test escape hatch — set in package tests to point at a literal directory.
+	// dirOverride is a test escape hatch; set in package tests to point at a literal directory.
 	dirOverride string
 }
 

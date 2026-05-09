@@ -13,7 +13,7 @@ import (
 var ErrNoResources = errors.New("no embedded gresource bundle (built without -tags embed_gresource)")
 
 // Register: ErrNoResources means the binary was built without the
-// embed_gresource tag — soft error during development.
+// embed_gresource tag; soft error during development.
 func Register() error {
 	if len(Data) == 0 {
 		return ErrNoResources

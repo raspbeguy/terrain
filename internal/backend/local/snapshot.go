@@ -54,7 +54,7 @@ func (b *Backend) snapshotState(ctx context.Context, ws domain.Workspace, runID 
 	rawPath := filepath.Join(ws.WorkingDirectory, "terraform.tfstate")
 	rawData, rawErr := os.ReadFile(rawPath)
 	if rawErr != nil && !errors.Is(rawErr, fs.ErrNotExist) {
-		// Permission errors etc. — proceed with just the JSON copy.
+		// Permission errors etc.; proceed with just the JSON copy.
 		slog.Warn("read raw tfstate", "path", rawPath, "err", rawErr)
 		rawData = nil
 	}

@@ -140,7 +140,7 @@ func ctyToString(v cty.Value) string {
 	case cty.Number:
 		return v.AsBigFloat().Text('g', 12)
 	}
-	// hclwrite serialises complex types as canonical HCL — readable
+	// hclwrite serialises complex types as canonical HCL; readable
 	// rather than cty.GoString's representation.
 	return strings.TrimSpace(string(hclwrite.TokensForValue(v).Bytes()))
 }

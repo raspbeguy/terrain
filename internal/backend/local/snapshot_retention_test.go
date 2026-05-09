@@ -52,12 +52,12 @@ func TestPruneStateVersions_KeepNewest(t *testing.T) {
 	// Seed 5 snapshots, all OLDER than maxAge (so age-based keep doesn't apply).
 	for i := 1; i <= 5; i++ {
 		writeFakeSnapshot(t, b.id, wsID, "snap-"+strconv.Itoa(i),
-			time.Duration(60-i)*time.Hour, // 59h, 58h, ..., 55h ago — all old
+			time.Duration(60-i)*time.Hour, // 59h, 58h, ..., 55h ago; all old
 			"L", int64(i))
 	}
 
 	// Keep 2 newest, age cutoff 30 days. The 5 are all "older than 30 days"?
-	// No — they're 55-59 hours old, NOT older than 30 days. So age-based
+	// No: they're 55-59 hours old, NOT older than 30 days. So age-based
 	// keep applies → all kept. To exercise the prune we need ages > 30 days.
 	for i := 1; i <= 5; i++ {
 		writeFakeSnapshot(t, b.id, wsID, "old-"+strconv.Itoa(i),
@@ -70,10 +70,10 @@ func TestPruneStateVersions_KeepNewest(t *testing.T) {
 	}
 
 	versions, _ := b.StateVersions(context.Background(), wsID)
-	// Newest 2 (snap-5 and snap-4 — youngest of the recent batch) are kept.
+	// Newest 2 (snap-5 and snap-4, youngest of the recent batch) are kept.
 	// All 5 in the recent batch are within 30 days, so they ALL stay.
 	// All 5 of the "old-*" are older than 30 days; only first 2 (newest beyond keep) stay if within keep, but they're at index 5+ which is > keep=2.
-	// Actually: StateVersions returns newest first — so the 5 "snap-" are at indexes 0-4 (newest), then 5 "old-" at 5-9 (oldest).
+	// Actually: StateVersions returns newest first; the 5 "snap-" are at indexes 0-4 (newest), then 5 "old-" at 5-9 (oldest).
 	// Keep=2 → indexes 0,1 (snap-5, snap-4) unconditionally kept.
 	// Indexes 2-9: kept only if within cutoff. snap-1..3 are within (55-59h ago < 30d). old-* are beyond.
 	// So expected: snap-1..5 (5 entries) survive, all old-* deleted.

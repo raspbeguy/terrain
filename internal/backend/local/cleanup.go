@@ -10,7 +10,7 @@ import (
 
 // CleanupOrphanArtifacts deletes leftover materialized vars files from runs
 // killed before their `defer os.Remove` ran. Best-effort startup pass;
-// assumes single-instance — concurrent app copies would need pid tracking.
+// assumes single-instance; concurrent app copies would need pid tracking.
 func (b *Backend) CleanupOrphanArtifacts() {
 	cacheHome, err := os.UserCacheDir()
 	if err != nil {

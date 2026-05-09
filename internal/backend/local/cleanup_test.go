@@ -29,7 +29,7 @@ func TestCleanupOrphanArtifacts_RemovesOrphans(t *testing.T) {
 		}
 	}
 
-	// Also seed a run-dir file that is NOT a vars file — it must survive.
+	// Also seed a run-dir file that is NOT a vars file; it must survive.
 	survivor := filepath.Join(dir, "terrain", b.id, "ws-a", "runs", "run-1", "stdout.log")
 	if err := os.WriteFile(survivor, []byte("kept"), 0o644); err != nil {
 		t.Fatal(err)

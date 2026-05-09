@@ -17,7 +17,7 @@ import (
 	"github.com/raspbeguy/terrain/internal/domain"
 )
 
-// pollInterval balances API quota against UI responsiveness — TFE phase
+// pollInterval balances API quota against UI responsiveness; TFE phase
 // transitions take ~5s, so faster polls just burn quota.
 const pollInterval = 2 * time.Second
 
@@ -197,7 +197,7 @@ func (b *Backend) pollRun(ctx context.Context, run domain.Run, initial *tfe.Run,
 			case stream.logs <- domain.LogLine{
 				At:     time.Now(),
 				Stream: domain.StreamStderr,
-				Text:   fmt.Sprintf("[terrain] dropped status event: %s — %s", s, msg),
+				Text:   fmt.Sprintf("[terrain] dropped status event: %s: %s", s, msg),
 			}:
 			default:
 			}
@@ -277,7 +277,7 @@ func (b *Backend) pollRun(ctx context.Context, run domain.Run, initial *tfe.Run,
 				finalErr = ctx.Err()
 				return
 			}
-			// Run-not-found is terminal — no retry helps.
+			// Run-not-found is terminal; no retry helps.
 			if errors.Is(err, tfe.ErrResourceNotFound) {
 				setStatus(domain.StatusErrored, "run not found by API: "+err.Error())
 				finalErr = err
@@ -310,7 +310,7 @@ func (b *Backend) pollRun(ctx context.Context, run domain.Run, initial *tfe.Run,
 			startApplyLogs(tfeRun.Apply.ID)
 		}
 
-		// JSONOutput is only available after the plan finishes — gate
+		// JSONOutput is only available after the plan finishes; gate
 		// on StatusPlanned and beyond.
 		if !planEmitted && tfeRun.Plan != nil &&
 			(mapped == domain.StatusPlanned ||

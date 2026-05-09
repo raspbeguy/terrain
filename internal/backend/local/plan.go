@@ -20,7 +20,7 @@ import (
 // without poisoning the rest of the run (the binary plan file remains
 // usable for apply even if json parsing fails).
 //
-// Has its own short timeout — `show -json` is fast (subseconds for normal
+// Has its own short timeout; `show -json` is fast (subseconds for normal
 // plans) but we don't want a hung binary to keep the run worker alive.
 func parsePlanFile(parent context.Context, binary, workDir, planFile string) *domain.PlanResult {
 	result := &domain.PlanResult{File: planFile}

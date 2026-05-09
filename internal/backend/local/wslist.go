@@ -73,7 +73,7 @@ func parseWorkspaceList(stdout string) []string {
 	return out
 }
 
-// scanStateDirs reads terraform.tfstate.d/ — the local-state backend's on-disk workspace layout.
+// scanStateDirs reads terraform.tfstate.d/, the local-state backend's on-disk workspace layout.
 func scanStateDirs(workDir string) []string {
 	entries, err := os.ReadDir(filepath.Join(workDir, "terraform.tfstate.d"))
 	if err != nil {

@@ -486,7 +486,7 @@ func isLocalBackendID(backends []domain.Backend, id string) bool {
 func (w *Window) confirmDeleteWorkspace(ws domain.Workspace) {
 	dlg := adw.NewAlertDialog(
 		"Delete workspace?",
-		fmt.Sprintf("This deletes workspace %q from %q. The on-disk Terraform state for this workspace is wiped — this cannot be undone.", ws.Name, ws.ProjectName),
+		fmt.Sprintf("This deletes workspace %q from %q. The on-disk Terraform state for this workspace is wiped; this cannot be undone.", ws.Name, ws.ProjectName),
 	)
 	dlg.AddResponse("cancel", "Cancel")
 	dlg.AddResponse("delete", "Delete")
@@ -870,7 +870,7 @@ type variableUpserter interface {
 }
 
 // openWorkspaceSettings opens the per-workspace runtime dialog.
-// Local-only — remote backends manage execution mode server-side.
+// Local-only; remote backends manage execution mode server-side.
 func (w *Window) openWorkspaceSettings(ws domain.Workspace) {
 	if !isLocalBackendID(w.backends, ws.BackendID) {
 		w.Toast("Workspace settings are local-backend only")

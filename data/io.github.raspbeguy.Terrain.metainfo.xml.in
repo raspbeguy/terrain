@@ -18,7 +18,7 @@
       It supports both local projects (cloned from a git URL into the
       app's own data directory) and remote backends (HCP Terraform,
       self-hosted Terraform Enterprise, OTF) through a single unified
-      interface — workspaces, runs, variables, state, and structured
+      interface: workspaces, runs, variables, state, and structured
       plan diffs render the same whether the data comes from a
       subprocess or a remote API.
     </p>
@@ -112,7 +112,7 @@
           TF_WORKSPACE).
         </p>
         <p>
-          Managed binary mode is the default for new workspaces — Terrain
+          Managed binary mode is the default for new workspaces. Terrain
           downloads and caches official OpenTofu / Terraform releases
           per-version; runs never hit the network. Container and
           bubblewrap run modes were removed.

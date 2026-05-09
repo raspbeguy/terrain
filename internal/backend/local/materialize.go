@@ -42,7 +42,7 @@ func (b *Backend) materialize(ws domain.Workspace) *resolvedVars {
 		Env:       map[string]string{},
 	}
 
-	// 1. Variable sets — lowest precedence; later wins.
+	// 1. Variable sets, lowest precedence; later wins.
 	if sets, err := b.VariableSets(context.Background()); err == nil {
 		for _, set := range applicableSets(sets, ws) {
 			for _, v := range set.Variables {
@@ -68,7 +68,7 @@ func (b *Backend) materialize(ws domain.Workspace) *resolvedVars {
 
 	// 2. Workspace tfvars + terrain's overrides file (outside project
 	// tree, takes precedence over project tfvars). cty.Value carries
-	// type info so hclwrite emits typed literals — no coercion needed.
+	// type info so hclwrite emits typed literals; no coercion needed.
 	overrides, _ := overridesPath(b.id, ws.ID)
 	declared, _ := hcl.LoadVariablesWithExtras(ws.WorkingDirectory, overrides)
 	for _, v := range declared {
@@ -98,7 +98,7 @@ func (b *Backend) materialize(ws domain.Workspace) *resolvedVars {
 }
 
 // writeVarFile emits an HCL tfvars (not JSON, so number/list/object
-// types survive — JSON-string would trip terraform's "Invalid value for
+// types survive; JSON-string would trip terraform's "Invalid value for
 // input variable"). Returns "" when there are no vars. 0600 perms;
 // caller deletes on terminal status.
 func (rv *resolvedVars) writeVarFile(runDir string) (string, error) {

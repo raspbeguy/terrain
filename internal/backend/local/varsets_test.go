@@ -54,7 +54,7 @@ func TestVarsets_CreateListDelete(t *testing.T) {
 	if len(sets) != 2 {
 		t.Fatalf("expected 2 sets, got %d", len(sets))
 	}
-	// Order: sorted by name asc — "AWS prod" then "Common".
+	// Order: sorted by name asc; "AWS prod" then "Common".
 	if sets[0].Name != "AWS prod" || sets[1].Name != "Common" {
 		t.Errorf("unexpected order: %v / %v", sets[0].Name, sets[1].Name)
 	}
@@ -102,7 +102,7 @@ func TestVarsets_UpsertAndDeleteVar(t *testing.T) {
 		t.Fatalf("unexpected vars after upsert: %+v", got.Variables)
 	}
 
-	// Update the same key — should replace, not append.
+	// Update the same key; should replace, not append.
 	v.Value = "us-east-2"
 	if err := b.UpsertVariableSetVar(context.Background(), set.ID, v); err != nil {
 		t.Fatal(err)

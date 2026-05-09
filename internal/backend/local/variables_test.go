@@ -33,7 +33,7 @@ func TestUpsertPlainVar_WritesOverridesNotProjectTfvars(t *testing.T) {
 
 	// Project terraform.tfvars must not have been created.
 	if _, err := os.Stat(filepath.Join(projectDir, "terraform.tfvars")); err == nil {
-		t.Errorf("project terraform.tfvars was created — terrain shouldn't write there")
+		t.Errorf("project terraform.tfvars was created; terrain shouldn't write there")
 	}
 
 	// Overrides file must exist with the value.

@@ -1,4 +1,4 @@
-// Package uihelpers holds tiny GTK utilities shared across UI packages —
+// Package uihelpers holds tiny GTK utilities shared across UI packages:
 // builder casts, CSS loaders, action wiring. Things small enough that giving
 // them their own package would be over-engineering, but duplicated everywhere
 // would rot.
@@ -12,7 +12,7 @@ import (
 
 // MustCast fetches a builder object by ID and asserts its concrete gotk4
 // type. Builder ID drift between .blp and Go code is a coding error caught at
-// startup — panicking surfaces it loudly, instead of leaking nil widgets
+// startup; panicking surfaces it loudly, instead of leaking nil widgets
 // through the UI.
 func MustCast[T any](b *gtk.Builder, id string) T {
 	obj := b.GetObject(id)

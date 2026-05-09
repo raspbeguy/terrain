@@ -1,5 +1,5 @@
 // Package remote implements domain.Backend against the TFE-API family
-// (HCP Terraform, self-hosted TFE, OTF) — one go-tfe client, capability
+// (HCP Terraform, self-hosted TFE, OTF): one go-tfe client, capability
 // differences resolved at runtime via Probe().
 package remote
 
@@ -129,7 +129,7 @@ func (b *Backend) Capabilities() domain.Capabilities {
 	return b.caps
 }
 
-// Workspaces drains StreamWorkspaces — kept for callers that want the
+// Workspaces drains StreamWorkspaces; kept for callers that want the
 // whole list as a slice (e.g. the varsets dialog).
 func (b *Backend) Workspaces(ctx context.Context) ([]domain.Workspace, error) {
 	var out []domain.Workspace
@@ -144,7 +144,7 @@ func (b *Backend) Workspaces(ctx context.Context) ([]domain.Workspace, error) {
 
 // StreamWorkspaces emits one channel item per API page. Include=WSProject
 // piggy-backs the project name so the sidebar doesn't need a per-workspace
-// follow-up read; OTF before v0.3 returns nil Project — toWorkspace falls
+// follow-up read; OTF before v0.3 returns nil Project, toWorkspace falls
 // back to the org name then.
 func (b *Backend) StreamWorkspaces(ctx context.Context) <-chan domain.WorkspaceStreamItem {
 	out := make(chan domain.WorkspaceStreamItem, 4)

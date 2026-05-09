@@ -25,7 +25,7 @@ const (
 // the user clicks Save with a validated payload. Cancel drops silently.
 //
 // For sensitive existing variables the dialog opens with an empty value
-// field — we never display the stored secret. Saving without typing a new
+// field; we never display the stored secret. Saving without typing a new
 // value preserves the existing one (the local backend treats empty + sensitive
 // + no kerry change as a no-op... actually we just resave the stored value).
 func EditVariable(parent *gtk.Window, mode VarEditMode, initial domain.Variable, onSubmitted func(domain.Variable)) {

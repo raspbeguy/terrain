@@ -69,7 +69,7 @@ func (b *Backend) startRun(_ context.Context, req domain.RunRequest) (domain.Run
 		UpdatedAt:   time.Now(),
 	}
 
-	// Detached context — runs outlive the GUI callback that started them.
+	// Detached context; runs outlive the GUI callback that started them.
 	runCtx, cancelCtx := context.WithCancel(context.Background())
 	stream := newRunStream()
 
@@ -121,7 +121,7 @@ func runWorker(
 			case stream.logs <- domain.LogLine{
 				At:     time.Now(),
 				Stream: domain.StreamStderr,
-				Text:   fmt.Sprintf("[terrain] dropped status event: %s — %s", s, msg),
+				Text:   fmt.Sprintf("[terrain] dropped status event: %s: %s", s, msg),
 			}:
 			default:
 			}
@@ -284,7 +284,7 @@ func runWorker(
 		case domain.RunKindPlan, domain.RunKindDestroy:
 			run.PlanFile = planFile
 			setStatus(domain.StatusPlanned, "plan succeeded")
-			// Fire and forget the post-plan parse — runs on the worker
+			// Fire and forget the post-plan parse; runs on the worker
 			// goroutine since we're between cmdErr and channel close.
 			result := parsePlanFile(ctx, bin.Path, ws.WorkingDirectory, planFile)
 			persistPlanJSON(runDir, result)
@@ -412,7 +412,7 @@ func isCancelError(ctx context.Context, err error) bool {
 	return false
 }
 
-// runArtifactsDir returns the per-run dir under XDG_CACHE_HOME — runs
+// runArtifactsDir returns the per-run dir under XDG_CACHE_HOME; runs
 // are ephemeral; state versions live under XDG_DATA_HOME instead.
 func runArtifactsDir(backendID string, ws domain.Workspace, runID string) (string, error) {
 	cacheHome, err := os.UserCacheDir()

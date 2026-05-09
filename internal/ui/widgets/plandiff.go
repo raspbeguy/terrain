@@ -11,7 +11,7 @@ import (
 )
 
 // PlanDiff renders parsed plan changes as expander rows. Built on
-// AdwPreferencesPage rather than a virtualized list — fine up to ~1k
+// AdwPreferencesPage rather than a virtualized list; fine up to ~1k
 // resources; revisit if real plans get bigger.
 type PlanDiff struct {
 	scroller   *gtk.ScrolledWindow

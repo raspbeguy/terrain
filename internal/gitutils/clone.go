@@ -20,7 +20,7 @@ type Auth struct{ method transport.AuthMethod }
 
 var NoAuth = Auth{}
 
-// HTTPSBasicAuth — most forges accept a PAT in the password slot with any non-empty username.
+// HTTPSBasicAuth: most forges accept a PAT in the password slot with any non-empty username.
 func HTTPSBasicAuth(username, token string) Auth {
 	if username == "" {
 		username = "git"
@@ -28,7 +28,7 @@ func HTTPSBasicAuth(username, token string) Auth {
 	return Auth{method: &githttp.BasicAuth{Username: username, Password: token}}
 }
 
-// SSHKeyAuth: user must match the URL's "user@host" — go-git's PublicKeys.User overrides the URL.
+// SSHKeyAuth: user must match the URL's "user@host"; go-git's PublicKeys.User overrides the URL.
 func SSHKeyAuth(privateKeyPath, user string) (Auth, error) {
 	signer, err := loadSigner(privateKeyPath)
 	if err != nil {
