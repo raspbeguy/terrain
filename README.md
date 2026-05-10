@@ -8,6 +8,8 @@ A native GNOME GUI for [Terraform](https://www.terraform.io/) and
 > variable editing, variable sets, and remote backends (HCP / TFE / OTF)
 > all work. Flathub submission is queued.
 
+![Workspace overview with the runs tab populated](docs/screenshots/workspace.png)
+
 ## Features
 
 - **Local projects from git**: point at a `git@…` or `https://…` URL + optional subpath; Terrain clones into its own data dir, no `~/code` access required. Multiple subpaths share one clone.
@@ -21,6 +23,14 @@ A native GNOME GUI for [Terraform](https://www.terraform.io/) and
 - **Managed binaries**: Terrain downloads + caches official OpenTofu / Terraform releases per workspace (verified against upstream `_SHA256SUMS`); default for new workspaces, no host install required
 - **Git auth in-app**: terrain-managed ed25519 SSH keys (generate or import) and libsecret-stored HTTPS tokens, both sandbox-clean
 - **Sync from git remote**: one-click `fetch + reset --hard` against the upstream repo
+
+## Screenshots
+
+![Plan diff viewer showing per-resource changes](docs/screenshots/plan-diff.png)
+
+![State tree with attribute viewer](docs/screenshots/state-tree.png)
+
+![Workspace variables with sensitive values masked](docs/screenshots/variables.png)
 
 ## Install
 
