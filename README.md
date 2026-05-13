@@ -40,8 +40,8 @@ artifacts:
 | File | When to use |
 |---|---|
 | `terrain-x86_64.flatpak` / `terrain-aarch64.flatpak` | Recommended. Works on any modern Linux desktop. `flatpak install --user --bundle ./terrain-x86_64.flatpak` |
-| `terrain-x86_64.AppImage` / `terrain-aarch64.AppImage` | Portable single-file binary with GTK and libadwaita bundled. Same OS targets as the glibc tarball. `chmod +x terrain-x86_64.AppImage && ./terrain-x86_64.AppImage` |
-| `terrain-linux-amd64-glibc.tar.gz` / `terrain-linux-arm64-glibc.tar.gz` | Host binary. Needs libadwaita ≥ 1.7 (Fedora 41+, Debian 13+, Ubuntu 24.10+, Arch). |
+| `terrain-x86_64.AppImage` / `terrain-aarch64.AppImage` | Portable single-file binary, GTK and libadwaita bundled. Built against glibc 2.41, so needs Ubuntu 25.04+, Fedora 42+, Debian 13+, or Arch. Older distros should use the Flatpak. `chmod +x terrain-x86_64.AppImage && ./terrain-x86_64.AppImage` |
+| `terrain-linux-amd64-glibc.tar.gz` / `terrain-linux-arm64-glibc.tar.gz` | Host binary. Needs glibc 2.41 and libadwaita 1.7 (Ubuntu 25.04+, Fedora 42+, Debian 13+, Arch). |
 | `terrain-linux-amd64-musl.tar.gz` / `terrain-linux-arm64-musl.tar.gz` | Host binary for musl distros (Alpine, Void, postmarketOS). |
 
 The host binaries dynamically link against GTK 4 / libadwaita / libsecret;

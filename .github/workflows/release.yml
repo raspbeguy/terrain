@@ -94,17 +94,20 @@ jobs:
           cp build/terrain LICENSE dist/
           tar czf terrain-linux-${{ matrix.goarch }}-glibc.tar.gz -C dist .
 
+      - name: Install linuxdeploy
+        id: linuxdeploy
+        uses: miurahr/install-linuxdeploy-action@v1.8.0
+        with:
+          plugins: gtk appimage
+
       - name: Build AppImage
         env:
           APPIMAGE_EXTRACT_AND_RUN: 1
           DEPLOY_GTK_VERSION: 4
           LDAI_OUTPUT: terrain-${{ matrix.appimage_arch }}.AppImage
         run: |
-          wget -q https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-${{ matrix.appimage_arch }}.AppImage -O /usr/local/bin/linuxdeploy
-          wget -q https://raw.githubusercontent.com/linuxdeploy/linuxdeploy-plugin-gtk/master/linuxdeploy-plugin-gtk.sh -O /usr/local/bin/linuxdeploy-plugin-gtk
-          chmod +x /usr/local/bin/linuxdeploy /usr/local/bin/linuxdeploy-plugin-gtk
           DESTDIR="$PWD/AppDir" meson install -C build
-          linuxdeploy --appdir AppDir --plugin gtk --output appimage \
+          ${{ steps.linuxdeploy.outputs.linuxdeploy }} --appdir AppDir --plugin gtk --output appimage \
             --desktop-file AppDir/usr/share/applications/io.github.raspbeguy.Terrain.desktop \
             --icon-file AppDir/usr/share/icons/hicolor/scalable/apps/io.github.raspbeguy.Terrain.svg
 
