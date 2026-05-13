@@ -54,8 +54,10 @@ jobs:
         include:
           - goarch: amd64
             runner: ubuntu-latest
+            appimage_arch: x86_64
           - goarch: arm64
             runner: ubuntu-24.04-arm
+            appimage_arch: aarch64
     # Ubuntu 24.04 LTS ships libadwaita 1.5; gotk4-adwaita references 1.6+
     # symbols. Build in 25.04 (Plucky, libadwaita 1.7) so cgo compiles.
     runs-on: ${{ matrix.runner }}
@@ -69,7 +71,8 @@ jobs:
           apt-get install -y --no-install-recommends \
             build-essential pkg-config meson ninja-build blueprint-compiler \
             libgtk-4-dev libadwaita-1-dev libsecret-1-dev desktop-file-utils \
-            libgirepository1.0-dev git ca-certificates
+            libgirepository1.0-dev git ca-certificates \
+            patchelf wget file libfuse2t64 libglib2.0-bin
 
       - uses: actions/checkout@v6
 
@@ -91,11 +94,39 @@ jobs:
           cp build/terrain LICENSE dist/
           tar czf terrain-linux-${{ matrix.goarch }}-glibc.tar.gz -C dist .
 
-      - name: Attach binary to GitHub Release
+      - name: Build AppImage
+        env:
+          APPIMAGE_EXTRACT_AND_RUN: 1
+        run: |
+          wget -q https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-${{ matrix.appimage_arch }}.AppImage -O /usr/local/bin/linuxdeploy
+          wget -q https://github.com/linuxdeploy/linuxdeploy-plugin-gtk/releases/download/continuous/linuxdeploy-plugin-gtk.sh -O /usr/local/bin/linuxdeploy-plugin-gtk
+          chmod +x /usr/local/bin/linuxdeploy /usr/local/bin/linuxdeploy-plugin-gtk
+          DESTDIR="$PWD/AppDir" meson install -C build
+          linuxdeploy --appdir AppDir --plugin gtk --output appimage \
+            --desktop-file AppDir/usr/share/applications/io.github.raspbeguy.Terrain.desktop \
+            --icon-file AppDir/usr/share/icons/hicolor/scalable/apps/io.github.raspbeguy.Terrain.svg
+          mv Terrain-*.AppImage terrain-${{ matrix.appimage_arch }}.AppImage
+
+      - name: Smoke test the AppImage
+        env:
+          APPIMAGE_EXTRACT_AND_RUN: 1
+        run: ./terrain-${{ matrix.appimage_arch }}.AppImage --diagnose
+
+      - name: Upload AppImage as workflow artifact
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: terrain-${{ matrix.appimage_arch }}.AppImage
+          path: terrain-${{ matrix.appimage_arch }}.AppImage
+          if-no-files-found: error
+
+      - name: Attach binaries to GitHub Release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          files: terrain-linux-${{ matrix.goarch }}-glibc.tar.gz
+          files: |
+            terrain-linux-${{ matrix.goarch }}-glibc.tar.gz
+            terrain-${{ matrix.appimage_arch }}.AppImage
           fail_on_unmatched_files: true
 
   binary-musl:

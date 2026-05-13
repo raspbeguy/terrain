@@ -34,12 +34,13 @@ A native GNOME GUI for [Terraform](https://www.terraform.io/) and
 
 ## Install
 
-Each [release](https://github.com/raspbeguy/terrain/releases) ships six
+Each [release](https://github.com/raspbeguy/terrain/releases) ships eight
 artifacts:
 
 | File | When to use |
 |---|---|
 | `terrain-x86_64.flatpak` / `terrain-aarch64.flatpak` | Recommended. Works on any modern Linux desktop. `flatpak install --user --bundle ./terrain-x86_64.flatpak` |
+| `terrain-x86_64.AppImage` / `terrain-aarch64.AppImage` | Portable single-file binary with GTK and libadwaita bundled. Same OS targets as the glibc tarball. `chmod +x terrain-x86_64.AppImage && ./terrain-x86_64.AppImage` |
 | `terrain-linux-amd64-glibc.tar.gz` / `terrain-linux-arm64-glibc.tar.gz` | Host binary. Needs libadwaita ≥ 1.7 (Fedora 41+, Debian 13+, Ubuntu 24.10+, Arch). |
 | `terrain-linux-amd64-musl.tar.gz` / `terrain-linux-arm64-musl.tar.gz` | Host binary for musl distros (Alpine, Void, postmarketOS). |
 
