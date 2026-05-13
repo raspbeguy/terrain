@@ -64,6 +64,8 @@ jobs:
     timeout-minutes: 60
     container:
       image: ubuntu:25.04
+    env:
+      GOFLAGS: -buildvcs=false
     steps:
       - name: Install build deps
         run: |
@@ -82,8 +84,6 @@ jobs:
           cache: true
 
       - name: Build with meson
-        env:
-          GOFLAGS: -buildvcs=false
         run: |
           meson setup build
           meson compile -C build
