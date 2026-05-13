@@ -99,7 +99,7 @@ jobs:
           APPIMAGE_EXTRACT_AND_RUN: 1
         run: |
           wget -q https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-${{ matrix.appimage_arch }}.AppImage -O /usr/local/bin/linuxdeploy
-          wget -q https://github.com/linuxdeploy/linuxdeploy-plugin-gtk/releases/download/continuous/linuxdeploy-plugin-gtk.sh -O /usr/local/bin/linuxdeploy-plugin-gtk
+          wget -q https://raw.githubusercontent.com/linuxdeploy/linuxdeploy-plugin-gtk/master/linuxdeploy-plugin-gtk.sh -O /usr/local/bin/linuxdeploy-plugin-gtk
           chmod +x /usr/local/bin/linuxdeploy /usr/local/bin/linuxdeploy-plugin-gtk
           DESTDIR="$PWD/AppDir" meson install -C build
           linuxdeploy --appdir AppDir --plugin gtk --output appimage \
