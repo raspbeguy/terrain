@@ -85,7 +85,7 @@ jobs:
 
       - name: Build with meson
         run: |
-          meson setup build
+          meson setup build --prefix=/usr
           meson compile -C build
 
       - name: Package binary tarball
@@ -97,6 +97,8 @@ jobs:
       - name: Build AppImage
         env:
           APPIMAGE_EXTRACT_AND_RUN: 1
+          DEPLOY_GTK_VERSION: 4
+          LDAI_OUTPUT: terrain-${{ matrix.appimage_arch }}.AppImage
         run: |
           wget -q https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-${{ matrix.appimage_arch }}.AppImage -O /usr/local/bin/linuxdeploy
           wget -q https://raw.githubusercontent.com/linuxdeploy/linuxdeploy-plugin-gtk/master/linuxdeploy-plugin-gtk.sh -O /usr/local/bin/linuxdeploy-plugin-gtk
@@ -105,7 +107,6 @@ jobs:
           linuxdeploy --appdir AppDir --plugin gtk --output appimage \
             --desktop-file AppDir/usr/share/applications/io.github.raspbeguy.Terrain.desktop \
             --icon-file AppDir/usr/share/icons/hicolor/scalable/apps/io.github.raspbeguy.Terrain.svg
-          mv Terrain-*.AppImage terrain-${{ matrix.appimage_arch }}.AppImage
 
       - name: Smoke test the AppImage
         env:
