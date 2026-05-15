@@ -183,7 +183,7 @@ jobs:
               desktop-file-utils \
               gtk4.0-dev libadwaita-dev gobject-introspection-dev libsecret-dev \
               git tar gzip go \
-              pax-utils squashfs-tools xvfb-run
+              pax-utils lddtree squashfs-tools xvfb-run
             apk add --no-cache \
               --repository=https://dl-cdn.alpinelinux.org/alpine/edge/testing \
               appimagetool
@@ -204,12 +204,12 @@ jobs:
             OUTPUT="terrain-${APPIMAGE_ARCH}-musl.AppImage" \
                 build-aux/build-appimage.sh
 
-            # GUI smoke test: boot the AppImage long enough to fail loudly
-            # if a library or schema is missing. Extract-and-run avoids
-            # needing FUSE inside the docker container.
-            APPIMAGE_EXTRACT_AND_RUN=1 timeout 8 xvfb-run -a \
-                "./terrain-${APPIMAGE_ARCH}-musl.AppImage" \
-                || [ "$?" = 124 ]   # 124 = timeout hit, GUI stayed up
+            # GUI smoke test: reuse the meson smoke script which runs the
+            # binary under xvfb-run + timeout and grep's the log for
+            # "window built" / panics. Extract-and-run avoids needing
+            # FUSE inside the docker container.
+            APPIMAGE_EXTRACT_AND_RUN=1 build-aux/meson/smoke.sh \
+                "./terrain-${APPIMAGE_ARCH}-musl.AppImage" 6
           '
 
       - name: Attach binaries to GitHub Release
