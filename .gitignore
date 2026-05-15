@@ -11,6 +11,9 @@
 /cmd/terrain/terrain
 /terrain
 /*.flatpak
+/*.AppImage
+/AppDir/
+/squashfs-root/
 
 # Local agent state
 /.claude/
