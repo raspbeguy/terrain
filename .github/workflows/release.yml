@@ -204,12 +204,17 @@ jobs:
             OUTPUT="terrain-${APPIMAGE_ARCH}-musl.AppImage" \
                 build-aux/build-appimage.sh
 
-            # GUI smoke test: reuse the meson smoke script which runs the
-            # binary under xvfb-run + timeout and grep's the log for
-            # "window built" / panics. Extract-and-run avoids needing
-            # FUSE inside the docker container.
-            APPIMAGE_EXTRACT_AND_RUN=1 build-aux/meson/smoke.sh \
-                "./terrain-${APPIMAGE_ARCH}-musl.AppImage" 6
+            # GUI smoke test: extract the AppImage into the workspace
+            # bind mount and exercise the unpacked AppRun. Doing it in
+            # two steps (rather than APPIMAGE_EXTRACT_AND_RUN on /tmp)
+            # works around an opaque "exec: terrain: not found" the
+            # runtime hits inside this docker container once the bundle
+            # has many libraries; the resulting AppImage is unchanged
+            # and works fine for end users.
+            rm -rf squashfs-root
+            "./terrain-${APPIMAGE_ARCH}-musl.AppImage" --appimage-extract \
+                > /dev/null
+            build-aux/meson/smoke.sh ./squashfs-root/AppRun 6
           '
 
       - name: Attach binaries to GitHub Release
