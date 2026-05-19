@@ -32,11 +32,39 @@ mkdir -p "$APPDIR/usr/lib"
 # The musl loader and libc *are* the ABI we target. Bundling them would
 # make the AppImage refuse to run on glibc hosts AND break on Alpine
 # version mismatches. Same for any rare glibc loader name that sneaks
-# in. Everything else, we own.
+# in. Beyond that we follow the AppImage upstream excludelist
+# (https://github.com/AppImage/pkg2appimage/blob/master/excludelist):
+# libraries that are tied to the host kernel/display/graphics stack
+# fail in obscure ways when bundled, and the symbol-versioned ones
+# (libgcc_s, libstdc++) need to match the host stdlib.
 lddtree -l "$APPDIR/$BIN_REL" | while read -r path; do
 	name=$(basename "$path")
 	case "$name" in
 		ld-musl-*|libc.musl-*|ld-linux-*|terrain) continue ;;
+		# GPU / GL / Vulkan stack: kernel DRM ABI + driver layout.
+		libGL.so.*|libEGL.so.*|libGLX.so.*|libGLdispatch.so.*) continue ;;
+		libOpenGL.so.*|libgbm.so.*|libvulkan.so.*) continue ;;
+		libdrm.so.*|libdrm_*.so.*) continue ;;
+		# Mesa transitive bulk; not portable across host kernels.
+		libLLVM*.so.*|libSPIRV-Tools.so*) continue ;;
+		# X11 / Wayland client protocol libs talk to the host display
+		# server; mismatching them severs the connection.
+		libX11.so.*|libX11-xcb.so.*|libXau.so.*|libXdmcp.so.*) continue ;;
+		libXcursor.so.*|libXdamage.so.*|libXext.so.*|libXfixes.so.*) continue ;;
+		libXi.so.*|libXinerama.so.*|libXrandr.so.*) continue ;;
+		libXrender.so.*|libXxf86vm.so.*) continue ;;
+		libxcb.so.*|libxcb-*.so.*) continue ;;
+		libwayland-client.so.*|libwayland-cursor.so.*) continue ;;
+		libwayland-egl.so.*|libwayland-server.so.*) continue ;;
+		# Kernel-ABI / host-services integration.
+		libudev.so.*|libsystemd.so.*) continue ;;
+		# Symbol versioning forces matching host stdlib.
+		libgcc_s.so.*|libstdc++.so.*) continue ;;
+		# Ubiquitous and ABI-stable on every musl distro; bundling them
+		# just adds weight and risks GLIBCXX-style mismatches.
+		libz.so.*|libexpat.so.*) continue ;;
+		libfreetype.so.*|libfontconfig.so.*) continue ;;
+		libharfbuzz.so.*|libgmp.so.*) continue ;;
 	esac
 	[ -f "$path" ] || continue
 
