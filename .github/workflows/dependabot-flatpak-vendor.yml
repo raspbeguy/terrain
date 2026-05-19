@@ -1,0 +1,43 @@
+name: Regenerate Flatpak vendor manifest
+
+on:
+  pull_request:
+    paths:
+      - go.mod
+      - go.sum
+
+permissions:
+  contents: write
+
+jobs:
+  regen:
+    if: github.actor == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR head
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.head_ref }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      - name: Install flatpak-go-mod
+        run: go install github.com/dennwc/flatpak-go-mod@latest
+
+      - name: Regenerate vendor manifest
+        run: $(go env GOPATH)/bin/flatpak-go-mod -out build-aux/flatpak .
+
+      - name: Commit and push if changed
+        run: |
+          if git diff --quiet build-aux/flatpak/go.mod.yml build-aux/flatpak/modules.txt; then
+            echo "Vendor manifest already in sync."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add build-aux/flatpak/go.mod.yml build-aux/flatpak/modules.txt
+          git commit -m "Regenerate Flatpak vendor manifest"
+          git push
