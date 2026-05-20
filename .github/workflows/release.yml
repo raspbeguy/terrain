@@ -31,7 +31,7 @@ jobs:
           if [ "${GITHUB_REF#refs/tags/}" != "$GITHUB_REF" ]; then
             V="${GITHUB_REF_NAME#v}"
           else
-            V="0.0.0-dev"
+            V="99.99.99-dev"
           fi
           sed -i "s|__TERRAIN_VERSION__|${V}|" build-aux/flatpak/io.github.raspbeguy.Terrain.yml
 
@@ -183,7 +183,7 @@ jobs:
           if [ "${GITHUB_REF#refs/tags/}" != "$GITHUB_REF" ]; then
             TERRAIN_VERSION="${GITHUB_REF_NAME#v}"
           else
-            TERRAIN_VERSION="0.0.0-dev"
+            TERRAIN_VERSION="99.99.99-dev"
           fi
           export TERRAIN_VERSION
           mkdir -p ~/.cache/go-build ~/go/pkg/mod
