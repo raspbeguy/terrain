@@ -10,9 +10,7 @@ import (
 	tfjson "github.com/hashicorp/terraform-json"
 )
 
-// PlanDiff renders parsed plan changes as expander rows. Built on
-// AdwPreferencesPage rather than a virtualized list; fine up to ~1k
-// resources; revisit if real plans get bigger.
+// AdwPreferencesPage not virtualized; revisit above ~1k resources.
 type PlanDiff struct {
 	scroller   *gtk.ScrolledWindow
 	body       *gtk.Box
@@ -51,7 +49,6 @@ func NewPlanDiff() *PlanDiff {
 
 func (pd *PlanDiff) Root() *gtk.ScrolledWindow { return pd.scroller }
 
-// Bind replaces the current view; nil or no-change plans show the empty state.
 func (pd *PlanDiff) Bind(plan *tfjson.Plan) {
 	pd.clear()
 	if plan == nil {
@@ -113,7 +110,7 @@ func buildResourceRow(rc *tfjson.ResourceChange) *adw.ExpanderRow {
 	return row
 }
 
-// buildAttributeRows: top-level attributes only; nested values need a real diff walker.
+// Top-level attributes only; nested values need a real diff walker.
 func buildAttributeRows(rc *tfjson.ResourceChange) []*adw.ActionRow {
 	before, _ := rc.Change.Before.(map[string]any)
 	after, _ := rc.Change.After.(map[string]any)
@@ -256,7 +253,6 @@ func truncate(s string, n int) string {
 	return s[:n-1] + "…"
 }
 
-// escapeMarkup hides Pango metacharacters; resource addresses can contain `<`.
 func escapeMarkup(s string) string {
 	return strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;").Replace(s)
 }

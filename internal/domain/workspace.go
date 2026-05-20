@@ -2,33 +2,23 @@ package domain
 
 import "time"
 
-// Workspace is a unit of state. For TFE/HCP/OTF it's a first-class API
-// object; for local it's a project directory + a tofu workspace name.
+// Local ID format: "<backend-id>:<project-id>:<ws-name>".
 type Workspace struct {
-	// ID is unique within its Backend. Local format:
-	// "<backend-id>:<project-id>:<ws-name>". Remote: the API ID.
-	ID        string
-	BackendID string
-	Name      string
-	// ProjectName / ProjectID identify the parent grouping (registered
-	// project for local; TFE project / organization for remote).
-	ProjectName string
-	ProjectID   string
-	// WorkingDirectory is empty for the project root.
+	ID               string
+	BackendID        string
+	Name             string
+	ProjectName      string
+	ProjectID        string
 	WorkingDirectory string
-	// GitURL/GitRef/Subpath populated for local workspaces (clone-backed); empty for remote.
-	GitURL  string
-	GitRef  string
-	Subpath string
-	// TerraformVersion is empty when undeclared (local auto-detects).
+	GitURL           string
+	GitRef           string
+	Subpath          string
 	TerraformVersion string
-	// ExecutionMode mirrors TFE ("local"/"remote"/"agent"); local
-	// backend always reports "local".
-	ExecutionMode string
-	Locked        bool
-	LockedBy      string
-	LockedAt      time.Time
-	Description   string
+	ExecutionMode    string
+	Locked           bool
+	LockedBy         string
+	LockedAt         time.Time
+	Description      string
 }
 
 type ProjectChoice struct {

@@ -1,6 +1,4 @@
-// Package resources embeds the compiled GResource bundle. The bundle byte
-// slice (Data) lives in data_embed.go (tag embed_gresource) or data_default.go
-// (no tag) so `go build` works without first running meson.
+// Package resources: gresource bundle; build tag embed_gresource toggles populated vs empty.
 package resources
 
 import (
@@ -12,8 +10,6 @@ import (
 
 var ErrNoResources = errors.New("no embedded gresource bundle (built without -tags embed_gresource)")
 
-// Register: ErrNoResources means the binary was built without the
-// embed_gresource tag; soft error during development.
 func Register() error {
 	if len(Data) == 0 {
 		return ErrNoResources

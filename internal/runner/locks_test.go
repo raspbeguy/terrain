@@ -20,7 +20,6 @@ func TestWorkspaceLocks_TryAcquireBasic(t *testing.T) {
 		t.Fatal("second TryAcquire on same ws should fail")
 	}
 
-	// Different workspace shouldn't conflict.
 	rel2, ok := w.TryAcquire("ws-2")
 	if !ok {
 		t.Fatal("TryAcquire on different ws should succeed")
@@ -53,14 +52,12 @@ func TestWorkspaceLocks_AcquireBlocks(t *testing.T) {
 	case <-acquired:
 		t.Fatal("Acquire should have blocked while lock was held")
 	case <-time.After(50 * time.Millisecond):
-		// expected: the goroutine is parked
 	}
 
 	rel()
 
 	select {
 	case <-acquired:
-		// expected: now unblocks
 	case <-time.After(500 * time.Millisecond):
 		t.Fatal("Acquire didn't unblock after release")
 	}
@@ -72,7 +69,7 @@ func TestWorkspaceLocks_ReleaseIsIdempotent(t *testing.T) {
 
 	rel, _ := w.TryAcquire("ws-r")
 	rel()
-	rel() // would panic without sync.Once guard
+	rel()
 	rel()
 
 	if _, ok := w.TryAcquire("ws-r"); !ok {

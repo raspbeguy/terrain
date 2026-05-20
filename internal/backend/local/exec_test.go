@@ -10,9 +10,6 @@ import (
 	"github.com/raspbeguy/terrain/internal/domain"
 )
 
-// TestStreamCommand_basic verifies streamCommand collects stdout and stderr
-// lines and returns a clean exit status for a successful command. Uses /bin/sh
-// to write a known number of lines to each pipe.
 func TestStreamCommand_basic(t *testing.T) {
 	t.Parallel()
 
@@ -29,8 +26,6 @@ func TestStreamCommand_basic(t *testing.T) {
 
 	out := make(chan domain.LogLine, 16)
 	go func() {
-		// Drain in a goroutine so the producer doesn't block.
-		// We collect lines into a slice so the test can assert order.
 	}()
 
 	var collected []domain.LogLine
@@ -50,8 +45,6 @@ func TestStreamCommand_basic(t *testing.T) {
 	close(out)
 	<-collectDone
 
-	// Expect 4 lines. Order between stdout/stderr is timing-dependent so we
-	// just check counts and presence.
 	if len(collected) != 4 {
 		t.Fatalf("expected 4 lines, got %d: %+v", len(collected), collected)
 	}
@@ -73,8 +66,6 @@ func TestStreamCommand_basic(t *testing.T) {
 	}
 }
 
-// TestStreamCommand_jsonParse verifies that JSON stdout lines populate
-// LogLine.JSON, and that non-JSON stdout falls through with JSON nil.
 func TestStreamCommand_jsonParse(t *testing.T) {
 	t.Parallel()
 
@@ -109,8 +100,6 @@ func TestStreamCommand_jsonParse(t *testing.T) {
 		t.Fatalf("expected 2 lines, got %d", len(collected))
 	}
 
-	// Find the JSON line by content rather than index; order isn't
-	// guaranteed if stdout writes interleave.
 	var jsonLine, plainLine *domain.LogLine
 	for i := range collected {
 		if strings.Contains(collected[i].Text, "@message") {
@@ -135,15 +124,11 @@ func TestStreamCommand_jsonParse(t *testing.T) {
 	}
 }
 
-// TestStreamCommand_cancel verifies SIGINT delivery on context cancel and
-// that we return promptly without leaking goroutines.
 func TestStreamCommand_cancel(t *testing.T) {
 	t.Parallel()
 
 	ctx, cancel := context.WithCancel(context.Background())
 
-	// A shell that traps SIGINT and exits cleanly. Without trap, /bin/sh
-	// inherits SIGINT default and exits with 130.
 	const script = `
 		trap "echo got-int; exit 130" INT
 		echo started
@@ -179,15 +164,10 @@ func TestStreamCommand_cancel(t *testing.T) {
 	close(out)
 	<-collectDone
 
-	// Some non-nil error is expected; either exec.ExitError(130) or a context
-	// cancellation surfaced via cmd.Wait. We just check the run actually
-	// stopped within a reasonable time.
 	if err == nil {
 		t.Fatal("expected an error from cancelled run, got nil")
 	}
 	if exitCodeOf(err) > 130 || exitCodeOf(err) == 0 {
-		// SIGINT-handled scripts exit 130 on dash/bash; -1 also acceptable.
-		// Just sanity check it's not a clean exit (which would mean cancel didn't work).
 		t.Logf("non-zero exit ok: %v", err)
 	}
 }

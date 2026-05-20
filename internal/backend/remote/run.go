@@ -17,13 +17,8 @@ import (
 	"github.com/raspbeguy/terrain/internal/domain"
 )
 
-// pollInterval balances API quota against UI responsiveness; TFE phase
-// transitions take ~5s, so faster polls just burn quota.
 const pollInterval = 2 * time.Second
 
-// maxConsecutiveErrors ≈ 10s of poll failure; enough to ride a network
-// blip but short enough that a permanent failure (revoked token,
-// deleted org) doesn't spin forever.
 const maxConsecutiveErrors = 5
 
 type remoteStream struct {
@@ -47,8 +42,7 @@ func (s *remoteStream) Logs() <-chan domain.LogLine     { return s.logs }
 func (s *remoteStream) Plan() <-chan *domain.PlanResult { return s.plan }
 func (s *remoteStream) Done() <-chan error              { return s.done }
 
-// StartRun routes plan/destroy through Runs.Create; apply confirms +
-// polls the parent run (TFE folds plan + apply into one run object).
+// Plan/destroy → Runs.Create; apply confirms parent (TFE folds plan+apply into one run).
 func (b *Backend) StartRun(parent context.Context, req domain.RunRequest) (
 	domain.Run, domain.RunStream, domain.CancelFunc, error,
 ) {
@@ -103,9 +97,7 @@ func (b *Backend) startNewRun(parent context.Context, req domain.RunRequest) (
 	stream := newRemoteStream()
 
 	cancelFn := func(callerCtx context.Context) error {
-		// Soft cancel only; ForceCancel needs explicit user confirmation
-		// elsewhere. ctx cancel stops the polling loop within pollInterval
-		// even if the API call fails.
+		// Soft cancel only; ForceCancel needs explicit user confirmation elsewhere.
 		err := b.client.Runs.Cancel(callerCtx, tfeRun.ID, tfe.RunCancelOptions{})
 		cancelCtx()
 		if err != nil && !errors.Is(err, tfe.ErrResourceNotFound) {
@@ -171,16 +163,12 @@ func (b *Backend) startApply(parent context.Context, req domain.RunRequest) (
 	return run, stream, cancelFn, nil
 }
 
-// pollRun drives one remote run's lifecycle, transitioning status and
-// fanning out log streams for plan/apply phases.
 func (b *Backend) pollRun(ctx context.Context, run domain.Run, initial *tfe.Run, stream *remoteStream) {
 	var (
 		finalErr    error
 		lastStatus  = domain.StatusPending
 		planEmitted bool
-		// logsWG ensures plan/apply log goroutines finish before
-		// stream.logs closes.
-		logsWG sync.WaitGroup
+		logsWG      sync.WaitGroup
 	)
 
 	setStatus := func(s domain.RunStatus, msg string) {
@@ -243,7 +231,6 @@ func (b *Backend) pollRun(ctx context.Context, run domain.Run, initial *tfe.Run,
 		}()
 	}
 
-	// Seed log goroutines if Plan/Apply are linked at create time.
 	if initial.Plan != nil {
 		startPlanLogs(initial.Plan.ID)
 	}
@@ -266,7 +253,6 @@ func (b *Backend) pollRun(ctx context.Context, run domain.Run, initial *tfe.Run,
 		}
 
 		readCtx, readCancel := context.WithTimeout(ctx, 10*time.Second)
-		// Include Plan & Apply so we get their IDs in one round-trip.
 		tfeRun, err := b.client.Runs.ReadWithOptions(readCtx, run.ID, &tfe.RunReadOptions{
 			Include: []tfe.RunIncludeOpt{tfe.RunPlan, tfe.RunApply},
 		})
@@ -277,15 +263,11 @@ func (b *Backend) pollRun(ctx context.Context, run domain.Run, initial *tfe.Run,
 				finalErr = ctx.Err()
 				return
 			}
-			// Run-not-found is terminal; no retry helps.
 			if errors.Is(err, tfe.ErrResourceNotFound) {
 				setStatus(domain.StatusErrored, "run not found by API: "+err.Error())
 				finalErr = err
 				return
 			}
-			// Transient errors get retried up to maxConsecutiveErrors;
-			// after that we declare the run errored so a permanent
-			// failure doesn't leave the loop spinning.
 			consecutiveErrors++
 			slog.Warn("remote run poll failed",
 				"id", run.ID, "err", err, "consecutive", consecutiveErrors)
@@ -310,8 +292,7 @@ func (b *Backend) pollRun(ctx context.Context, run domain.Run, initial *tfe.Run,
 			startApplyLogs(tfeRun.Apply.ID)
 		}
 
-		// JSONOutput is only available after the plan finishes; gate
-		// on StatusPlanned and beyond.
+		// JSONOutput is only available once the plan has finished.
 		if !planEmitted && tfeRun.Plan != nil &&
 			(mapped == domain.StatusPlanned ||
 				mapped == domain.StatusConfirmed ||
@@ -327,8 +308,7 @@ func (b *Backend) pollRun(ctx context.Context, run domain.Run, initial *tfe.Run,
 	}
 }
 
-// emitPlanResult always emits a PlanResult (even when JSON fetch fails)
-// so the UI has the RunID to apply.
+// Always emits a PlanResult (even on JSON fetch failure) so UI has a RunID to apply.
 func (b *Backend) emitPlanResult(ctx context.Context, runID, planID string, stream *remoteStream) {
 	result := &domain.PlanResult{RunID: runID}
 
@@ -354,8 +334,7 @@ func (b *Backend) emitPlanResult(ctx context.Context, runID, planID string, stre
 	}
 }
 
-// streamLogs scans the long-poll log reader (blocks until the
-// plan/apply finishes) into the LogLine channel.
+// Long-poll reader; blocks until the plan/apply finishes.
 func (b *Backend) streamLogs(
 	ctx context.Context,
 	fetch func(context.Context, string) (io.Reader, error),
@@ -371,7 +350,6 @@ func (b *Backend) streamLogs(
 	scanner := bufio.NewScanner(r)
 	scanner.Buffer(make([]byte, 64*1024), 1<<20)
 	for scanner.Scan() {
-		// ctx may have been cancelled while Scan was blocked.
 		if ctx.Err() != nil {
 			return
 		}
@@ -391,9 +369,6 @@ func (b *Backend) streamLogs(
 	}
 }
 
-// mapStatus translates a TFE run status into our domain superset. The
-// secondary string is a free-form message for the run timeline (mostly for
-// UI clarity; not all transitions need one).
 func mapStatus(s tfe.RunStatus) (domain.RunStatus, string) {
 	switch s {
 	case tfe.RunPending:

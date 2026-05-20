@@ -15,34 +15,25 @@ import (
 	"github.com/raspbeguy/terrain/internal/secrets"
 )
 
-// resolvedVars carries one run's materialized variables, split because
-// terraform vars go to -var-file and env vars go to cmd.Env.
 type resolvedVars struct {
 	Terraform map[string]termValue
 	Env       map[string]string
 }
 
-// termValue carries just enough type info to serialize a terraform
-// variable correctly. Priority: cty (fully-typed) > hcl (raw expression
-// emitted verbatim) > raw string (quoted as cty.StringVal; terraform
-// auto-coerces to declared scalar types but NOT to lists/objects).
+// Priority: cty (typed) > hcl (raw expression) > raw string.
 type termValue struct {
 	cty *cty.Value
 	raw string
 	hcl bool
 }
 
-// materialize resolves run-time variables. Precedence (lowest → highest):
-// (1) variable sets [global → project → workspace, sorted by priority
-// asc within each scope], (2) workspace tfvars, (3) workspace sensitive
-// vars from keyring. Mirrors TFE's server-side merge.
+// Precedence: variable sets < workspace tfvars < keyring sensitives < env.
 func (b *Backend) materialize(ws domain.Workspace) *resolvedVars {
 	rv := &resolvedVars{
 		Terraform: map[string]termValue{},
 		Env:       map[string]string{},
 	}
 
-	// 1. Variable sets, lowest precedence; later wins.
 	if sets, err := b.VariableSets(context.Background()); err == nil {
 		for _, set := range applicableSets(sets, ws) {
 			for _, v := range set.Variables {
@@ -66,9 +57,6 @@ func (b *Backend) materialize(ws domain.Workspace) *resolvedVars {
 		return rv
 	}
 
-	// 2. Workspace tfvars + terrain's overrides file (outside project
-	// tree, takes precedence over project tfvars). cty.Value carries
-	// type info so hclwrite emits typed literals; no coercion needed.
 	overrides, _ := overridesPath(b.id, ws.ID)
 	declared, _ := hcl.LoadVariablesWithExtras(ws.WorkingDirectory, overrides)
 	for _, v := range declared {
@@ -78,16 +66,13 @@ func (b *Backend) materialize(ws domain.Workspace) *resolvedVars {
 		}
 	}
 
-	// 3. Sensitive vars from keyring (highest). Raw strings; terraform
-	// auto-coerces to declared scalars. Complex-typed sensitives must
-	// go through a varset with HCL=true.
+	// Complex-typed sensitives must go through a varset with HCL=true.
 	for _, v := range declared {
 		if val, err := secrets.Get(secretKey(b.id, ws.ID, v.Name)); err == nil {
 			rv.Terraform[v.Name] = termValue{raw: val}
 		}
 	}
 
-	// 4. Env vars from keyring; workspace entries overlay varset.
 	names, _ := loadEnvIndex(b.id, ws.ID)
 	for _, name := range names {
 		if val, err := secrets.Get(envKey(b.id, ws.ID, name)); err == nil {
@@ -97,10 +82,7 @@ func (b *Backend) materialize(ws domain.Workspace) *resolvedVars {
 	return rv
 }
 
-// writeVarFile emits an HCL tfvars (not JSON, so number/list/object
-// types survive; JSON-string would trip terraform's "Invalid value for
-// input variable"). Returns "" when there are no vars. 0600 perms;
-// caller deletes on terminal status.
+// HCL (not JSON) preserves list/object types; caller deletes on terminal status.
 func (rv *resolvedVars) writeVarFile(runDir string) (string, error) {
 	if len(rv.Terraform) == 0 {
 		return "", nil
@@ -112,7 +94,6 @@ func (rv *resolvedVars) writeVarFile(runDir string) (string, error) {
 	f := hclwrite.NewEmptyFile()
 	body := f.Body()
 
-	// Deterministic key order for diffable run artifacts.
 	keys := make([]string, 0, len(rv.Terraform))
 	for k := range rv.Terraform {
 		keys = append(keys, k)
@@ -137,9 +118,7 @@ func (rv *resolvedVars) writeVarFile(runDir string) (string, error) {
 	return path, nil
 }
 
-// applicableSets returns the sets that apply to ws, ordered lowest-
-// precedence first. Within each scope, sorted by priority asc (higher
-// applied last so it wins).
+// Lowest-precedence first; within scope, higher priority applied last.
 func applicableSets(all []domain.VariableSet, ws domain.Workspace) []domain.VariableSet {
 	var globals, projects, workspaces []domain.VariableSet
 	for _, s := range all {

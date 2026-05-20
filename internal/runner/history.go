@@ -1,5 +1,4 @@
-// Package runner owns persistent run history. ndjson tolerates partial
-// writes (corrupt last line is skipped on List).
+// Package runner: persistent run history (ndjson; corrupt lines skipped on List).
 package runner
 
 import (
@@ -71,7 +70,6 @@ func (h *History) Record(e HistoryEntry) error {
 	return nil
 }
 
-// List returns entries in chronological order; corrupt lines are skipped.
 func (h *History) List() ([]HistoryEntry, error) {
 	h.mu.Lock()
 	defer h.mu.Unlock()

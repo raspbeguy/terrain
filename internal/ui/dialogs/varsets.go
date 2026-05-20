@@ -24,12 +24,8 @@ type VarsetsBackend interface {
 	DeleteVariableSetVar(ctx context.Context, setID, key string) error
 }
 
-// ProjectChoice re-exports domain.ProjectChoice so callers don't need
-// to import domain just for the type.
 type ProjectChoice = domain.ProjectChoice
 
-// VarsetsDialog hosts the variable-set management page (one instance
-// per opening).
 type VarsetsDialog struct {
 	dialog *adw.Dialog
 	nav    *adw.NavigationView
@@ -48,12 +44,10 @@ type VarsetsDialog struct {
 
 	projects   []ProjectChoice
 	workspaces []domain.Workspace
-	// listRows / detailVarRows / wsRows track Add()-ed children so we can Remove() them by reference (group.FirstChild() returns the internal Box, not added rows).
-	listRows      []gtk.Widgetter
-	detailVarRows []gtk.Widgetter
-	wsRows        []gtk.Widgetter
-	// suppressNotify gates the autosave handlers while we populate the
-	// form programmatically.
+	// PreferencesGroup.FirstChild() returns the internal Box, not added rows; track them ourselves.
+	listRows       []gtk.Widgetter
+	detailVarRows  []gtk.Widgetter
+	wsRows         []gtk.Widgetter
 	suppressNotify bool
 
 	backend VarsetsBackend
@@ -91,8 +85,6 @@ func newVarsetsDialog(backend VarsetsBackend, projects []ProjectChoice, workspac
 		workspaces:       workspaces,
 	}
 
-	// Project picker is populated once; mid-dialog registry changes
-	// aren't observed.
 	d.projects = projects
 	projectStrings := gtk.NewStringList(nil)
 	for _, p := range d.projects {
@@ -104,7 +96,6 @@ func newVarsetsDialog(backend VarsetsBackend, projects []ProjectChoice, workspac
 	d.detailAddVar.ConnectClicked(d.onAddVar)
 	d.detailDeleteBt.ConnectClicked(d.onDelete)
 
-	// Autosave on change; suppressNotify guards initial population.
 	d.detailNameRow.ConnectChanged(d.saveMeta)
 	d.detailDescRow.ConnectChanged(d.saveMeta)
 	d.detailScopeRow.Connect("notify::selected", func() {
@@ -291,7 +282,7 @@ func scopeToIndex(s domain.VariableScope) uint {
 	case domain.ScopeWorkspace:
 		return 2
 	}
-	return 0 // Global
+	return 0
 }
 
 func indexToScope(i uint) domain.VariableScope {
@@ -358,7 +349,6 @@ func buildSetVarRow(v domain.Variable) *adw.ActionRow {
 }
 
 func (d *VarsetsDialog) onCreate() {
-	// Quick-create with a placeholder name; the user renames in detail.
 	set, err := d.backend.CreateVariableSet(context.Background(), "Untitled Set", "")
 	if err != nil {
 		slog.Error("create varset", "err", err)
@@ -440,7 +430,7 @@ func itoa(n int) string {
 	return string(b[i:])
 }
 
-// truncate is duplicated from widgets.truncate to avoid an import cycle.
+// Duplicated from widgets to avoid an import cycle.
 func truncate(s string, n int) string {
 	if len(s) <= n {
 		return s
@@ -448,7 +438,6 @@ func truncate(s string, n int) string {
 	return s[:n-1] + "…"
 }
 
-// escapeMarkup is duplicated from widgets.escapeMarkup for the same reason.
 func escapeMarkup(s string) string {
 	return strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;").Replace(s)
 }

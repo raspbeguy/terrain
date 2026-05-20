@@ -10,7 +10,6 @@ import (
 	tfjson "github.com/hashicorp/terraform-json"
 )
 
-// LoadState runs `<binary> show -json` so the State tab can refresh without a run.
 func (b *Backend) LoadState(parent context.Context, workspaceID string) (*tfjson.State, error) {
 	wsCtx, cancel := context.WithTimeout(parent, 5*time.Second)
 	defer cancel()

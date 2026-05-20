@@ -13,7 +13,6 @@ import (
 	"strings"
 )
 
-// RefreshWorkspaces queries tofu (or scans terraform.tfstate.d/) and updates the per-backend cache.
 func (b *Backend) RefreshWorkspaces(ctx context.Context, projectID string) error {
 	p, ok := b.projectByID(projectID)
 	if !ok {
@@ -29,7 +28,7 @@ func (b *Backend) RefreshWorkspaces(ctx context.Context, projectID string) error
 	return nil
 }
 
-// discoverWorkspaces: tofu workspace list → terraform.tfstate.d/ scan → ["default"].
+// tofu workspace list → terraform.tfstate.d/ scan → ["default"].
 func (b *Backend) discoverWorkspaces(ctx context.Context, projectID, workDir string) []string {
 	if names, ok := b.tofuWorkspaceList(ctx, projectID, workDir); ok {
 		return sortWorkspaces(uniqueWithDefault(names))
@@ -58,7 +57,6 @@ func (b *Backend) tofuWorkspaceList(ctx context.Context, projectID, workDir stri
 	return parseWorkspaceList(stdout.String()), true
 }
 
-// parseWorkspaceList strips the "*" active marker and trims whitespace; defensive against tofu output drift.
 func parseWorkspaceList(stdout string) []string {
 	var out []string
 	for _, raw := range strings.Split(stdout, "\n") {
@@ -73,7 +71,6 @@ func parseWorkspaceList(stdout string) []string {
 	return out
 }
 
-// scanStateDirs reads terraform.tfstate.d/, the local-state backend's on-disk workspace layout.
 func scanStateDirs(workDir string) []string {
 	entries, err := os.ReadDir(filepath.Join(workDir, "terraform.tfstate.d"))
 	if err != nil {
@@ -105,7 +102,7 @@ func uniqueWithDefault(in []string) []string {
 	return out
 }
 
-// sortWorkspaces puts "default" first, the rest alphabetical.
+// "default" first, the rest alphabetical.
 func sortWorkspaces(names []string) []string {
 	out := append([]string(nil), names...)
 	sort.Slice(out, func(i, j int) bool {
@@ -120,7 +117,6 @@ func sortWorkspaces(names []string) []string {
 	return out
 }
 
-// CreateTofuWorkspace runs `tofu init` (if needed) then `tofu workspace new <name>`.
 func (b *Backend) CreateTofuWorkspace(ctx context.Context, projectID, name string) error {
 	if !IsValidWorkspaceName(name) {
 		return fmt.Errorf("invalid workspace name %q", name)
@@ -149,7 +145,7 @@ func (b *Backend) CreateTofuWorkspace(ctx context.Context, projectID, name strin
 	return nil
 }
 
-// DeleteTofuWorkspace switches to default first (tofu refuses to delete the active workspace) then removes the named one.
+// Switches to default first; tofu refuses to delete the active workspace.
 func (b *Backend) DeleteTofuWorkspace(ctx context.Context, projectID, name string) error {
 	if name == "default" {
 		return errors.New("the default workspace cannot be deleted")
@@ -194,7 +190,7 @@ func ensureTofuInit(ctx context.Context, workDir string, bin BinaryInfo) error {
 	return nil
 }
 
-// workspaceBin resolves the binary using the project's "default" workspace settings as a stand-in.
+// Uses the project's "default" workspace settings as a stand-in.
 func (b *Backend) workspaceBin(ctx context.Context, projectID string) (BinaryInfo, error) {
 	wsID := b.id + ":" + projectID + ":default"
 	settings, _ := LoadWorkspaceSettings(b.id, wsID)

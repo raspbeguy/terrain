@@ -4,7 +4,6 @@ project('terrain',
   license: 'GPL-3.0-or-later',
 )
 
-# Toolchain
 go_bin = find_program('go', required: true)
 go_version_check = run_command(go_bin, 'version', check: true).stdout().strip()
 message('Using Go: ' + go_version_check)
@@ -12,7 +11,6 @@ message('Using Go: ' + go_version_check)
 blueprint_compiler = find_program('blueprint-compiler', required: true, version: '>= 0.10')
 glib_compile_resources = find_program('glib-compile-resources', required: true)
 
-# Runtime dependencies (cgo links against these via gotk4)
 dependency('gtk4', version: '>= 4.10')
 dependency('libadwaita-1', version: '>= 1.4')
 
@@ -28,7 +26,6 @@ conf.set('VERSION', meson.project_version())
 
 subdir('data')
 
-# Compile Blueprint files (.blp) to GtkBuilder XML (.ui)
 blueprint_sources = [
   'window',
   'workspace-detail',
@@ -53,8 +50,7 @@ foreach name : blueprint_sources
   )
 endforeach
 
-# Bundle .ui files into a binary gresource. --sourcedir points at the build
-# directory because that's where the .ui files end up after blueprint compile.
+# --sourcedir is the build dir because blueprint compile lands .ui files there.
 gresource_xml = files('data/io.github.raspbeguy.Terrain.gresource.xml')
 
 terrain_gresource = custom_target('terrain-gresource',
@@ -68,8 +64,7 @@ terrain_gresource = custom_target('terrain-gresource',
   depends: blueprint_targets,
 )
 
-# Copy the gresource bundle into the source tree so `go build -tags
-# embed_gresource` can find it via go:embed. This file is .gitignored.
+# Copy into source tree so `go build -tags embed_gresource` can go:embed it (gitignored).
 embedded_gresource = custom_target('embed-gresource',
   input: terrain_gresource,
   output: 'gresource.stamp',
@@ -103,7 +98,6 @@ terrain_bin = custom_target('terrain-binary',
   console: true,
 )
 
-# Post-install: refresh icon cache + compile gschemas
 gnome = import('gnome')
 gnome.post_install(
   glib_compile_schemas: true,
@@ -111,11 +105,6 @@ gnome.post_install(
   update_desktop_database: true,
 )
 
-# Boot smoke test — runs the binary under xvfb-run and grep the log for
-# panics / Gtk-CRITICAL. Skipped automatically when xvfb-run isn't
-# installed (CI without an X stack, etc.). The test executes against the
-# fresh `terrain_bin` artifact, so it runs after every rebuild that
-# touches UI.
 xvfb_run = find_program('xvfb-run', required: false)
 if xvfb_run.found()
   smoke_sh = find_program('build-aux/meson/smoke.sh', required: true)

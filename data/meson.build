@@ -28,7 +28,6 @@ install_data(
   install_dir: get_option('datadir') / 'licenses' / app_id,
 )
 
-# Validate desktop and metainfo files when validators are present
 desktop_validate = find_program('desktop-file-validate', required: false)
 if desktop_validate.found()
   test('validate-desktop',

@@ -1,4 +1,3 @@
-// Package widgets holds GTK composites with too much logic for Blueprint.
 package widgets
 
 import (
@@ -10,9 +9,6 @@ import (
 	"github.com/raspbeguy/terrain/internal/domain"
 )
 
-// LogView: read-only monospaced log pane that autoscrolls when the
-// viewport is at the tail. Coloring uses Pango markup (TextTag would work
-// but is awkward in gotk4).
 type LogView struct {
 	scroller      *gtk.ScrolledWindow
 	view          *gtk.TextView
@@ -54,7 +50,7 @@ func NewLogView() *LogView {
 
 func (lv *LogView) Root() *gtk.ScrolledWindow { return lv.scroller }
 
-// Append must be called on the GTK main thread.
+// Must be called on the GTK main thread.
 func (lv *LogView) Append(line domain.LogLine) {
 	markup, ok := renderLine(line)
 	if !ok {
@@ -76,7 +72,6 @@ func (lv *LogView) Clear() {
 	lv.buf.Delete(start, end)
 }
 
-// renderLine returns false for lines that should be skipped.
 func renderLine(line domain.LogLine) (string, bool) {
 	text := pickDisplay(line)
 	if text == "" {

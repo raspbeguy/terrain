@@ -7,9 +7,7 @@ import (
 	"os"
 )
 
-// envIndex lists env-var names per workspace; values remain in the
-// keyring. Needed because libsecret/Keychain have no portable List API,
-// so we can't enumerate workspace env-vars from the keyring alone.
+// libsecret/Keychain lack a portable List API; we cache names on disk.
 type envIndex []string
 
 func loadEnvIndex(backendID, workspaceID string) ([]string, error) {
@@ -47,7 +45,6 @@ func saveEnvIndex(backendID, workspaceID string, names []string) error {
 	return os.WriteFile(path, data, 0o644)
 }
 
-// addEnvVar is idempotent.
 func addEnvVar(backendID, workspaceID, name string) error {
 	names, _ := loadEnvIndex(backendID, workspaceID)
 	for _, n := range names {

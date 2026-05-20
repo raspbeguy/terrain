@@ -16,14 +16,12 @@ import (
 	"github.com/raspbeguy/terrain/internal/secrets"
 )
 
-// varsetManifest is one file per set at
-// $XDG_CONFIG_HOME/terrain/varsets/<id>.json; easier to edit/delete by
-// hand than an omnibus index, and one corrupt file doesn't break the rest.
+// One file per set: easier to edit by hand; one bad file doesn't break the rest.
 type varsetManifest struct {
 	ID          string            `json:"id"`
 	Name        string            `json:"name"`
 	Description string            `json:"description,omitempty"`
-	Scope       string            `json:"scope"`            // "global" for now; project/workspace later
+	Scope       string            `json:"scope"`
 	Workspaces  []string          `json:"workspaces,omitempty"`
 	ProjectID   string            `json:"project_id,omitempty"`
 	Priority    int               `json:"priority,omitempty"`
@@ -38,7 +36,7 @@ type varsetVarRecord struct {
 	Description string `json:"description,omitempty"`
 	HCL         bool   `json:"hcl,omitempty"`
 	Sensitive   bool   `json:"sensitive,omitempty"`
-	Category    string `json:"category"` // "terraform" or "env"
+	Category    string `json:"category"`
 }
 
 const varsetSecretSentinel = "@terrain:varset-secret"
@@ -67,8 +65,6 @@ func varsetPath(id string) (string, error) {
 	return filepath.Join(dir, id+".json"), nil
 }
 
-// VariableSets skips corrupt manifests so one bad file doesn't break
-// the management page.
 func (b *Backend) VariableSets(_ context.Context) ([]domain.VariableSet, error) {
 	dir, err := varsetsDir()
 	if err != nil {
@@ -130,7 +126,7 @@ func (b *Backend) CreateVariableSet(_ context.Context, name, description string)
 	return m.toDomain(b.id), nil
 }
 
-// UpdateVariableSetMeta touches metadata only (not Vars).
+// Metadata only; vars unchanged.
 func (b *Backend) UpdateVariableSetMeta(_ context.Context, setID string, meta domain.VariableSet) error {
 	path, err := varsetPath(setID)
 	if err != nil {
@@ -154,8 +150,6 @@ func (b *Backend) UpdateVariableSetMeta(_ context.Context, setID string, meta do
 	return writeVarsetManifest(m)
 }
 
-// ListProjects feeds the project-scoped varset combo. Local-only;
-// remote backends model projects as API objects.
 func (b *Backend) ListProjects(_ context.Context) []domain.ProjectChoice {
 	out := make([]domain.ProjectChoice, 0, len(b.projects))
 	for _, p := range b.projects {
@@ -164,7 +158,7 @@ func (b *Backend) ListProjects(_ context.Context) []domain.ProjectChoice {
 	return out
 }
 
-// DeleteVariableSet also clears keyring entries for sensitive / env vars.
+// Also clears keyring entries for sensitive / env vars.
 func (b *Backend) DeleteVariableSet(_ context.Context, setID string) error {
 	path, err := varsetPath(setID)
 	if err != nil {
@@ -172,7 +166,6 @@ func (b *Backend) DeleteVariableSet(_ context.Context, setID string) error {
 	}
 	m, err := readVarsetManifest(path)
 	if err != nil {
-		// Corrupt or missing; best-effort path remove and exit.
 		_ = os.Remove(path)
 		return nil
 	}
@@ -187,8 +180,7 @@ func (b *Backend) DeleteVariableSet(_ context.Context, setID string) error {
 	return os.Remove(path)
 }
 
-// UpsertVariableSetVar routes sensitive + env vars to libsecret (in
-// distinct keyring namespaces); plain values stay in the manifest.
+// Sensitive + env vars go to libsecret; plain values stay in the manifest.
 func (b *Backend) UpsertVariableSetVar(_ context.Context, setID string, v domain.Variable) error {
 	if strings.TrimSpace(v.Key) == "" {
 		return errors.New("key is required")
@@ -213,8 +205,6 @@ func (b *Backend) UpsertVariableSetVar(_ context.Context, setID string, v domain
 		rec.Category = string(domain.VarCategoryTerraform)
 	}
 
-	// Clear all prior keyring entries so a category transition doesn't
-	// leave a stale value in the other namespace.
 	_ = secrets.Delete(varsetSecretKey(setID, v.Key))
 	_ = secrets.Delete(varsetEnvKey(setID, v.Key))
 
@@ -344,8 +334,6 @@ func (m varsetManifest) toDomain(backendID string) domain.VariableSet {
 		if v.Category == "" {
 			v.Category = domain.VarCategoryTerraform
 		}
-		// Sensitive plaintext lives in the keyring; the manifest's
-		// sentinel must never reach the UI.
 		if v.Sensitive {
 			v.Value = ""
 		}

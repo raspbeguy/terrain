@@ -30,7 +30,6 @@ type LocalProject struct {
 	SSHKeyLabel string
 }
 
-// AddLocal presents the form dialog. onOpenPreferences (optional) wires the "Open Preferences" button; its onClosed callback refreshes the SSH-key dropdown when the user returns.
 func AddLocal(parent *gtk.Window, existingClones []ExistingClone, onSubmitted func(LocalProject), onOpenPreferences func(onClosed func())) {
 	builder := gtk.NewBuilderFromResource(addLocalResource)
 
@@ -219,13 +218,11 @@ func AddLocal(parent *gtk.Window, existingClones []ExistingClone, onSubmitted fu
 	dialog.Present(parent)
 }
 
-// ExistingClone is the (url, ref) pair the dialog uses to detect "reusing existing clone".
 type ExistingClone struct {
 	GitURL string
 	GitRef string
 }
 
-// AddSubpathFor opens an Adw alert prompting for subpath + name; URL and ref are inherited from src.
 func AddSubpathFor(parent *gtk.Window, src ProjectSource, onSubmitted func(LocalProject)) {
 	dlg := adw.NewAlertDialog(
 		"Add subpath from "+src.Name,
@@ -285,7 +282,6 @@ func AddSubpathFor(parent *gtk.Window, src ProjectSource, onSubmitted func(Local
 	dlg.Present(parent)
 }
 
-// ProjectSource is what AddSubpathFor needs from config.ProjectConfig (without importing it here).
 type ProjectSource struct {
 	Name        string
 	GitURL      string
@@ -333,7 +329,6 @@ func deriveProjectName(gitURL, subpath string) string {
 	return path.Base(u)
 }
 
-// sshURLUser pulls the "<user>@" part from an SSH URL (scheme or scp form); empty falls back to "git".
 func sshURLUser(raw string) string {
 	if strings.HasPrefix(raw, "ssh://") || strings.HasPrefix(raw, "git+ssh://") {
 		if u, err := url.Parse(raw); err == nil && u.User != nil {
@@ -357,7 +352,6 @@ func urlHost(rawURL string) string {
 	return u.Host
 }
 
-// BuildAuth resolves a LocalProject's auth fields into a gitutils.Auth ready for clone/sync.
 func BuildAuth(p LocalProject) (gitutils.Auth, error) {
 	return buildAuth(p)
 }

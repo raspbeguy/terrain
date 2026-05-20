@@ -22,8 +22,7 @@ type WorkspaceSettings struct {
 
 	backendID   string
 	workspaceID string
-	// initial is the on-disk snapshot; persist() compares against it so a no-op edit doesn't cause a needless write.
-	initial local.WorkspaceSettings
+	initial     local.WorkspaceSettings
 }
 
 func NewWorkspaceSettings(backendID, workspaceID string) *WorkspaceSettings {
@@ -54,7 +53,6 @@ func NewWorkspaceSettings(backendID, workspaceID string) *WorkspaceSettings {
 	} else {
 		w.managedEngineRow.SetSelected(0)
 	}
-	// Fresh / unset workspace defaults to track-latest (matches new managed-by-default behaviour).
 	trackLatest := current.ManagedTrackLatest
 	if current.BinarySource == "" && !current.ManagedTrackLatest && current.ManagedVersion == "" {
 		trackLatest = true
@@ -93,7 +91,6 @@ func (w *WorkspaceSettings) persist() {
 		ManagedVersion:     w.managedVerRow.Text(),
 	}
 	if want.BinarySource != local.BinarySourceManaged {
-		// Don't carry stale managed values through when the user switched off.
 		want.ManagedEngine = ""
 		want.ManagedVersion = ""
 		want.ManagedTrackLatest = false

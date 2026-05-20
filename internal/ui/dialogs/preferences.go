@@ -75,7 +75,6 @@ func (p *Preferences) Present(parent *gtk.Window) {
 	p.dialog.Present(parent)
 }
 
-// ConnectClosed proxies the underlying Adw.Dialog signal so callers can refresh dependent UI when the user closes Preferences.
 func (p *Preferences) ConnectClosed(fn func()) {
 	p.dialog.ConnectClosed(fn)
 }

@@ -36,7 +36,6 @@ func NewStateDiff() *StateDiff {
 
 func (sd *StateDiff) Root() *gtk.ScrolledWindow { return sd.scroller }
 
-// Bind replaces the current view; nil sides show the placeholder.
 func (sd *StateDiff) Bind(from, to *tfjson.State) {
 	sd.clear()
 

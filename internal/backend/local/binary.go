@@ -10,7 +10,7 @@ type BinaryInfo struct {
 	Path string
 }
 
-// DetectBinary picks tofu over terraform when both are present.
+// Prefers tofu over terraform when both are present.
 func DetectBinary() (BinaryInfo, error) {
 	for _, name := range []string{"tofu", "terraform"} {
 		if path, err := lookPath(name); err == nil {
@@ -32,12 +32,10 @@ func DetectAll() []BinaryInfo {
 
 var ErrNoBinary = errors.New("neither tofu nor terraform found on PATH")
 
-// BinaryResolver impls: pathResolver (host PATH), managedResolver (cache).
 type BinaryResolver interface {
 	Resolve(ctx context.Context, engine, version string) (BinaryInfo, error)
 }
 
-// pathResolver ignores engine and version.
 type pathResolver struct{}
 
 func (pathResolver) Resolve(_ context.Context, _, _ string) (BinaryInfo, error) {

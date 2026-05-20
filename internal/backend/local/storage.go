@@ -6,10 +6,6 @@ import (
 	"path/filepath"
 )
 
-// workspaceDataDir returns $XDG_DATA_HOME/terrain/<backend>/<sanitized-ws>/,
-// creating it if missing. Holds terrain-managed per-workspace state that
-// shouldn't live in the user's project tree (overrides.tfvars, env-vars.json,
-// settings.json).
 func workspaceDataDir(backendID, workspaceID string) (string, error) {
 	dataHome, err := userDataDir()
 	if err != nil {

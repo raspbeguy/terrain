@@ -1,8 +1,4 @@
-// Package bridge is the canonical crossing point between domain
-// channels and the GTK main thread. gotk4 widgets are not thread-safe;
-// touching them from a non-main goroutine is undefined behaviour.
-// PumpRun forwards channel items to sinks via glib.IdleAdd, ordering
-// OnDone after all data pumps have queued their last items.
+// Package bridge forwards domain channels to the GTK main thread via glib.IdleAdd.
 package bridge
 
 import (
@@ -13,18 +9,14 @@ import (
 	"github.com/raspbeguy/terrain/internal/domain"
 )
 
-// RunSinks: nil fields drop their channel quietly so the worker
-// doesn't block on a missing consumer.
+// Nil fields drop their channel so the worker doesn't block on a missing consumer.
 type RunSinks struct {
 	OnEvent func(domain.RunEvent)
 	OnLog   func(domain.LogLine)
-	// OnPlan fires once after a successful plan.
-	OnPlan func(*domain.PlanResult)
-	OnDone func(error)
+	OnPlan  func(*domain.PlanResult)
+	OnDone  func(error)
 }
 
-// OnMainThread schedules fn on the GTK main thread. Use from background
-// goroutines for one-shot results that don't fit the PumpRun shape.
 func OnMainThread(fn func()) {
 	glib.IdleAdd(fn)
 }
@@ -84,8 +76,7 @@ func pumpDone(in <-chan error, sink func(error), wg *sync.WaitGroup) {
 		err = nil
 	}
 
-	// Wait so events/logs/plan callbacks queue before OnDone (GLib
-	// same-priority IdleAdd is FIFO, preserving emission order).
+	// Queue events/logs/plan before OnDone; same-priority IdleAdd is FIFO.
 	wg.Wait()
 
 	if sink == nil {

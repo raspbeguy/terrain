@@ -17,8 +17,7 @@ import (
 	"github.com/raspbeguy/terrain/internal/runner"
 )
 
-// runStream's channels are owned by the worker goroutine; consumers
-// must only read.
+// Channels are owned by the worker goroutine; consumers must only read.
 type runStream struct {
 	events chan domain.RunEvent
 	logs   chan domain.LogLine
@@ -28,7 +27,6 @@ type runStream struct {
 
 func newRunStream() *runStream {
 	return &runStream{
-		// Buffered so cancel/error events never block on a slow UI.
 		events: make(chan domain.RunEvent, 16),
 		logs:   make(chan domain.LogLine, 256),
 		plan:   make(chan *domain.PlanResult, 1),
@@ -69,7 +67,7 @@ func (b *Backend) startRun(_ context.Context, req domain.RunRequest) (domain.Run
 		UpdatedAt:   time.Now(),
 	}
 
-	// Detached context; runs outlive the GUI callback that started them.
+	// Detached: runs outlive the GUI callback that started them.
 	runCtx, cancelCtx := context.WithCancel(context.Background())
 	stream := newRunStream()
 
@@ -83,10 +81,6 @@ func (b *Backend) startRun(_ context.Context, req domain.RunRequest) (domain.Run
 	return run, stream, cancelFn, nil
 }
 
-// runWorker owns one run: initial snapshot → subprocess → log tee →
-// terminal events → history record → channel close. b is threaded
-// through so the worker can call b.materialize to resolve sensitive +
-// env-category vars from the keyring.
 func runWorker(
 	ctx context.Context,
 	b *Backend,
@@ -102,8 +96,6 @@ func runWorker(
 		exitCode   int
 	)
 
-	// Apply persists a backref to the plan file it consumed so the runs
-	// list can mark plan rows whose plan was applied.
 	if req.Kind == domain.RunKindApply {
 		run.PlanFile = req.PlanFile
 	}
@@ -115,8 +107,6 @@ func runWorker(
 		case stream.events <- ev:
 		case <-time.After(2 * time.Second):
 			slog.Warn("run event dropped (slow consumer)", "status", s, "msg", msg)
-			// Surface the drop in the log so the user notices; give up
-			// silently if logs are also backpressured.
 			select {
 			case stream.logs <- domain.LogLine{
 				At:     time.Now(),
@@ -128,8 +118,7 @@ func runWorker(
 		}
 	}
 
-	// done must close AFTER events/logs/plan so a Done() consumer knows
-	// every prior channel is drained.
+	// done closes AFTER events/logs/plan so Done() consumers see drained channels.
 	defer func() {
 		recordHistory(run, runDir, lastStatus, finalErr, exitCode)
 		go func() {
@@ -195,15 +184,11 @@ func runWorker(
 
 	stdoutLog, stderrLog, logErr := openLogFiles(runDir)
 	if logErr != nil {
-		// Non-fatal: the live log channel still works, just no
-		// persistence to disk.
 		slog.Warn("open run log files", "ws", ws.ID, "err", logErr)
 	}
 	defer closeIfNonNil(stdoutLog)
 	defer closeIfNonNil(stderrLog)
 
-	// Sensitive + env vars resolve from the keyring into a per-run
-	// var-file (deleted on exit so secrets don't linger in cache).
 	rv := b.materialize(ws)
 	varFile, vferr := rv.writeVarFile(runDir)
 	if vferr != nil {
@@ -221,8 +206,6 @@ func runWorker(
 		}()
 	}
 
-	// One tee goroutine drains all streamCommand calls (init + main) into
-	// the same on-disk log files and live channel; closed after the last.
 	teedLogs := make(chan domain.LogLine, cap(stream.logs))
 	var wg sync.WaitGroup
 	wg.Add(1)
@@ -234,7 +217,6 @@ func runWorker(
 		}
 	}()
 
-	// Plan/destroy always init first; apply replays a saved plan that's already been through init.
 	if req.Kind == domain.RunKindPlan || req.Kind == domain.RunKindDestroy {
 		setStatus(domain.StatusFetching,
 			fmt.Sprintf("running `%s init -input=false`", bin.Name))
@@ -284,15 +266,11 @@ func runWorker(
 		case domain.RunKindPlan, domain.RunKindDestroy:
 			run.PlanFile = planFile
 			setStatus(domain.StatusPlanned, "plan succeeded")
-			// Fire and forget the post-plan parse; runs on the worker
-			// goroutine since we're between cmdErr and channel close.
 			result := parsePlanFile(ctx, bin.Path, ws.WorkingDirectory, planFile)
 			persistPlanJSON(runDir, result)
 			stream.plan <- result
 		case domain.RunKindApply:
 			setStatus(domain.StatusApplied, "apply succeeded")
-			// Persist a state snapshot for browsable history. Best-effort:
-			// failures are logged, the run itself already succeeded.
 			if err := b.snapshotState(ctx, ws, run.ID); err != nil {
 				slog.Warn("state snapshot after apply", "ws", ws.ID, "err", err)
 			}
@@ -311,8 +289,7 @@ func runWorker(
 	close(stream.plan)
 }
 
-// formatArgsForLog redacts `-var KEY=VAL` payloads before they hit the
-// on-disk run history.
+// Redacts -var KEY=VAL payloads before they hit on-disk history.
 func formatArgsForLog(args []string) string {
 	out := make([]string, 0, len(args))
 	maskNext := false
@@ -334,8 +311,6 @@ func formatArgsForLog(args []string) string {
 	return strings.Join(out, " ")
 }
 
-// buildCmdArgs returns the CLI args + the produced plan-file path
-// (empty for apply, which consumes a prior plan rather than producing one).
 func buildCmdArgs(req domain.RunRequest, runDir string) (args []string, planFile string, err error) {
 	switch req.Kind {
 	case domain.RunKindPlan:
@@ -368,8 +343,6 @@ func buildCmdArgs(req domain.RunRequest, runDir string) (args []string, planFile
 	return args, planFile, nil
 }
 
-// recordHistory is best-effort: called from a deferred shutdown path,
-// so failures only get logged.
 func recordHistory(run domain.Run, runDir string, status domain.RunStatus, finalErr error, exitCode int) {
 	h, err := runner.NewHistory(run.BackendID, run.WorkspaceID)
 	if err != nil {
@@ -397,8 +370,6 @@ func recordHistory(run domain.Run, runDir string, status domain.RunStatus, final
 	}
 }
 
-// isCancelError distinguishes "we cancelled it" from "tofu failed for
-// its own reasons".
 func isCancelError(ctx context.Context, err error) bool {
 	if err == nil {
 		return false
@@ -412,8 +383,7 @@ func isCancelError(ctx context.Context, err error) bool {
 	return false
 }
 
-// runArtifactsDir returns the per-run dir under XDG_CACHE_HOME; runs
-// are ephemeral; state versions live under XDG_DATA_HOME instead.
+// Under XDG_CACHE_HOME: runs are ephemeral; state versions live elsewhere.
 func runArtifactsDir(backendID string, ws domain.Workspace, runID string) (string, error) {
 	cacheHome, err := os.UserCacheDir()
 	if err != nil {
@@ -423,8 +393,7 @@ func runArtifactsDir(backendID string, ws domain.Workspace, runID string) (strin
 	return filepath.Join(cacheHome, "terrain", backendID, safeWS, "runs", runID), nil
 }
 
-// newRunID returns a time-prefixed identifier so on-disk listing is
-// chronological without a separate index.
+// Time-prefixed so on-disk listing is chronological.
 func newRunID() string {
 	var b [8]byte
 	if _, err := rand.Read(b[:]); err != nil {
@@ -433,8 +402,6 @@ func newRunID() string {
 	return fmt.Sprintf("%d-%s", time.Now().Unix(), hex.EncodeToString(b[:]))
 }
 
-// openLogFiles returns both files non-nil on success and both nil on
-// error; caller closes both.
 func openLogFiles(runDir string) (stdout, stderr *os.File, err error) {
 	stdout, err = os.Create(filepath.Join(runDir, "stdout.log"))
 	if err != nil {

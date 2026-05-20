@@ -29,7 +29,6 @@ func TestOpenLogFiles_Success(t *testing.T) {
 
 func TestOpenLogFiles_DirectoryDoesNotExist(t *testing.T) {
 	t.Parallel()
-	// An entirely fictitious path; openLogFiles must not silently succeed.
 	out, errLog, err := openLogFiles("/nonexistent/path/that/should/never/exist")
 	if err == nil {
 		t.Fatal("expected error for nonexistent runDir, got nil")

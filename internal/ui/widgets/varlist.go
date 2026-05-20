@@ -143,7 +143,6 @@ func buildVarRow(v domain.Variable) *adw.ActionRow {
 		envBadge.SetVAlign(gtk.AlignCenter)
 		row.AddSuffix(envBadge)
 	}
-	// "ad-hoc" = tfvars entry with no matching `variable` block; env category already has its own pill.
 	if !v.Declared && v.Category != domain.VarCategoryEnvironment {
 		adhoc := gtk.NewLabel("ad-hoc")
 		adhoc.AddCSSClass("pill")

@@ -33,11 +33,11 @@ func TestResolvedVars_WriteVarFile_PreservesTypes(t *testing.T) {
 	tags := cty.ListVal([]cty.Value{cty.StringVal("a"), cty.StringVal("b")})
 	rv := &resolvedVars{
 		Terraform: map[string]termValue{
-			"api_token":  {raw: "xyz"},                   // plain string → quoted
-			"region":     {raw: "us-east-1"},             // plain string → quoted
-			"count":      {cty: &count},                  // typed number → number literal
-			"tags":       {cty: &tags},                   // typed list → HCL list
-			"raw_object": {raw: `{ k = "v" }`, hcl: true}, // raw HCL expr → verbatim
+			"api_token":  {raw: "xyz"},
+			"region":     {raw: "us-east-1"},
+			"count":      {cty: &count},
+			"tags":       {cty: &tags},
+			"raw_object": {raw: `{ k = "v" }`, hcl: true},
 		},
 	}
 	dir := t.TempDir()
@@ -55,9 +55,6 @@ func TestResolvedVars_WriteVarFile_PreservesTypes(t *testing.T) {
 	}
 	s := string(data)
 
-	// hclwrite right-aligns `=` when multiple attributes share a body, so
-	// we can't assert exact spacing; match key + value with any run of
-	// whitespace between them.
 	matches := func(pat string) bool {
 		return regexp.MustCompile(pat).MatchString(s)
 	}
@@ -108,8 +105,6 @@ func TestResolvedVars_EnvEntries(t *testing.T) {
 }
 
 func TestEnvIndex_RoundTrip(t *testing.T) {
-	// Not parallel: env-index lives under XDG_DATA_HOME, which we point at
-	// a tmp dir via t.Setenv (forbidden alongside t.Parallel).
 	t.Setenv("XDG_DATA_HOME", t.TempDir())
 	const backendID = "local"
 	const ws = "ws-1"
@@ -125,7 +120,7 @@ func TestEnvIndex_RoundTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := addEnvVar(backendID, ws, "FOO"); err != nil {
-		t.Fatal(err) // idempotent
+		t.Fatal(err)
 	}
 
 	names, err := loadEnvIndex(backendID, ws)

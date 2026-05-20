@@ -56,9 +56,6 @@ func main() {
 	os.Exit(app.Run(flag.Args()))
 }
 
-// runDiagnose performs a non-GUI boot: load the config, build backends, print
-// a structured summary to stderr, and exit. Useful when the user can't run a
-// display, in CI, or when remotely diagnosing a startup-time issue.
 func runDiagnose() int {
 	cfg, err := config.Load()
 	if err != nil {

@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 )
 
-// BinarySource: zero value resolves to managed.
+// Zero value resolves to managed.
 type BinarySource string
 
 const (
@@ -18,7 +18,6 @@ const (
 	BinarySourceManaged BinarySource = "managed"
 )
 
-// Effective returns the source actually used at runtime; empty becomes managed.
 func (s BinarySource) Effective() BinarySource {
 	if s == "" {
 		return BinarySourceManaged
@@ -26,17 +25,14 @@ func (s BinarySource) Effective() BinarySource {
 	return s
 }
 
-// WorkspaceSettings persists per-workspace overrides under
-// $XDG_DATA_HOME/terrain/<backend>/<ws>/settings.json. Zero value =
-// inherit app defaults.
+// Zero value = inherit app defaults.
 type WorkspaceSettings struct {
 	BinarySource       BinarySource `json:"binary_source,omitempty"`
-	ManagedEngine      string       `json:"managed_engine,omitempty"`  // "tofu" or "terraform"
-	ManagedVersion     string       `json:"managed_version,omitempty"` // ignored when ManagedTrackLatest is true
+	ManagedEngine      string       `json:"managed_engine,omitempty"`
+	ManagedVersion     string       `json:"managed_version,omitempty"`
 	ManagedTrackLatest bool         `json:"managed_track_latest,omitempty"`
 }
 
-// EffectiveManagedEngine returns the user's pick if set, else the app default, else "tofu".
 func (s WorkspaceSettings) EffectiveManagedEngine(appDefault string) string {
 	if s.ManagedEngine != "" {
 		return s.ManagedEngine
@@ -47,9 +43,7 @@ func (s WorkspaceSettings) EffectiveManagedEngine(appDefault string) string {
 	return "tofu"
 }
 
-// LoadWorkspaceSettings returns the zero value when the file is missing.
-// JSON parse errors propagate so the UI can flag a corrupt file rather
-// than silently overwrite it.
+// Missing file returns the zero value; parse errors propagate.
 func LoadWorkspaceSettings(backendID, workspaceID string) (WorkspaceSettings, error) {
 	path, err := workspaceSettingsPath(backendID, workspaceID)
 	if err != nil {
@@ -73,8 +67,7 @@ func loadWorkspaceSettingsAt(path string) (WorkspaceSettings, error) {
 	return s, nil
 }
 
-// SaveWorkspaceSettings writes via temp-file + rename. A zero-value s
-// removes the file rather than persisting an empty marker.
+// Zero-value s removes the file rather than persisting an empty marker.
 func SaveWorkspaceSettings(backendID, workspaceID string, s WorkspaceSettings) error {
 	path, err := workspaceSettingsPath(backendID, workspaceID)
 	if err != nil {

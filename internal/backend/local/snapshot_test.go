@@ -62,8 +62,6 @@ func TestStateVersions_ListingAndSorting(t *testing.T) {
 	b := New("local-test", "Local")
 	const wsID = "local-test:proj1:default"
 
-	// Pre-populate three snapshots with different timestamps so we can
-	// verify sort order. Older first to make sure the listing reverses.
 	now := time.Now()
 	want := []struct {
 		id      string
@@ -97,7 +95,6 @@ func TestStateVersions_ListingAndSorting(t *testing.T) {
 		}
 	}
 
-	// Plus one corrupt entry; it must be silently skipped.
 	corrupt, _ := stateVersionDir(b.id, wsID, "broken")
 	_ = os.MkdirAll(corrupt, 0o755)
 	_ = os.WriteFile(filepath.Join(corrupt, "meta.json"), []byte("{not json"), 0o644)
@@ -111,7 +108,6 @@ func TestStateVersions_ListingAndSorting(t *testing.T) {
 		t.Fatalf("expected 3 entries (corrupt skipped), got %d: %+v", len(got), got)
 	}
 
-	// Newest first: c-new, b-mid, a-old.
 	wantOrder := []string{"c-new", "b-mid", "a-old"}
 	for i, sv := range got {
 		if sv.ID != wantOrder[i] {
@@ -119,7 +115,6 @@ func TestStateVersions_ListingAndSorting(t *testing.T) {
 		}
 	}
 
-	// Verify path fields are populated relative to XDG_DATA_HOME.
 	first := got[0]
 	if first.JSONPath == "" || first.RawPath == "" {
 		t.Errorf("expected paths populated, got %+v", first)
@@ -148,7 +143,6 @@ func TestSha256Hex(t *testing.T) {
 	if got := sha256Hex(nil); got != "" {
 		t.Errorf("nil → %q, want empty", got)
 	}
-	// Stable hash for "abc"
 	want := "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
 	if got := sha256Hex([]byte("abc")); got != want {
 		t.Errorf("sha256(abc) = %q, want %q", got, want)

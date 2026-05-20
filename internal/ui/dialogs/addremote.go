@@ -38,7 +38,6 @@ func AddRemote(parent *gtk.Window, onSubmitted func(RemoteForm)) {
 	cancelBtn := uihelpers.MustCast[*gtk.Button](builder, "add_remote_cancel_button")
 	addBtn := uihelpers.MustCast[*gtk.Button](builder, "add_remote_add_button")
 
-	// HCP has a fixed endpoint; TFE/OTF need an explicit URL.
 	updateEndpointVisibility := func() {
 		switch flavorIndex(flavorRow) {
 		case 0:
@@ -159,7 +158,7 @@ func flavorFromIndex(i uint) remote.Flavor {
 	return remote.FlavorHCP
 }
 
-// updateStatus marshals to the GTK main thread; one-shot, doesn't fit bridge's stream shape.
+// Sanctioned IdleAdd: one-shot test-connection result doesn't fit bridge stream shape.
 func updateStatus(row *adw.ActionRow, msg string) {
 	glibIdleAdd(func() { row.SetSubtitle(msg) })
 }

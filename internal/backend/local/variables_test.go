@@ -31,12 +31,10 @@ func TestUpsertPlainVar_WritesOverridesNotProjectTfvars(t *testing.T) {
 		t.Fatalf("UpsertVariable: %v", err)
 	}
 
-	// Project terraform.tfvars must not have been created.
 	if _, err := os.Stat(filepath.Join(projectDir, "terraform.tfvars")); err == nil {
 		t.Errorf("project terraform.tfvars was created; terrain shouldn't write there")
 	}
 
-	// Overrides file must exist with the value.
 	op := filepath.Join(dataHome, "terrain", "local", sanitize(wsID), "overrides.tfvars")
 	data, err := os.ReadFile(op)
 	if err != nil {
@@ -53,7 +51,6 @@ func TestVariablesForWorkspace_ReadsOverrides(t *testing.T) {
 	t.Setenv("XDG_DATA_HOME", dataHome)
 	projectDir := t.TempDir()
 
-	// Declare `count` in source so it's marked Declared=true, then override.
 	declSrc := `variable "count" { default = 1 }
 `
 	if err := os.WriteFile(filepath.Join(projectDir, "main.tf"), []byte(declSrc), 0o644); err != nil {
@@ -99,8 +96,6 @@ func TestDeleteVariable_RemovesFromOverridesOnly(t *testing.T) {
 	t.Setenv("XDG_DATA_HOME", dataHome)
 	projectDir := t.TempDir()
 
-	// Pre-populate the project's own terraform.tfvars; terrain must NOT
-	// touch it on Delete.
 	pretfvars := `keep = "user-set"
 `
 	if err := os.WriteFile(filepath.Join(projectDir, "terraform.tfvars"), []byte(pretfvars), 0o644); err != nil {
@@ -119,7 +114,6 @@ func TestDeleteVariable_RemovesFromOverridesOnly(t *testing.T) {
 	if err := b.DeleteVariable(context.Background(), wsID, "extra"); err != nil {
 		t.Fatalf("DeleteVariable: %v", err)
 	}
-	// Project tfvars must be untouched.
 	got, err := os.ReadFile(filepath.Join(projectDir, "terraform.tfvars"))
 	if err != nil {
 		t.Fatalf("project tfvars disappeared: %v", err)
@@ -127,7 +121,6 @@ func TestDeleteVariable_RemovesFromOverridesOnly(t *testing.T) {
 	if string(got) != pretfvars {
 		t.Errorf("project tfvars was modified by terrain, got %q", got)
 	}
-	// Overrides file should no longer mention 'extra'.
 	op := filepath.Join(dataHome, "terrain", "local", sanitize(wsID), "overrides.tfvars")
 	if data, err := os.ReadFile(op); err == nil && strings.Contains(string(data), "extra") {
 		t.Errorf("overrides still has 'extra' after delete: %q", data)

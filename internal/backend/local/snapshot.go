@@ -21,8 +21,7 @@ import (
 	"github.com/raspbeguy/terrain/internal/domain"
 )
 
-// snapshotMeta sits next to state.tfstate / state.json so the listing
-// path can read metadata without re-parsing the state binary.
+// Sits next to state.tfstate so listings need not re-parse the state.
 type snapshotMeta struct {
 	ID          string    `json:"id"`
 	WorkspaceID string    `json:"workspace_id"`
@@ -34,10 +33,7 @@ type snapshotMeta struct {
 	SHA256      string    `json:"sha256,omitempty"`
 }
 
-// snapshotState writes one state version under
-// $XDG_DATA_HOME/terrain/<backend>/<ws>/state-versions/<id>/{state.tfstate,
-// state.json, meta.json}. Best-effort: the apply already finished so
-// failures only log.
+// Best-effort: apply has already finished so failures only log.
 func (b *Backend) snapshotState(ctx context.Context, ws domain.Workspace, runID string) error {
 	bin, err := DetectBinary()
 	if err != nil {
@@ -54,7 +50,6 @@ func (b *Backend) snapshotState(ctx context.Context, ws domain.Workspace, runID 
 	rawPath := filepath.Join(ws.WorkingDirectory, "terraform.tfstate")
 	rawData, rawErr := os.ReadFile(rawPath)
 	if rawErr != nil && !errors.Is(rawErr, fs.ErrNotExist) {
-		// Permission errors etc.; proceed with just the JSON copy.
 		slog.Warn("read raw tfstate", "path", rawPath, "err", rawErr)
 		rawData = nil
 	}
@@ -98,7 +93,6 @@ func (b *Backend) snapshotState(ctx context.Context, ws domain.Workspace, runID 
 	}
 	slog.Info("state snapshot written", "ws", ws.ID, "id", id, "serial", serial, "lineage", lineage)
 
-	// Retention: keep newest 50 plus anything from the last 30 days.
 	if err := b.pruneStateVersions(ws.ID, 50, 30*24*time.Hour); err != nil {
 		slog.Warn("state-versions prune", "ws", ws.ID, "err", err)
 	}
@@ -121,8 +115,7 @@ func (b *Backend) LoadStateVersion(_ context.Context, workspaceID, versionID str
 	return &state, nil
 }
 
-// pruneStateVersions keeps the newest `keep` plus anything younger than
-// maxAge; per-snapshot delete failures are logged and skipped.
+// Keeps newest `keep` plus anything younger than maxAge.
 func (b *Backend) pruneStateVersions(workspaceID string, keep int, maxAge time.Duration) error {
 	versions, err := b.StateVersions(context.Background(), workspaceID)
 	if err != nil {
@@ -132,8 +125,6 @@ func (b *Backend) pruneStateVersions(workspaceID string, keep int, maxAge time.D
 		return nil
 	}
 
-	// StateVersions returns newest-first, so indexes < keep are the
-	// most recent snapshots and never get pruned.
 	cutoff := time.Now().Add(-maxAge)
 	for i, v := range versions {
 		if i < keep {
@@ -156,8 +147,7 @@ func (b *Backend) pruneStateVersions(workspaceID string, keep int, maxAge time.D
 	return nil
 }
 
-// StateVersions skips dirs with missing/corrupt meta.json so a single
-// bad snapshot doesn't hide the rest.
+// Skips dirs with missing/corrupt meta.json so one bad snapshot doesn't hide the rest.
 func (b *Backend) StateVersions(_ context.Context, workspaceID string) ([]domain.StateVersion, error) {
 	root, err := stateVersionsRoot(b.id, workspaceID)
 	if err != nil {
@@ -198,7 +188,6 @@ func (b *Backend) StateVersions(_ context.Context, workspaceID string) ([]domain
 			SHA256:      m.SHA256,
 		})
 	}
-	// Newest first; same-second ties broken by ID lexicographically.
 	sort.Slice(out, func(i, j int) bool {
 		if !out[i].CreatedAt.Equal(out[j].CreatedAt) {
 			return out[i].CreatedAt.After(out[j].CreatedAt)
@@ -219,8 +208,7 @@ func runShowJSON(ctx context.Context, binPath, workDir string) ([]byte, error) {
 	return stdout.Bytes(), nil
 }
 
-// extractSerialLineage avoids unmarshalling the multi-MB resource tree
-// just to read two scalar fields.
+// Avoids unmarshalling the multi-MB resource tree for two scalars.
 func extractSerialLineage(raw []byte) (serial int64, lineage string) {
 	if len(raw) == 0 {
 		return 0, ""
@@ -241,8 +229,7 @@ func sha256Hex(data []byte) string {
 	return hex.EncodeToString(sum[:])
 }
 
-// stateVersionsRoot lives under XDG_DATA_HOME (durable) so snapshots
-// outlive cache cleanups.
+// XDG_DATA_HOME (durable): snapshots outlive cache cleanups.
 func stateVersionsRoot(backendID, workspaceID string) (string, error) {
 	home, err := dataHome()
 	if err != nil {

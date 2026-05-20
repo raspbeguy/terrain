@@ -12,8 +12,6 @@ import (
 
 const varEditResource = "/io/github/raspbeguy/Terrain/var-edit.ui"
 
-// VarEditMode toggles the dialog between Add (empty fields, edit Key) and
-// Edit (key disabled, fields pre-filled).
 type VarEditMode int
 
 const (
@@ -21,13 +19,7 @@ const (
 	VarEditEdit
 )
 
-// EditVariable presents the variable add/edit dialog. onSubmitted runs after
-// the user clicks Save with a validated payload. Cancel drops silently.
-//
-// For sensitive existing variables the dialog opens with an empty value
-// field; we never display the stored secret. Saving without typing a new
-// value preserves the existing one (the local backend treats empty + sensitive
-// + no kerry change as a no-op... actually we just resave the stored value).
+// Sensitive existing variables open with an empty value; we never display the stored secret.
 func EditVariable(parent *gtk.Window, mode VarEditMode, initial domain.Variable, onSubmitted func(domain.Variable)) {
 	builder := gtk.NewBuilderFromResource(varEditResource)
 
@@ -41,7 +33,6 @@ func EditVariable(parent *gtk.Window, mode VarEditMode, initial domain.Variable,
 	cancelBtn := uihelpers.MustCast[*gtk.Button](builder, "var_edit_cancel_button")
 	saveBtn := uihelpers.MustCast[*gtk.Button](builder, "var_edit_save_button")
 
-	// Pre-fill from initial.
 	keyRow.SetText(initial.Key)
 	if !initial.Sensitive {
 		valueRow.SetText(initial.Value)
@@ -56,8 +47,6 @@ func EditVariable(parent *gtk.Window, mode VarEditMode, initial domain.Variable,
 	sensitiveRow.SetActive(initial.Sensitive)
 
 	if mode == VarEditEdit {
-		// Editing: key is the primary identifier; locking it avoids
-		// accidental rename + leftover stale entries.
 		keyRow.SetEditable(false)
 		dialog.SetTitle("Edit Variable")
 	} else {

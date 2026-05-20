@@ -10,8 +10,7 @@ import (
 	"github.com/zclconf/go-cty/cty"
 )
 
-// UpsertTfvarFile preserves comments and unrelated attributes via hclwrite
-// round-trip. For non-scalar/raw HCL values use UpsertTfvarFileExpr.
+// Preserves comments via hclwrite round-trip; use UpsertTfvarFileExpr for raw HCL.
 func UpsertTfvarFile(path, key string, value cty.Value) error {
 	f, err := readOrEmpty(path)
 	if err != nil {
@@ -21,7 +20,6 @@ func UpsertTfvarFile(path, key string, value cty.Value) error {
 	return writeFile(path, f.Bytes())
 }
 
-// UpsertTfvarFileExpr takes a raw HCL expression (`["a", "b"]`, `{ k = "v" }`).
 func UpsertTfvarFileExpr(path, key, expr string) error {
 	f, err := readOrEmpty(path)
 	if err != nil {
@@ -32,7 +30,7 @@ func UpsertTfvarFileExpr(path, key, expr string) error {
 	return writeFile(path, f.Bytes())
 }
 
-// DeleteTfvarFile: missing key or file is a no-op.
+// Missing key or file is a no-op.
 func DeleteTfvarFile(path, key string) error {
 	src, err := os.ReadFile(path)
 	if err != nil {
@@ -64,7 +62,6 @@ func readOrEmpty(path string) (*hclwrite.File, error) {
 	return f, nil
 }
 
-// writeFile mkdir's parents; lets callers target fresh out-of-project paths.
 func writeFile(path string, payload []byte) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return fmt.Errorf("mkdir %s: %w", filepath.Dir(path), err)

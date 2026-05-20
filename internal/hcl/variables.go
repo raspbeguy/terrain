@@ -1,5 +1,4 @@
-// Package hcl wraps hashicorp/hcl/v2 for variable extraction from .tf
-// and .tfvars files.
+// Package hcl: hashicorp/hcl/v2 helpers for .tf and .tfvars variables.
 package hcl
 
 import (
@@ -24,8 +23,7 @@ type Variable struct {
 	SourceFile  string
 }
 
-// LoadVariablesWithExtras layers extraPaths after the project's own tfvars
-// so later files win for the same key. Missing extras are skipped silently.
+// Later extraPaths override earlier tfvars for the same key; missing files are silent.
 func LoadVariablesWithExtras(projectDir string, extraPaths ...string) ([]Variable, error) {
 	parser := hclparse.NewParser()
 
@@ -64,7 +62,6 @@ func LoadVariablesWithExtras(projectDir string, extraPaths ...string) ([]Variabl
 	for name, val := range overrides {
 		v, ok := vars[name]
 		if !ok {
-			// Surface tfvars entries with no matching declaration so stale keys are visible.
 			val := val
 			vars[name] = &Variable{Name: name, Override: &val}
 			continue

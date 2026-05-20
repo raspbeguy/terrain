@@ -13,7 +13,6 @@ import (
 	"github.com/raspbeguy/terrain/internal/secrets"
 )
 
-// secretKey: var/<backend>/<workspace>/<name>.
 func secretKey(backendID, workspaceID, name string) string {
 	return "var/" + backendID + "/" + sanitize(workspaceID) + "/" + name
 }
@@ -22,8 +21,7 @@ func sanitize(s string) string {
 	return strings.NewReplacer("/", "_", ":", "_").Replace(s)
 }
 
-// VariablesForWorkspace masks sensitive values; plaintext stays in the
-// keyring until run-materialise time.
+// Sensitive values masked; plaintext stays in the keyring until materialize.
 func (b *Backend) VariablesForWorkspace(_ context.Context, workspaceID string) ([]domain.Variable, error) {
 	ws, err := b.Workspace(context.Background(), workspaceID)
 	if err != nil {
@@ -31,22 +29,17 @@ func (b *Backend) VariablesForWorkspace(_ context.Context, workspaceID string) (
 	}
 	overrides, _ := overridesPath(b.id, workspaceID)
 	hvars, err := hcl.LoadVariablesWithExtras(ws.WorkingDirectory, overrides)
-	// LoadVariablesWithExtras returns partial results alongside err so
-	// the UI can show what parsed even if some files didn't.
 	out := make([]domain.Variable, 0, len(hvars))
 	for _, v := range hvars {
 		dv := domain.Variable{
 			Key:         v.Name,
 			Description: v.Description,
 			Category:    domain.VarCategoryTerraform,
-			// Declared = found in a `variable "<name>" {}` block; tfvars-
-			// only entries come back with SourceFile="".
-			Declared: v.SourceFile != "",
+			Declared:    v.SourceFile != "",
 		}
 		if v.Sensitive {
 			dv.Sensitive = true
 		}
-		// Keyring entry implies sensitive even when source didn't say so.
 		if _, kerr := secrets.Get(secretKey(b.id, workspaceID, v.Name)); kerr == nil {
 			dv.Sensitive = true
 		}
@@ -63,9 +56,7 @@ func (b *Backend) VariablesForWorkspace(_ context.Context, workspaceID string) (
 	return out, err
 }
 
-// UpsertVariable routes by category: plain terraform → overrides.tfvars
-// in XDG_DATA_HOME (out of the project tree); sensitive → keyring only,
-// resolved at run time; env → keyring + env-vars.json index.
+// Routes by category: plain → overrides.tfvars; sensitive → keyring; env → keyring + index.
 func (b *Backend) UpsertVariable(ctx context.Context, workspaceID string, v domain.Variable) error {
 	if _, err := b.Workspace(ctx, workspaceID); err != nil {
 		return err
@@ -76,8 +67,7 @@ func (b *Backend) UpsertVariable(ctx context.Context, workspaceID string, v doma
 		return err
 	}
 
-	// Clear all prior storage namespaces so a category transition
-	// (env↔terraform, sensitive↔plain) doesn't leave a stale value.
+	// Clear all namespaces so category transitions don't leave stale values.
 	_ = secrets.Delete(secretKey(b.id, workspaceID, v.Key))
 	_ = secrets.Delete(envKey(b.id, workspaceID, v.Key))
 	_ = removeEnvVar(b.id, workspaceID, v.Key)
@@ -103,8 +93,7 @@ func (b *Backend) UpsertVariable(ctx context.Context, workspaceID string, v doma
 	return hcl.UpsertTfvarFile(overrides, v.Key, cty.StringVal(v.Value))
 }
 
-// DeleteVariable is idempotent and never touches the project's own
-// terraform.tfvars (terrain doesn't write there).
+// Idempotent; never touches the project's own terraform.tfvars.
 func (b *Backend) DeleteVariable(ctx context.Context, workspaceID, key string) error {
 	if _, err := b.Workspace(ctx, workspaceID); err != nil {
 		return err
@@ -123,8 +112,6 @@ func envKey(backendID, workspaceID, name string) string {
 	return "env/" + backendID + "/" + sanitize(workspaceID) + "/" + name
 }
 
-// ctyToString renders a cty.Value as a single-line string. Complex
-// types fall through to canonical HCL via hclwrite.
 func ctyToString(v cty.Value) string {
 	if !v.IsKnown() || v.IsNull() {
 		return ""
@@ -140,7 +127,5 @@ func ctyToString(v cty.Value) string {
 	case cty.Number:
 		return v.AsBigFloat().Text('g', 12)
 	}
-	// hclwrite serialises complex types as canonical HCL; readable
-	// rather than cty.GoString's representation.
 	return strings.TrimSpace(string(hclwrite.TokensForValue(v).Bytes()))
 }

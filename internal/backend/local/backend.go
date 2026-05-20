@@ -1,5 +1,3 @@
-// Package local implements domain.Backend by shelling out to the tofu /
-// terraform CLI against a git-clone of the user's project.
 package local
 
 import (
@@ -20,11 +18,9 @@ type Project struct {
 	SSHKeyLabel string
 	GitUsername string
 
-	// dirOverride is a test escape hatch; set in package tests to point at a literal directory.
 	dirOverride string
 }
 
-// WorkingDir is the on-disk path the tofu/terraform process runs in.
 func (p Project) WorkingDir() (string, error) {
 	if p.dirOverride != "" {
 		return p.dirOverride, nil
@@ -36,7 +32,6 @@ func (p Project) WorkingDir() (string, error) {
 	return filepath.Join(cloneDir, p.Subpath), nil
 }
 
-// Backend groups all local projects under one sidebar header: one Backend, many workspaces.
 type Backend struct {
 	id       string
 	name     string
@@ -48,14 +43,14 @@ type Backend struct {
 }
 
 type RuntimeDefaults struct {
-	Engine string // "tofu" or "terraform"
+	Engine string
 }
 
 func New(id, name string) *Backend {
 	return &Backend{id: id, name: name}
 }
 
-// binaryResolver: shared singleton in managed mode so UI installs and runs see one lock.
+// Shared singleton in managed mode so UI installs and runs share one lock.
 func (b *Backend) binaryResolver(s WorkspaceSettings) BinaryResolver {
 	if s.BinarySource.Effective() == BinarySourceManaged {
 		return sharedManagedResolver()
@@ -63,15 +58,14 @@ func (b *Backend) binaryResolver(s WorkspaceSettings) BinaryResolver {
 	return pathResolver{}
 }
 
-// DefaultEngine exposes b.defaults.Engine for callers that need to resolve effective managed engine.
 func (b *Backend) DefaultEngine() string { return b.defaults.Engine }
 
-// SetRuntimeDefaults must be called before the backend is published.
+// Call before publishing the backend.
 func (b *Backend) SetRuntimeDefaults(d RuntimeDefaults) {
 	b.defaults = d
 }
 
-// AddProject is not safe for concurrent use; call before publishing the backend.
+// Not safe for concurrent use; call before publishing the backend.
 func (b *Backend) AddProject(p Project) {
 	b.projects = append(b.projects, p)
 }

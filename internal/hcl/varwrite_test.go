@@ -91,7 +91,6 @@ func TestUpsertTfvar_NumberAndBool(t *testing.T) {
 
 	got, _ := os.ReadFile(tfvarsPath(dir))
 	s := string(got)
-	// hclwrite right-aligns `=` so we match key/value independently.
 	if !regexpMatch(s, `count\s*=\s*42`) {
 		t.Errorf("count missing: %q", s)
 	}

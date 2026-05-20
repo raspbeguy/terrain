@@ -15,7 +15,6 @@ import (
 
 const sshImportResource = "/io/github/raspbeguy/Terrain/ssh-key-import.ui"
 
-// PresentSSHGenerate prompts for a label, generates a key, and shows the public key for copy-paste.
 func PresentSSHGenerate(parent *gtk.Window, onDone func()) {
 	d := adw.NewAlertDialog("Generate SSH Key", "Pick a short label, used to refer to the key inside Terrain.")
 
@@ -49,7 +48,6 @@ func PresentSSHGenerate(parent *gtk.Window, onDone func()) {
 	d.Present(parent)
 }
 
-// PresentSSHImport opens the import dialog (paste-or-pick + label).
 func PresentSSHImport(parent *gtk.Window, onDone func()) {
 	builder := gtk.NewBuilderFromResource(sshImportResource)
 

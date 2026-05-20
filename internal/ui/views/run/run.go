@@ -1,4 +1,3 @@
-// Package run owns the run detail view (log + Cancel/Apply/Discard/Back).
 package run
 
 import (
@@ -25,7 +24,6 @@ type tfjsonPlan = tfjson.Plan
 
 const uiResource = "/io/github/raspbeguy/Terrain/run-detail.ui"
 
-// Page is reused across runs; Start() rebinds and rewires the buttons.
 type Page struct {
 	root       *gtk.Box
 	cancelBtn  *gtk.Button
@@ -42,7 +40,6 @@ type Page struct {
 	onBack     func()
 	onStatus   func(domain.RunStatus, string)
 
-	// latestPlan is captured so onApply can forward the plan file path.
 	latestPlan *domain.PlanResult
 }
 
@@ -86,7 +83,6 @@ func (p *Page) SetOnBack(fn func()) { p.onBack = fn }
 
 func (p *Page) SetOnStatus(fn func(domain.RunStatus, string)) { p.onStatus = fn }
 
-// Start replaces any previous run binding; safe to call repeatedly.
 func (p *Page) Start(
 	run domain.Run,
 	stream domain.RunStream,
@@ -158,9 +154,6 @@ func (p *Page) requestCancel() {
 	}
 }
 
-// LoadHistory replays a finished run from disk artifacts (stdout.log /
-// stderr.log / plan.json). Read-only; only Back stays visible. Requires
-// r.RunDir; remote backends that don't persist locally aren't replayable.
 func (p *Page) LoadHistory(r domain.Run) {
 	p.log.Clear()
 	p.plan.Bind(nil)
@@ -191,8 +184,7 @@ func (p *Page) LoadHistory(r domain.Run) {
 	p.loadPlanJSON(r.RunDir)
 }
 
-// loadLogFiles concatenates stdout then stderr; we don't store per-line
-// timestamps, so true interleaving isn't possible.
+// Concatenates stdout then stderr; per-line timestamps aren't stored, so true interleaving is impossible.
 func (p *Page) loadLogFiles(runDir string) error {
 	stdoutPath := filepath.Join(runDir, "stdout.log")
 	stderrPath := filepath.Join(runDir, "stderr.log")
@@ -211,8 +203,6 @@ func (p *Page) loadLogFiles(runDir string) error {
 	return nil
 }
 
-// streamLogFile treats a missing file as empty (a crashed-early plan
-// may not have stderr.log).
 func streamLogFile(path string, stream domain.Stream, log *widgets.LogView) error {
 	f, err := os.Open(path)
 	if err != nil {
@@ -231,7 +221,6 @@ func streamLogFile(path string, stream domain.Stream, log *widgets.LogView) erro
 			Stream: stream,
 			Text:   text,
 		}
-		// JSON-parse stdout so @level styling carries through.
 		if stream == domain.StreamStdout && len(text) > 0 && text[0] == '{' {
 			var parsed map[string]any
 			if err := json.Unmarshal([]byte(text), &parsed); err == nil {
@@ -243,7 +232,6 @@ func streamLogFile(path string, stream domain.Stream, log *widgets.LogView) erro
 	return scanner.Err()
 }
 
-// loadPlanJSON treats a missing plan.json as expected (apply runs).
 func (p *Page) loadPlanJSON(runDir string) {
 	data, err := os.ReadFile(filepath.Join(runDir, "plan.json"))
 	if err != nil {
@@ -268,9 +256,6 @@ func truncateRunID(id string) string {
 	return id[:n]
 }
 
-// embedInBin sets the child of an Adw.Bin (or any widget exposing
-// SetChild(gtk.Widgetter)) without importing the adw package; keeps run.go
-// from depending on libadwaita just to stuff a child widget.
 func embedInBin(b *gtk.Builder, id string, child gtk.Widgetter) {
 	obj := b.GetObject(id)
 	if obj == nil {

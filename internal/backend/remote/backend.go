@@ -1,6 +1,3 @@
-// Package remote implements domain.Backend against the TFE-API family
-// (HCP Terraform, self-hosted TFE, OTF): one go-tfe client, capability
-// differences resolved at runtime via Probe().
 package remote
 
 import (
@@ -24,13 +21,12 @@ type tfjsonState = tfjson.State
 type Flavor string
 
 const (
-	FlavorHCP Flavor = "hcp" // app.terraform.io
-	FlavorTFE Flavor = "tfe" // self-hosted Terraform Enterprise
-	FlavorOTF Flavor = "otf" // leg100/otf
+	FlavorHCP Flavor = "hcp"
+	FlavorTFE Flavor = "tfe"
+	FlavorOTF Flavor = "otf"
 )
 
-// Config is the input to New. Endpoint defaults to app.terraform.io for
-// HCP; required for OTF and TFE. Token falls back to TFE_TOKEN env.
+// Endpoint defaults to app.terraform.io for HCP; required for OTF/TFE.
 type Config struct {
 	ID           string
 	Name         string
@@ -48,8 +44,6 @@ type Backend struct {
 
 	client *tfe.Client
 
-	// caps starts at optimisticCaps(flavor) and is refined by Probe()
-	// against the live API.
 	capsMu sync.RWMutex
 	caps   domain.Capabilities
 }
@@ -95,7 +89,6 @@ func New(cfg Config) (*Backend, error) {
 	return b, nil
 }
 
-// optimisticCaps is the assumed bitmask before Probe() refines it.
 func optimisticCaps(flavor Flavor) domain.Capabilities {
 	caps := domain.CapPlan | domain.CapApply | domain.CapVarSets |
 		domain.CapState | domain.CapVCS | domain.CapRunQueue
@@ -105,10 +98,8 @@ func optimisticCaps(flavor Flavor) domain.Capabilities {
 	return caps
 }
 
-// ID returns the registry-stable identifier.
 func (b *Backend) ID() string { return b.id }
 
-// Kind maps internal flavor → domain.BackendKind.
 func (b *Backend) Kind() domain.BackendKind {
 	switch b.flavor {
 	case FlavorOTF:
@@ -129,8 +120,6 @@ func (b *Backend) Capabilities() domain.Capabilities {
 	return b.caps
 }
 
-// Workspaces drains StreamWorkspaces; kept for callers that want the
-// whole list as a slice (e.g. the varsets dialog).
 func (b *Backend) Workspaces(ctx context.Context) ([]domain.Workspace, error) {
 	var out []domain.Workspace
 	for item := range b.StreamWorkspaces(ctx) {
@@ -142,10 +131,7 @@ func (b *Backend) Workspaces(ctx context.Context) ([]domain.Workspace, error) {
 	return out, nil
 }
 
-// StreamWorkspaces emits one channel item per API page. Include=WSProject
-// piggy-backs the project name so the sidebar doesn't need a per-workspace
-// follow-up read; OTF before v0.3 returns nil Project, toWorkspace falls
-// back to the org name then.
+// One channel item per API page; project name piggy-backed via WSProject.
 func (b *Backend) StreamWorkspaces(ctx context.Context) <-chan domain.WorkspaceStreamItem {
 	out := make(chan domain.WorkspaceStreamItem, 4)
 	go func() {
@@ -192,8 +178,7 @@ func (b *Backend) Workspace(ctx context.Context, id string) (domain.Workspace, e
 	return b.toWorkspace(ws), nil
 }
 
-// Runs returns past runs for a workspace, oldest first (matches the
-// local backend's history shape).
+// Oldest-first, matching the local backend's history shape.
 func (b *Backend) Runs(ctx context.Context, workspaceID string) ([]domain.Run, error) {
 	var out []domain.Run
 	page := 1
@@ -213,7 +198,6 @@ func (b *Backend) Runs(ctx context.Context, workspaceID string) ([]domain.Run, e
 		}
 		page = list.NextPage
 	}
-	// Reverse to oldest-first to match the local backend's history shape.
 	for i, j := 0, len(out)-1; i < j; i, j = i+1, j-1 {
 		out[i], out[j] = out[j], out[i]
 	}
@@ -234,12 +218,11 @@ func (b *Backend) toRun(r *tfe.Run, workspaceID string) domain.Run {
 		Status:      status,
 		Message:     r.Message,
 		CreatedAt:   r.CreatedAt,
-		UpdatedAt:   r.CreatedAt, // TFE list payload doesn't expose updated-at
+		UpdatedAt:   r.CreatedAt,
 	}
 }
 
-// LoadState prefers the JSON download URL (Terraform 1.3+) and falls
-// back to the binary state download.
+// Prefers JSON download (Terraform 1.3+) with fallback to the binary state.
 func (b *Backend) LoadState(parent context.Context, workspaceID string) (*tfjsonState, error) {
 	ctx, cancel := context.WithTimeout(parent, 30*time.Second)
 	defer cancel()
@@ -275,8 +258,6 @@ func (b *Backend) LoadState(parent context.Context, workspaceID string) (*tfjson
 func (b *Backend) Close() error { return nil }
 
 func (b *Backend) toWorkspace(ws *tfe.Workspace) domain.Workspace {
-	// Older OTF or default-project workspaces have nil Project; fall
-	// back to the org name then.
 	projectName := b.organization
 	var projectID string
 	if ws.Project != nil && ws.Project.Name != "" {

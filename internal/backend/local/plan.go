@@ -14,14 +14,7 @@ import (
 	"github.com/raspbeguy/terrain/internal/domain"
 )
 
-// parsePlanFile runs `<binary> show -json <plan-file>` from workDir and parses
-// the output into *tfjson.Plan. Returns a PlanResult with the file path
-// always set; Parsed is non-nil on success and Err captures any failure
-// without poisoning the rest of the run (the binary plan file remains
-// usable for apply even if json parsing fails).
-//
-// Has its own short timeout; `show -json` is fast (subseconds for normal
-// plans) but we don't want a hung binary to keep the run worker alive.
+// Short timeout: a hung binary mustn't keep the run worker alive.
 func parsePlanFile(parent context.Context, binary, workDir, planFile string) *domain.PlanResult {
 	result := &domain.PlanResult{File: planFile}
 
@@ -48,11 +41,7 @@ func parsePlanFile(parent context.Context, binary, workDir, planFile string) *do
 	return result
 }
 
-// persistPlanJSON writes the parsed plan to <runDir>/plan.json so historical
-// replay can render the diff without re-invoking `tofu show -json`. Best-
-// effort: failures are logged at the call site; we don't propagate them up
-// because the binary plan file remains the source of truth and the live
-// stream has already received the result.
+// Best-effort: binary plan file remains the source of truth.
 func persistPlanJSON(runDir string, result *domain.PlanResult) {
 	if result == nil || result.Parsed == nil {
 		return

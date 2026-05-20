@@ -1,6 +1,4 @@
-// Package config loads and persists $XDG_CONFIG_HOME/terrain/config.toml,
-// the registry of backends and projects. Credentials live in
-// libsecret, not here.
+// Package config: $XDG_CONFIG_HOME/terrain/config.toml registry. Credentials live in libsecret.
 package config
 
 import (
@@ -21,28 +19,21 @@ type Config struct {
 	Backends []BackendConfig `toml:"backend"`
 }
 
-// AppConfig holds global preferences not tied to a single backend.
 type AppConfig struct {
-	// DefaultEngine is "tofu" or "terraform"; preferred when both exist.
 	DefaultEngine string `toml:"default_engine"`
 }
 
-// BackendConfig is a single registry entry; local and remote share the
-// struct, unused fields stay empty.
 type BackendConfig struct {
 	ID   string `toml:"id"`
-	Type string `toml:"type"` // "local" or "remote"
+	Type string `toml:"type"`
 	Name string `toml:"name"`
 
 	Projects []ProjectConfig `toml:"projects,omitempty"`
 
 	Endpoint     string `toml:"endpoint,omitempty"`
 	Organization string `toml:"organization,omitempty"`
-	Flavor       string `toml:"flavor,omitempty"` // "otf", "hcp", "tfe"
+	Flavor       string `toml:"flavor,omitempty"`
 
-	// Token plaintext is a fallback when libsecret is unreachable;
-	// AddRemoteBackend writes this with a logged warning. Resolve via
-	// ResolveToken (keyring first); empty + no keyring → try TFE_TOKEN.
 	Token string `toml:"token,omitempty"`
 }
 
@@ -53,7 +44,6 @@ type ProjectConfig struct {
 	GitRef  string `toml:"git_ref,omitempty"`
 	Subpath string `toml:"subpath,omitempty"`
 
-	// SSHKeyLabel selects an internal/sshkeys label for SSH URLs; HTTPS tokens live in libsecret keyed by host.
 	SSHKeyLabel string `toml:"ssh_key_label,omitempty"`
 	GitUsername string `toml:"git_username,omitempty"`
 }
@@ -66,7 +56,6 @@ func Path() (string, error) {
 	return filepath.Join(base, "terrain", "config.toml"), nil
 }
 
-// Load returns a default Config when the file doesn't exist (first run).
 func Load() (*Config, error) {
 	path, err := Path()
 	if err != nil {
@@ -91,7 +80,6 @@ func Load() (*Config, error) {
 	return c, nil
 }
 
-// Save writes via temp-file + rename.
 func (c *Config) Save() error {
 	path, err := Path()
 	if err != nil {
@@ -121,9 +109,6 @@ func (c *Config) Save() error {
 	return nil
 }
 
-// AddRemoteBackend prefers libsecret for token storage; on keyring
-// failure it falls back to plaintext in config.toml with a logged
-// warning so headless/CI setups still work.
 func (c *Config) AddRemoteBackend(name, flavor, endpoint, organization, token string) (BackendConfig, error) {
 	bc := BackendConfig{
 		ID:           "remote-" + newID(),
@@ -144,8 +129,6 @@ func (c *Config) AddRemoteBackend(name, flavor, endpoint, organization, token st
 	return bc, c.Save()
 }
 
-// ResolveToken prefers keyring over plaintext; "" means the caller
-// should try TFE_TOKEN env or reject the backend.
 func (bc BackendConfig) ResolveToken() string {
 	if v, err := secrets.Get(secrets.TokenKey(bc.ID)); err == nil && v != "" {
 		return v
@@ -153,9 +136,6 @@ func (bc BackendConfig) ResolveToken() string {
 	return bc.Token
 }
 
-// MigrateTokens moves plaintext tokens into the keyring and clears them
-// from config.toml. Idempotent and best-effort: keyring failures leave
-// the plaintext in place with a logged warning.
 func (c *Config) MigrateTokens() (int, error) {
 	if c == nil {
 		return 0, nil
@@ -190,9 +170,7 @@ func (c *Config) MigrateTokens() (int, error) {
 	return migrated, nil
 }
 
-// RemoveLocalProject drops the local backend entirely if its last
-// project is removed. On-disk artifacts (cache, state versions,
-// keyring) are NOT touched; re-adding the same path keeps history.
+// Drops the local backend entirely once its last project is removed.
 func (c *Config) RemoveLocalProject(projectID string) error {
 	for bi, bc := range c.Backends {
 		if bc.Type != "local" {
@@ -212,11 +190,8 @@ func (c *Config) RemoveLocalProject(projectID string) error {
 	return ErrProjectNotFound
 }
 
-// ErrProjectNotFound distinguishes a stale UI request from a disk
-// failure in RemoveLocalProject.
 var ErrProjectNotFound = errors.New("project not found")
 
-// AddLocalProject reuses the single "local" backend if present, creates it otherwise.
 func (c *Config) AddLocalProject(p ProjectConfig) (BackendConfig, ProjectConfig, error) {
 	if p.GitURL == "" {
 		return BackendConfig{}, ProjectConfig{}, fmt.Errorf("git_url is required")
@@ -242,7 +217,7 @@ func (c *Config) AddLocalProject(p ProjectConfig) (BackendConfig, ProjectConfig,
 	return bc, p, c.Save()
 }
 
-// dropLegacyLocalProjects: pre-git "path"-only entries lose their key on decode (go-toml ignores unknown fields) and surface as empty GitURL.
+// Pre-git path-only entries decode with empty GitURL; drop them.
 func (c *Config) dropLegacyLocalProjects() {
 	for bi := range c.Backends {
 		if c.Backends[bi].Type != "local" {

@@ -8,8 +8,6 @@ import (
 	tfjson "github.com/hashicorp/terraform-json"
 )
 
-// stateOf builds a minimal *tfjson.State with one root module containing
-// the supplied resources. Used to keep test data terse.
 func stateOf(resources ...*tfjson.StateResource) *tfjson.State {
 	return &tfjson.State{
 		Values: &tfjson.StateValues{
@@ -90,9 +88,9 @@ func TestDiffStates_ChangedAttributes(t *testing.T) {
 	}))
 	b := stateOf(resource("aws_instance.x", "aws", map[string]any{
 		"id":     "i-1",
-		"size":   "t2.large", // changed
+		"size":   "t2.large",
 		"tag":    "old",
-		"region": "us-east-1", // added attr
+		"region": "us-east-1",
 	}))
 	added, changed, removed := diffStates(a, b)
 	if len(added) != 0 || len(removed) != 0 || len(changed) != 1 {
@@ -102,7 +100,6 @@ func TestDiffStates_ChangedAttributes(t *testing.T) {
 	if got.Address != "aws_instance.x" {
 		t.Errorf("address: %v", got.Address)
 	}
-	// Should report two attribute changes: size (modified) + region (added).
 	keys := make(map[string]bool)
 	for _, c := range got.AttrChanges {
 		keys[c.Key] = true
@@ -111,7 +108,6 @@ func TestDiffStates_ChangedAttributes(t *testing.T) {
 		t.Errorf("attribute keys: %v", keys)
 	}
 
-	// region: only present in B
 	for _, c := range got.AttrChanges {
 		if c.Key == "region" {
 			if c.FromExists || !c.ToExists {

@@ -1,5 +1,4 @@
-// Package ui hosts the GTK-side of terrain. Boundary rule: ui (and
-// subpackages) is the only place allowed to import gotk4.
+// Package ui is the only place allowed to import gotk4.
 package ui
 
 import (
@@ -40,16 +39,13 @@ func NewApp() *App {
 	}
 }
 
-// Run blocks until the application exits.
 func (a *App) Run(args []string) int {
 	a.app.ConnectActivate(a.onActivate)
 	a.registerActions()
 	return a.app.Run(args)
 }
 
-// registerActions wires "app.*" actions referenced from Blueprint.
-// Handlers may fire before onActivate (e.g. via `gapplication action`)
-// so they must not assume the window exists.
+// Handlers may fire before onActivate via `gapplication action`; don't assume window exists.
 func (a *App) registerActions() {
 	addLocal := gio.NewSimpleAction("add-local-project", nil)
 	addLocal.ConnectActivate(func(_ *glib.Variant) {
@@ -96,7 +92,6 @@ func (a *App) onActivate() {
 	}
 	a.cfg = cfg
 
-	// Idempotent migration: any plaintext tokens move to the keyring.
 	if n, err := cfg.MigrateTokens(); err != nil {
 		slog.Warn("token migration", "err", err)
 	} else if n > 0 {
@@ -110,7 +105,6 @@ func (a *App) onActivate() {
 	}
 	a.backends = backends
 
-	// Sweep orphan vars files from runs that didn't shut down cleanly.
 	for _, b := range backends {
 		if cleaner, ok := b.(interface{ CleanupOrphanArtifacts() }); ok {
 			cleaner.CleanupOrphanArtifacts()
@@ -136,7 +130,6 @@ func (a *App) onActivate() {
 	a.refreshAllLocalWorkspacesAsync()
 }
 
-// refreshAllLocalWorkspacesAsync fires one goroutine per local project; sidebar updates as results arrive.
 func (a *App) refreshAllLocalWorkspacesAsync() {
 	for _, b := range a.backends {
 		lb, ok := b.(*local.Backend)
@@ -346,8 +339,6 @@ func (a *App) remoteBackends() []dialogs.RemoteBackend {
 	return out
 }
 
-// onVariableSets uses the first local backend (the canonical varset
-// store) since global varsets aren't tied to any specific backend.
 func (a *App) onVariableSets() {
 	if a.window == nil {
 		return
@@ -376,9 +367,6 @@ func (a *App) localWorkspaces() []domain.Workspace {
 	return out
 }
 
-// firstLocalBackend returns the first registered local backend, the
-// only kind that satisfies VarsetsBackend (remote backends have their
-// own server-side varsets).
 func (a *App) firstLocalBackend() (dialogs.VarsetsBackend, []dialogs.ProjectChoice) {
 	for _, b := range a.backends {
 		if b.Kind() != domain.BackendKindLocal {
@@ -662,7 +650,6 @@ func (a *App) toastErrorFromGoroutine(msg string) {
 	})
 }
 
-// checkBinary returns a banner message when the workspace is in managed mode and no managed binary is installed for its engine yet; empty otherwise.
 func (a *App) checkBinary(ws domain.Workspace) string {
 	lb := a.localBackendFor(ws.BackendID)
 	if lb == nil {

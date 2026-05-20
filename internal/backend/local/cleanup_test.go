@@ -14,7 +14,6 @@ func TestCleanupOrphanArtifacts_RemovesOrphans(t *testing.T) {
 
 	b := New("cleanup-test", "Local")
 
-	// Seed three orphan vars files in distinct workspace+run paths.
 	want := []string{
 		filepath.Join(dir, "terrain", b.id, "ws-a", "runs", "run-1", "vars.auto.tfvars.json"),
 		filepath.Join(dir, "terrain", b.id, "ws-a", "runs", "run-2", "vars.auto.tfvars.json"),
@@ -29,7 +28,6 @@ func TestCleanupOrphanArtifacts_RemovesOrphans(t *testing.T) {
 		}
 	}
 
-	// Also seed a run-dir file that is NOT a vars file; it must survive.
 	survivor := filepath.Join(dir, "terrain", b.id, "ws-a", "runs", "run-1", "stdout.log")
 	if err := os.WriteFile(survivor, []byte("kept"), 0o644); err != nil {
 		t.Fatal(err)
@@ -52,8 +50,7 @@ func TestCleanupOrphanArtifacts_NoCacheDir(t *testing.T) {
 	t.Setenv("XDG_CACHE_HOME", dir)
 
 	b := New("never-ran", "Local")
-	// No vars files created. Cleanup must be a clean no-op.
-	b.CleanupOrphanArtifacts() // should not panic
+	b.CleanupOrphanArtifacts()
 }
 
 func TestCleanupOrphanArtifacts_OnlyTouchesOwnBackend(t *testing.T) {

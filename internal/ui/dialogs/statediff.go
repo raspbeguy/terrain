@@ -14,7 +14,7 @@ import (
 
 const stateDiffResource = "/io/github/raspbeguy/Terrain/state-diff.ui"
 
-// StateDiffLoader: empty versionID means "live state".
+// Empty versionID means "live state".
 type StateDiffLoader = func(versionID string) (*tfjson.State, error)
 
 func PresentStateDiff(parent *gtk.Window, versions []domain.StateVersion, loader StateDiffLoader) {
@@ -34,7 +34,7 @@ type stateDiffDialog struct {
 
 	diff *widgets.StateDiff
 
-	// versions[i] maps to combo index i+1; combo 0 is "Live".
+	// versions[i] is combo index i+1; index 0 is "Live".
 	versions []domain.StateVersion
 	loader   StateDiffLoader
 	suppress bool

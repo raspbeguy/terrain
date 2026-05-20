@@ -1,7 +1,4 @@
 #!/bin/sh
-# Wrapper that runs `go build` from the project source root.
-# Meson invokes custom_target commands from the build directory; this script
-# changes into the source root so go build sees go.mod and the package layout.
 
 set -eu
 

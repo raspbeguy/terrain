@@ -1,4 +1,4 @@
-// Package gitutils wraps go-git so Terrain can clone, sync, and probe repos without invoking host git.
+// Package gitutils: go-git wrapper; never invokes host git.
 package gitutils
 
 import (
@@ -20,7 +20,7 @@ type Auth struct{ method transport.AuthMethod }
 
 var NoAuth = Auth{}
 
-// HTTPSBasicAuth: most forges accept a PAT in the password slot with any non-empty username.
+// Most forges accept a PAT in the password slot with any non-empty username.
 func HTTPSBasicAuth(username, token string) Auth {
 	if username == "" {
 		username = "git"
@@ -28,7 +28,7 @@ func HTTPSBasicAuth(username, token string) Auth {
 	return Auth{method: &githttp.BasicAuth{Username: username, Password: token}}
 }
 
-// SSHKeyAuth: user must match the URL's "user@host"; go-git's PublicKeys.User overrides the URL.
+// PublicKeys.User overrides the URL's user; must match "user@host".
 func SSHKeyAuth(privateKeyPath, user string) (Auth, error) {
 	signer, err := loadSigner(privateKeyPath)
 	if err != nil {
@@ -54,7 +54,7 @@ func loadSigner(path string) (gossh.Signer, error) {
 	return signer, nil
 }
 
-// Clone fetches url@ref into dir; empty ref = remote default branch.
+// Empty ref = remote default branch.
 func Clone(ctx context.Context, url, ref, dir string, auth Auth) error {
 	opts := &git.CloneOptions{
 		URL:  url,
@@ -70,7 +70,7 @@ func Clone(ctx context.Context, url, ref, dir string, auth Auth) error {
 	return nil
 }
 
-// Sync fetches origin and hard-resets to it; local edits inside the clone are discarded by design.
+// fetch + hard-reset; local edits in the clone are discarded by design.
 func Sync(ctx context.Context, dir, ref string, auth Auth) error {
 	repo, err := git.PlainOpen(dir)
 	if err != nil {
@@ -93,7 +93,6 @@ func Sync(ctx context.Context, dir, ref string, auth Auth) error {
 		RefSpecs:   []config.RefSpec{refSpec},
 		Force:      true,
 	}); err != nil && !errors.Is(err, git.NoErrAlreadyUpToDate) {
-		// Branch may be a tag; retry once with the tag refspec before giving up.
 		tagSpec := config.RefSpec(fmt.Sprintf(
 			"+refs/tags/%s:refs/tags/%s", branch, branch))
 		if tagErr := repo.FetchContext(ctx, &git.FetchOptions{
@@ -125,7 +124,6 @@ func Sync(ctx context.Context, dir, ref string, auth Auth) error {
 	return nil
 }
 
-// LsRemote returns the resolved commit hash for ref (or HEAD when empty).
 func LsRemote(ctx context.Context, url, ref string, auth Auth) (string, error) {
 	rem := git.NewRemote(nil, &config.RemoteConfig{
 		Name: "probe",

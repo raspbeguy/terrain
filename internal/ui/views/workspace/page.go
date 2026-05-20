@@ -1,5 +1,3 @@
-// Package workspace owns the per-workspace detail view (Overview / Runs
-// / Variables / State tabs).
 package workspace
 
 import (
@@ -16,7 +14,6 @@ import (
 
 const uiResource = "/io/github/raspbeguy/Terrain/workspace-detail.ui"
 
-// Page is reused across workspaces; Bind() updates it.
 type Page struct {
 	root *gtk.Box
 
@@ -44,11 +41,9 @@ type Page struct {
 	stateTree *widgets.StateTree
 	varList   *widgets.VarList
 
-	// stateVersions index matches the combo position (0 = live; 1+ =
-	// snapshots in display order).
+	// Combo index 0 is live; 1+ are snapshots in display order.
 	stateVersions []domain.StateVersion
-	// runs index matches ListBoxRow.Index().
-	runs []domain.Run
+	runs          []domain.Run
 
 	current             domain.Workspace
 	onNewPlan           func(domain.Workspace)
@@ -73,8 +68,6 @@ func (p *Page) SetOnOpenSettings(fn func(domain.Workspace)) {
 	p.onOpenSettings = fn
 }
 
-// LineageWarning flags a state-tree replacement (state rm + import,
-// `tofu init -reconfigure`).
 type LineageWarning struct {
 	From string
 	To   string
@@ -230,8 +223,6 @@ func (p *Page) refreshState() {
 	if p.current.ID == "" {
 		return
 	}
-	// Re-fetch the snapshot list first so the combo reflects what's on
-	// disk; rebinding to "Live" happens implicitly when we set selected=0.
 	p.refreshStateVersionList()
 
 	if p.onLoadState == nil {
@@ -288,7 +279,6 @@ func (p *Page) populateStateVersionCombo(versions []domain.StateVersion) {
 func (p *Page) onStateVersionChanged() {
 	idx := int(p.stateVersionCombo.Selected())
 	if idx <= 0 {
-		// Live: re-fetch so the freshest state shows, not a cached one.
 		if p.onLoadState != nil && p.current.ID != "" {
 			state, err := p.onLoadState(p.current)
 			if err != nil {
@@ -316,7 +306,6 @@ func (p *Page) onStateVersionChanged() {
 	p.stateTree.Bind(state)
 }
 
-// intToString avoids dragging in strconv just for a status-row formatter.
 func intToString(n int64) string {
 	if n == 0 {
 		return "0"
@@ -371,8 +360,6 @@ func (p *Page) refreshVariables() {
 	p.varList.Bind(vars)
 }
 
-// bindRuns reverses the chronological list (newest at top) and tags
-// plan rows whose plan file was consumed by an apply.
 func (p *Page) bindRuns(runs []domain.Run) {
 	reversed := make([]domain.Run, len(runs))
 	for i, r := range runs {
@@ -389,7 +376,7 @@ func (p *Page) bindRuns(runs []domain.Run) {
 		return
 	}
 
-	// runs is oldest-first, so the latest apply attempt wins.
+	// Oldest-first iteration so the latest apply attempt wins.
 	appliedPlans := map[string]domain.RunStatus{}
 	for _, r := range runs {
 		if r.Kind == domain.RunKindApply && r.PlanFile != "" {
@@ -414,8 +401,6 @@ func (p *Page) onRunRowActivated(row *gtk.ListBoxRow) {
 	}
 }
 
-// buildRunRow attaches an outcome badge (→ applied / errored / canceled)
-// when r's plan file was consumed by a later apply.
 func buildRunRow(r domain.Run, appliedPlans map[string]domain.RunStatus) *adw.ActionRow {
 	row := adw.NewActionRow()
 	row.SetTitle(string(r.Kind) + " · " + r.ID[:min(12, len(r.ID))])
@@ -553,23 +538,18 @@ func (p *Page) refreshBinaryBanner(ws domain.Workspace) {
 	p.binaryBanner.SetRevealed(true)
 }
 
-// SetOnSync wires the "Sync from git remote" suffix button.
 func (p *Page) SetOnSync(fn func(domain.Workspace)) { p.onSync = fn }
 
-// SetOnOpenDirectory wires the "Open workspace directory" suffix button.
 func (p *Page) SetOnOpenDirectory(fn func(domain.Workspace)) { p.onOpenDirectory = fn }
 
-// SetSyncBusy disables the sync button and shows a spinner-ish state.
 func (p *Page) SetSyncBusy(busy bool) {
 	p.syncBtn.SetSensitive(!busy)
 }
 
-// SetOnCheckBinary wires the binary-status check; empty return = no banner.
 func (p *Page) SetOnCheckBinary(fn func(domain.Workspace) string) {
 	p.onCheckBinary = fn
 }
 
-// SetOnOpenBinaryPrefs wires the banner's Open Preferences button.
 func (p *Page) SetOnOpenBinaryPrefs(fn func()) {
 	p.onOpenBinaryPrefs = fn
 	p.binaryBanner.ConnectButtonClicked(func() {

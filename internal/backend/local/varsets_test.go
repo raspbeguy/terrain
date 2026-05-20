@@ -9,8 +9,6 @@ import (
 	"github.com/raspbeguy/terrain/internal/domain"
 )
 
-// withXDGConfig points $XDG_CONFIG_HOME at a tmp dir for the duration of t.
-// All varsets persistence keys off os.UserConfigDir which honors the env var.
 func withXDGConfig(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
@@ -24,7 +22,6 @@ func TestVarsets_CreateListDelete(t *testing.T) {
 
 	ctx := context.Background()
 
-	// Empty registry: List returns nothing without error.
 	sets, err := b.VariableSets(ctx)
 	if err != nil {
 		t.Fatalf("VariableSets initial: %v", err)
@@ -33,7 +30,6 @@ func TestVarsets_CreateListDelete(t *testing.T) {
 		t.Fatalf("expected empty list, got %d", len(sets))
 	}
 
-	// Create
 	a, err := b.CreateVariableSet(ctx, "AWS prod", "credentials")
 	if err != nil {
 		t.Fatalf("CreateVariableSet: %v", err)
@@ -46,7 +42,6 @@ func TestVarsets_CreateListDelete(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// List
 	sets, err = b.VariableSets(ctx)
 	if err != nil {
 		t.Fatal(err)
@@ -54,12 +49,10 @@ func TestVarsets_CreateListDelete(t *testing.T) {
 	if len(sets) != 2 {
 		t.Fatalf("expected 2 sets, got %d", len(sets))
 	}
-	// Order: sorted by name asc; "AWS prod" then "Common".
 	if sets[0].Name != "AWS prod" || sets[1].Name != "Common" {
 		t.Errorf("unexpected order: %v / %v", sets[0].Name, sets[1].Name)
 	}
 
-	// Read by ID
 	got, err := b.VariableSet(ctx, a.ID)
 	if err != nil {
 		t.Fatal(err)
@@ -68,7 +61,6 @@ func TestVarsets_CreateListDelete(t *testing.T) {
 		t.Errorf("VariableSet returned wrong id: %v vs %v", got.ID, a.ID)
 	}
 
-	// Delete one
 	if err := b.DeleteVariableSet(ctx, bSet.ID); err != nil {
 		t.Fatal(err)
 	}
@@ -87,7 +79,6 @@ func TestVarsets_UpsertAndDeleteVar(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Upsert plain variable.
 	v := domain.Variable{
 		Key:      "region",
 		Value:    "eu-west-1",
@@ -102,7 +93,6 @@ func TestVarsets_UpsertAndDeleteVar(t *testing.T) {
 		t.Fatalf("unexpected vars after upsert: %+v", got.Variables)
 	}
 
-	// Update the same key; should replace, not append.
 	v.Value = "us-east-2"
 	if err := b.UpsertVariableSetVar(context.Background(), set.ID, v); err != nil {
 		t.Fatal(err)
@@ -112,7 +102,6 @@ func TestVarsets_UpsertAndDeleteVar(t *testing.T) {
 		t.Fatalf("expected replace, got %+v", got.Variables)
 	}
 
-	// Add a second key.
 	if err := b.UpsertVariableSetVar(context.Background(), set.ID, domain.Variable{
 		Key:      "instance_count",
 		Value:    "3",
@@ -125,7 +114,6 @@ func TestVarsets_UpsertAndDeleteVar(t *testing.T) {
 		t.Fatalf("expected 2 vars, got %d", len(got.Variables))
 	}
 
-	// Delete one.
 	if err := b.DeleteVariableSetVar(context.Background(), set.ID, "region"); err != nil {
 		t.Fatal(err)
 	}

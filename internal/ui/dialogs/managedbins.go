@@ -16,7 +16,6 @@ import (
 
 const managedInstallResource = "/io/github/raspbeguy/Terrain/managed-binary-install.ui"
 
-// PresentManagedInstall: onComplete fires on the GTK main thread after success.
 func PresentManagedInstall(parent *gtk.Window, onComplete func()) {
 	builder := gtk.NewBuilderFromResource(managedInstallResource)
 	dialog := uihelpers.MustCast[*adw.Dialog](builder, "managed_install_dialog")

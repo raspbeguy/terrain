@@ -15,16 +15,10 @@ import (
 	"github.com/raspbeguy/terrain/internal/domain"
 )
 
-// graceWindow is the SIGINT→SIGKILL delay; long enough for tofu to
-// release locks and write state, short enough that Cancel feels alive.
+// SIGINT to SIGKILL delay: lets tofu release locks and write state.
 const graceWindow = 5 * time.Second
 
-// streamCommand drains stdout/stderr into out and waits for cmd to
-// exit. Caller owns + closes out (we may push synthetic events after
-// streamCommand returns).
-//
-// Return: nil on exit 0; *exec.ExitError for non-zero / cancel; other
-// errors for setup failures.
+// Caller owns and closes out; we may push synthetic events after return.
 func streamCommand(ctx context.Context, cmd *exec.Cmd, out chan<- domain.LogLine) error {
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
@@ -35,9 +29,6 @@ func streamCommand(ctx context.Context, cmd *exec.Cmd, out chan<- domain.LogLine
 		return fmt.Errorf("stderr pipe: %w", err)
 	}
 
-	// Cancel chain: prior hook (e.g. runtime.Cancel for container kill)
-	// runs first, then SIGINT to the wrapper. WaitDelay caps Wait at
-	// graceWindow before exec.Cmd issues SIGKILL.
 	priorCancel := cmd.Cancel
 	cmd.Cancel = func() error {
 		if priorCancel != nil {
@@ -69,8 +60,7 @@ func streamCommand(ctx context.Context, cmd *exec.Cmd, out chan<- domain.LogLine
 	return cmd.Wait()
 }
 
-// scanLines: 1 MB buffer because tofu plan -json's planned_change for
-// large resources can blow past the 64 KB default.
+// 1 MB buffer: tofu plan -json planned_change can exceed 64 KB default.
 func scanLines(r io.Reader, stream domain.Stream, out chan<- domain.LogLine) {
 	const maxLine = 1 << 20
 	scanner := bufio.NewScanner(r)
@@ -91,9 +81,6 @@ func scanLines(r io.Reader, stream domain.Stream, out chan<- domain.LogLine) {
 		}
 		out <- line
 	}
-	// Scanner errors that aren't normal termination (oversize line,
-	// post-cancel pipe error other than EOF/ClosedPipe) surface to the
-	// log so the UI can show them.
 	if err := scanner.Err(); err != nil &&
 		!errors.Is(err, io.EOF) &&
 		!errors.Is(err, io.ErrClosedPipe) {
@@ -105,8 +92,7 @@ func scanLines(r io.Reader, stream domain.Stream, out chan<- domain.LogLine) {
 	}
 }
 
-// exitCodeOf returns -1 when the exit code is unknown (signal kill,
-// non-ExitError failures).
+// Returns -1 when the exit code is unknown (signal kill, non-ExitError).
 func exitCodeOf(err error) int {
 	if err == nil {
 		return 0

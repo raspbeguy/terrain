@@ -1,4 +1,4 @@
-// Package sshkeys stores keys under $XDG_DATA_HOME so the Flatpak sandbox needs no ssh-auth or ~/.ssh access.
+// Package sshkeys: $XDG_DATA_HOME-scoped keys; no ssh-auth or ~/.ssh access needed.
 package sshkeys
 
 import (
@@ -33,7 +33,6 @@ var ErrInvalidLabel = errors.New("invalid ssh key label")
 
 var labelRE = regexp.MustCompile(`^[A-Za-z0-9._-]{1,64}$`)
 
-// Generate writes an unencrypted ed25519 keypair under label; encrypt-at-rest is out of scope.
 func Generate(label string) (KeyInfo, error) {
 	if !labelRE.MatchString(label) {
 		return KeyInfo{}, ErrInvalidLabel
@@ -85,7 +84,7 @@ func Generate(label string) (KeyInfo, error) {
 	return info, nil
 }
 
-// Import accepts any unencrypted OpenSSH/RSA/EC/ED25519 private key; passphrases aren't supported.
+// Unencrypted only; passphrases rejected.
 func Import(label string, pem []byte) (KeyInfo, error) {
 	if !labelRE.MatchString(label) {
 		return KeyInfo{}, ErrInvalidLabel
@@ -132,7 +131,6 @@ func Import(label string, pem []byte) (KeyInfo, error) {
 	return info, nil
 }
 
-// List returns all stored keys, sorted by label. Missing root → empty slice.
 func List() ([]KeyInfo, error) {
 	root, err := keysRoot()
 	if err != nil {
@@ -160,7 +158,6 @@ func List() ([]KeyInfo, error) {
 	return out, nil
 }
 
-// Get loads a single key by label.
 func Get(label string) (KeyInfo, error) {
 	if !labelRE.MatchString(label) {
 		return KeyInfo{}, ErrInvalidLabel
@@ -168,7 +165,6 @@ func Get(label string) (KeyInfo, error) {
 	return load(label)
 }
 
-// Remove wipes the key dir; missing label is ErrNotFound.
 func Remove(label string) error {
 	if !labelRE.MatchString(label) {
 		return ErrInvalidLabel
@@ -183,7 +179,6 @@ func Remove(label string) error {
 	return os.RemoveAll(dir)
 }
 
-// PublicKeyText returns the authorized_keys-format string for label.
 func PublicKeyText(label string) (string, error) {
 	info, err := Get(label)
 	if err != nil {
@@ -192,7 +187,6 @@ func PublicKeyText(label string) (string, error) {
 	return info.Public, nil
 }
 
-// PrivateKeyPath returns the on-disk path of label's private key.
 func PrivateKeyPath(label string) (string, error) {
 	dir, err := keyDir(label)
 	if err != nil {

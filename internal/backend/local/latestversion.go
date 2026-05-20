@@ -9,10 +9,9 @@ import (
 	"time"
 )
 
-// 1h: catches same-day releases without hammering GitHub.
 const latestVersionTTL = time.Hour
 
-// HEAD against /releases/latest dodges GitHub API rate limits.
+// HEAD on /releases/latest avoids GitHub API rate limits.
 var latestReleaseRepo = map[string]string{
 	"tofu":      "opentofu/opentofu",
 	"terraform": "hashicorp/terraform",
@@ -28,7 +27,6 @@ var (
 	latestCache   = map[string]latestEntry{}
 )
 
-// LatestManagedVersion strips the leading "v" from the tag.
 func LatestManagedVersion(ctx context.Context, engine string) (string, error) {
 	repo, ok := latestReleaseRepo[engine]
 	if !ok {
@@ -53,7 +51,6 @@ func LatestManagedVersion(ctx context.Context, engine string) (string, error) {
 	return v, nil
 }
 
-// fetchLatestReleaseTag parses GitHub's 302 → /releases/tag/v<X>.
 func fetchLatestReleaseTag(ctx context.Context, repo string) (string, error) {
 	url := "https://github.com/" + repo + "/releases/latest"
 	req, err := http.NewRequestWithContext(ctx, http.MethodHead, url, nil)

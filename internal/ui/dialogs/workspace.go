@@ -9,7 +9,6 @@ import (
 	"github.com/raspbeguy/terrain/internal/backend/local"
 )
 
-// PresentNewWorkspace prompts for a workspace name and runs onConfirmed(name) when the user accepts a valid input.
 func PresentNewWorkspace(parent *gtk.Window, projectName string, onConfirmed func(name string)) {
 	d := adw.NewAlertDialog(
 		"New Workspace",

@@ -1,4 +1,3 @@
-// Package window owns the main AdwApplicationWindow and its sidebar.
 package window
 
 import (
@@ -40,15 +39,12 @@ type Window struct {
 	workspacePage *workspace.Page
 	runPage       *run.Page
 
-	// searchFilter is the lowercased sidebar query; empty = no filter.
 	searchFilter string
 
-	// workspaces is in row order; index matches ListBoxRow.Index().
+	// Row order; index matches ListBoxRow.Index().
 	workspaces []domain.Workspace
 	current    domain.Workspace
 
-	// onRemoveProject is invoked when the user confirms Remove on a
-	// sidebar row. The app handles the config mutation + Refresh.
 	onRemoveProject     func(domain.Workspace)
 	onSync              func(domain.Workspace)
 	onOpenDirectory     func(domain.Workspace)
@@ -96,13 +92,10 @@ func (w *Window) SetOnOpenBinaryPrefs(fn func()) {
 	w.onOpenBinaryPrefs = fn
 }
 
-// SetWorkspacePageSyncBusy proxies the workspace page busy indicator from app handlers.
 func (w *Window) SetWorkspacePageSyncBusy(busy bool) {
 	w.workspacePage.SetSyncBusy(busy)
 }
 
-// New populates the sidebar from backends. Pass the app-shared lock
-// registry so per-workspace state stays consistent across the UI.
 func New(app *adw.Application, backends []domain.Backend, locks *runner.WorkspaceLocks) (*Window, error) {
 	if locks == nil {
 		locks = runner.NewWorkspaceLocks()
@@ -185,11 +178,9 @@ func New(app *adw.Application, backends []domain.Backend, locks *runner.Workspac
 
 func (w *Window) Present() { w.root.Present() }
 
-// GtkWindow returns the underlying *gtk.Window for parenting dialogs.
 func (w *Window) GtkWindow() *gtk.Window { return &w.root.Window }
 
-// Toast must be called on the GTK main thread. Domain goroutines route
-// through bridge.OnMainThread first.
+// Must be called on the GTK main thread.
 func (w *Window) Toast(message string) {
 	if w.toastOverlay == nil {
 		return
@@ -213,9 +204,7 @@ func (w *Window) Refresh(backends []domain.Backend) error {
 	return w.refreshFrom(backends)
 }
 
-// refreshFrom rebuilds the sidebar. Local backends are read synchronously;
-// remote backends are read on background goroutines and posted back via
-// bridge.OnMainThread so a slow OTF list never blocks startup.
+// Remote backends load asynchronously so a slow OTF list never blocks startup.
 func (w *Window) refreshFrom(backends []domain.Backend) error {
 	ctx := context.Background()
 	w.backends = backends
@@ -243,9 +232,7 @@ func (w *Window) refreshFrom(backends []domain.Backend) error {
 	return nil
 }
 
-// fetchRemoteWorkspaces uses the streaming API when the backend supports
-// it so the sidebar fills page-by-page; orgs with hundreds of workspaces
-// blew through the previous synchronous deadline.
+// Stream when available; orgs with hundreds of workspaces blew past the prior synchronous deadline.
 func (w *Window) fetchRemoteWorkspaces(b domain.Backend) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
@@ -331,8 +318,6 @@ func (w *Window) rebuildSidebar() {
 		w.sidebarList.Append(row)
 	}
 
-	// Active workspace removed → revert to welcome view to avoid a
-	// stale detail pane.
 	if w.current.ID != "" {
 		stillThere := false
 		for _, ws := range w.workspaces {
@@ -350,7 +335,6 @@ func (w *Window) rebuildSidebar() {
 	}
 }
 
-// attachRowKebab handles workspace-scoped actions only; project-scoped ones live on the project header.
 func (w *Window) attachRowKebab(row *adw.ActionRow, ws domain.Workspace) {
 	if ws.BackendID == "" || !isLocalBackendID(w.backends, ws.BackendID) {
 		return
@@ -384,7 +368,6 @@ func (w *Window) attachRowKebab(row *adw.ActionRow, ws domain.Workspace) {
 	row.AddSuffix(menu)
 }
 
-// projectHeaderWidget hosts the project-scoped kebab above its workspace rows.
 func (w *Window) projectHeaderWidget(ws domain.Workspace) gtk.Widgetter {
 	box := gtk.NewBox(gtk.OrientationHorizontal, 8)
 	box.SetMarginTop(8)
@@ -529,8 +512,6 @@ func (w *Window) clearList() {
 	}
 }
 
-// sidebarFilter matches the lowercased query against the project name,
-// workspace name, and backend display name.
 func (w *Window) sidebarFilter(row *gtk.ListBoxRow) bool {
 	if w.searchFilter == "" {
 		return true
@@ -547,7 +528,6 @@ func (w *Window) sidebarFilter(row *gtk.ListBoxRow) bool {
 	return strings.Contains(hay, w.searchFilter)
 }
 
-// sidebarHeaderFunc inserts a backend label at each backend break and a project header at each (backend, project) break for local backends.
 func (w *Window) sidebarHeaderFunc(row, before *gtk.ListBoxRow) {
 	idx := row.Index()
 	if idx < 0 || int(idx) >= len(w.workspaces) {
@@ -615,9 +595,6 @@ func (w *Window) onRowActivated(row *gtk.ListBoxRow) {
 	w.contentStack.SetVisibleChildName("workspace")
 }
 
-// startPlan acquires the per-workspace lock (refusing concurrent runs),
-// kicks StartRun, swaps to the run detail view, pumps events, releases
-// the lock when the stream closes.
 func (w *Window) startPlan(ws domain.Workspace) {
 	slog.Info("start plan", "ws", ws.ID, "backend", ws.BackendID)
 	backend := w.findBackend(ws.BackendID)
@@ -661,8 +638,6 @@ func (w *Window) startPlan(ws domain.Workspace) {
 	)
 }
 
-// startApply binds the apply to the same run page as the producing plan,
-// replacing its stream.
 func (w *Window) startApply(ws domain.Workspace, plan *domain.PlanResult) {
 	if plan == nil || plan.File == "" {
 		slog.Warn("apply skipped: no plan file")
@@ -700,7 +675,7 @@ func (w *Window) startApply(ws domain.Workspace, plan *domain.PlanResult) {
 		release()
 	}()
 	w.runPage.Start(r, stream, cancel,
-		nil, // applies don't produce a follow-up apply
+		nil,
 		w.showWorkspaceView,
 	)
 }
@@ -725,15 +700,11 @@ func (w *Window) findBackend(id string) domain.Backend {
 	return nil
 }
 
-// stateLoader is the optional capability for backends that can return
-// current state.
 type stateLoader interface {
 	LoadState(ctx context.Context, workspaceID string) (*tfjson.State, error)
 }
 
-// loadState uses TryAcquire (non-blocking) so a state refresh during an
-// in-flight run reports cleanly instead of freezing or hitting tofu's
-// own state-lock error.
+// TryAcquire so a refresh during a run reports cleanly instead of hitting tofu's state-lock.
 func (w *Window) loadState(ws domain.Workspace) (*tfjson.State, error) {
 	backend := w.findBackend(ws.BackendID)
 	if backend == nil {
@@ -753,15 +724,11 @@ func (w *Window) loadState(ws domain.Workspace) (*tfjson.State, error) {
 	return loader.LoadState(context.Background(), ws.ID)
 }
 
-// stateVersionLister is the optional capability for backends with
-// persisted state-version history.
 type stateVersionLister interface {
 	StateVersions(ctx context.Context, workspaceID string) ([]domain.StateVersion, error)
 	LoadStateVersion(ctx context.Context, workspaceID, versionID string) (*tfjson.State, error)
 }
 
-// loadStateVersions returns (nil, nil, nil) cleanly when the backend
-// doesn't satisfy the optional interface.
 func (w *Window) loadStateVersions(ws domain.Workspace) ([]domain.StateVersion, *workspace.LineageWarning, error) {
 	backend := w.findBackend(ws.BackendID)
 	if backend == nil {
@@ -778,8 +745,7 @@ func (w *Window) loadStateVersions(ws domain.Workspace) ([]domain.StateVersion, 
 	return versions, lineageWarn(versions), nil
 }
 
-// lineageWarn flags a lineage change between the latest two snapshots.
-// StateVersions returns newest-first; nil when fewer than two snapshots.
+// StateVersions returns newest-first.
 func lineageWarn(versions []domain.StateVersion) *workspace.LineageWarning {
 	if len(versions) < 2 {
 		return nil
@@ -796,9 +762,6 @@ func lineageWarn(versions []domain.StateVersion) *workspace.LineageWarning {
 	}
 }
 
-// loadStateVersion bridges the version-picker callback to the backend's
-// LoadStateVersion. Returns the parsed state JSON for one specific
-// snapshot.
 func (w *Window) loadStateVersion(ws domain.Workspace, versionID string) (*tfjson.State, error) {
 	backend := w.findBackend(ws.BackendID)
 	if backend == nil {
@@ -811,9 +774,6 @@ func (w *Window) loadStateVersion(ws domain.Workspace, versionID string) (*tfjso
 	return lister.LoadStateVersion(context.Background(), ws.ID, versionID)
 }
 
-// compareStates opens the diff dialog with the workspace's available
-// versions. The loader closure routes to LoadState (for "Live") or
-// LoadStateVersion (for a specific snapshot ID).
 func (w *Window) compareStates(ws domain.Workspace, versions []domain.StateVersion) {
 	loader := func(versionID string) (*tfjson.State, error) {
 		if versionID == "" {
@@ -840,8 +800,6 @@ func (w *Window) loadRuns(ws domain.Workspace) ([]domain.Run, error) {
 	return listing.Runs(context.Background(), ws.ID)
 }
 
-// openRun loads a historical run from disk. No live stream is bound;
-// action buttons stay hidden until the user starts a new run.
 func (w *Window) openRun(ws domain.Workspace, r domain.Run) {
 	slog.Info("open historical run", "id", r.ID, "kind", r.Kind, "status", r.Status, "ws", ws.ID)
 	w.workspaceBin.SetChild(w.runPage.Root())
@@ -869,7 +827,6 @@ type variableUpserter interface {
 	UpsertVariable(ctx context.Context, workspaceID string, v domain.Variable) error
 }
 
-// openWorkspaceSettings opens the per-workspace runtime dialog.
 // Local-only; remote backends manage execution mode server-side.
 func (w *Window) openWorkspaceSettings(ws domain.Workspace) {
 	if !isLocalBackendID(w.backends, ws.BackendID) {
@@ -941,9 +898,7 @@ func (w *Window) deleteVariable(ws domain.Workspace, v domain.Variable) {
 	w.workspacePage.RefreshVariables()
 }
 
-// saveVariable acquires the per-workspace lock so an in-flight run
-// can't materialise vars mid-edit. hclwrite is read-modify-write on
-// terraform.tfvars; concurrent access would race.
+// Lock so an in-flight run can't materialise vars mid hclwrite read-modify-write.
 func (w *Window) saveVariable(ws domain.Workspace, v domain.Variable) {
 	backend := w.findBackend(ws.BackendID)
 	if backend == nil {

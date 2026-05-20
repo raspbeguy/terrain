@@ -23,7 +23,7 @@ func inFlatpak() bool {
 	return inFlatpakOnce.v
 }
 
-// hostCommand: callers must not set cmd.Dir / cmd.Env after this returns.
+// Callers must not set cmd.Dir / cmd.Env after this returns.
 func hostCommand(ctx context.Context, workDir string, extraEnv []string, name string, args ...string) *exec.Cmd {
 	if inFlatpak() && !runnableInSandbox(name) {
 		spawn := []string{"--host"}
@@ -45,7 +45,7 @@ func hostCommand(ctx context.Context, workDir string, extraEnv []string, name st
 	return cmd
 }
 
-// runnableInSandbox: bare command names (no slash) are treated as host-only.
+// Bare command names (no slash) are treated as host-only.
 func runnableInSandbox(name string) bool {
 	if !filepath.IsAbs(name) {
 		return false
@@ -57,9 +57,7 @@ func runnableInSandbox(name string) bool {
 	return !info.IsDir()
 }
 
-// lookPath asks the host via flatpak-spawn when sandboxed; falls through to
-// exec.LookPath otherwise. The returned path is informational from inside
-// the sandbox but executable through flatpak-spawn.
+// Returned path is informational in-sandbox but executable via flatpak-spawn.
 func lookPath(name string) (string, error) {
 	if !inFlatpak() {
 		return exec.LookPath(name)

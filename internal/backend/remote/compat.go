@@ -12,9 +12,7 @@ import (
 	"github.com/raspbeguy/terrain/internal/domain"
 )
 
-// TestConnection validates token + org and refines capabilities.
-// Organizations.Read distinguishes wrong-org from wrong-endpoint cleanly,
-// and the returned CostEstimationEnabled flag seeds caps without another call.
+// Validates token + org and refines capabilities.
 func (b *Backend) TestConnection(ctx context.Context) error {
 	if b.organization == "" {
 		return errors.New("organization missing")
@@ -31,7 +29,7 @@ func (b *Backend) TestConnection(ctx context.Context) error {
 	return nil
 }
 
-// Probe refreshes capabilities. Best-effort; failures keep the cached bitmask.
+// Best-effort: failures keep the cached bitmask.
 func (b *Backend) Probe(parent context.Context) {
 	ctx, cancel := context.WithTimeout(parent, 10*time.Second)
 	defer cancel()
@@ -43,8 +41,6 @@ func (b *Backend) Probe(parent context.Context) {
 	b.probeWithOrg(ctx, org)
 }
 
-// probeWithOrg starts from optimistic flavor caps and clears bits per probe.
-// Each probe has its own short timeout so slow OTF instances don't stall.
 func (b *Backend) probeWithOrg(ctx context.Context, org *tfe.Organization) {
 	caps := optimisticCaps(b.flavor)
 
@@ -77,8 +73,7 @@ func (b *Backend) probeWithOrg(ctx context.Context, org *tfe.Organization) {
 		"backend", b.id, "flavor", b.flavor, "caps", caps)
 }
 
-// endpointAvailable: 404 = unavailable; other errors treated as available so a
-// flaky probe doesn't permanently disable a feature.
+// 404 = unavailable; other errors treated as available (flaky probes mustn't disable features).
 func (b *Backend) endpointAvailable(parent context.Context, fn func(context.Context) error) bool {
 	ctx, cancel := context.WithTimeout(parent, 4*time.Second)
 	defer cancel()

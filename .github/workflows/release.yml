@@ -58,8 +58,7 @@ jobs:
           - goarch: arm64
             runner: ubuntu-24.04-arm
             appimage_arch: aarch64
-    # Ubuntu 24.04 LTS ships libadwaita 1.5; gotk4-adwaita references 1.6+
-    # symbols. Build in 25.04 (Plucky, libadwaita 1.7) so cgo compiles.
+    # Ubuntu 25.04 ships libadwaita 1.7; 24.04 LTS's 1.5 is too old for gotk4-adwaita.
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
     container:
@@ -144,9 +143,7 @@ jobs:
           - goarch: arm64
             runner: ubuntu-24.04-arm
             appimage_arch: aarch64
-    # JS actions can't run inside Alpine on arm64 runners, so docker-run the
-    # build from the host instead of using `container:`. Same pattern on
-    # both archs for consistency.
+    # JS actions can't run in Alpine on arm64, so docker-run the build from the host.
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
     steps:
@@ -176,8 +173,6 @@ jobs:
             -v "$HOME/go/pkg/mod":/root/go/pkg/mod \
             alpine:edge sh -c '
             set -e
-            # appimagetool lives in testing/; pax-utils + squashfs-tools
-            # are main. xvfb-run is for the post-build GUI smoke test.
             apk add --no-cache \
               build-base musl-dev pkgconf meson ninja blueprint-compiler \
               desktop-file-utils \
@@ -192,25 +187,16 @@ jobs:
             meson setup build --prefix=/usr
             meson compile -C build
 
-            # Plain musl tarball (same shape as before).
             mkdir -p dist
             cp build/terrain LICENSE dist/
             tar czf "terrain-linux-${GOARCH_TAG}-musl.tar.gz" -C dist .
 
-            # AppImage: meson install populates AppDir, build-appimage.sh
-            # bundles libs + writes AppRun.
             rm -rf AppDir
             DESTDIR="$PWD/AppDir" meson install -C build
             OUTPUT="terrain-${APPIMAGE_ARCH}-musl.AppImage" \
                 build-aux/build-appimage.sh
 
-            # GUI smoke test: extract the AppImage into the workspace
-            # bind mount and exercise the unpacked AppRun. Doing it in
-            # two steps (rather than APPIMAGE_EXTRACT_AND_RUN on /tmp)
-            # works around an opaque "exec: terrain: not found" the
-            # runtime hits inside this docker container once the bundle
-            # has many libraries; the resulting AppImage is unchanged
-            # and works fine for end users.
+            # Two-step extract avoids an "exec: terrain: not found" hit by APPIMAGE_EXTRACT_AND_RUN inside docker.
             rm -rf squashfs-root
             "./terrain-${APPIMAGE_ARCH}-musl.AppImage" --appimage-extract \
                 > /dev/null

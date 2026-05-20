@@ -13,8 +13,7 @@ import (
 	"github.com/raspbeguy/terrain/internal/domain"
 )
 
-// StateVersions: TFE's List filters by workspace name, not ID, so we
-// resolve via ReadByID first.
+// TFE's List filters by workspace name, not ID, so resolve via ReadByID first.
 func (b *Backend) StateVersions(parent context.Context, workspaceID string) ([]domain.StateVersion, error) {
 	ctx, cancel := context.WithTimeout(parent, 15*time.Second)
 	defer cancel()
@@ -46,7 +45,7 @@ func (b *Backend) StateVersions(parent context.Context, workspaceID string) ([]d
 	return out, nil
 }
 
-// LoadStateVersion prefers the JSON URL (TF 1.3+); falls back to the raw .tfstate URL.
+// Prefers JSON URL (TF 1.3+); falls back to raw .tfstate URL.
 func (b *Backend) LoadStateVersion(parent context.Context, _ string, versionID string) (*tfjson.State, error) {
 	ctx, cancel := context.WithTimeout(parent, 30*time.Second)
 	defer cancel()

@@ -26,7 +26,7 @@ type ManagedBinaryInfo struct {
 	SizeBytes int64
 }
 
-// managedResolver serializes installs by (engine, version) so renames don't race.
+// Serializes installs by (engine, version) so renames don't race.
 type managedResolver struct {
 	httpClient *http.Client
 
@@ -41,10 +41,9 @@ func newManagedResolver() *managedResolver {
 	}
 }
 
-// ErrManagedBinaryMissing tells callers a managed binary isn't installed yet; only the Preferences install dialog should download.
 var ErrManagedBinaryMissing = errors.New("managed binary not installed")
 
-// Resolve looks up the binary on disk; never downloads. Run pipeline uses this so launching a run never hits the network.
+// Disk lookup only; never downloads (run pipeline must not hit the network).
 func (r *managedResolver) Resolve(_ context.Context, engine, version string) (BinaryInfo, error) {
 	if engine != "tofu" && engine != "terraform" {
 		return BinaryInfo{}, fmt.Errorf("unsupported managed engine %q (want tofu or terraform)", engine)
@@ -62,10 +61,9 @@ func (r *managedResolver) Resolve(_ context.Context, engine, version string) (Bi
 	return BinaryInfo{}, fmt.Errorf("%w: %s %s", ErrManagedBinaryMissing, engine, version)
 }
 
-// ProgressFunc reports archive download progress; total may be -1 if Content-Length is missing.
+// total may be -1 when Content-Length is missing.
 type ProgressFunc func(written, total int64)
 
-// Install downloads + verifies + installs the binary. Caller (Preferences) is responsible for surfacing progress.
 func (r *managedResolver) Install(ctx context.Context, engine, version string, progress ProgressFunc) (BinaryInfo, error) {
 	if engine != "tofu" && engine != "terraform" {
 		return BinaryInfo{}, fmt.Errorf("unsupported managed engine %q (want tofu or terraform)", engine)
@@ -152,7 +150,7 @@ func (r *managedResolver) downloadAndInstall(ctx context.Context, engine, versio
 		return fmt.Errorf("mkdir %s: %w", installDir, err)
 	}
 
-	// Stage in a sibling temp dir so the final rename is on the same fs.
+	// Sibling temp dir so the final rename stays on one fs.
 	tmpDir, err := os.MkdirTemp(filepath.Dir(installDir), engine+"-"+version+"-*.tmp")
 	if err != nil {
 		return fmt.Errorf("temp dir: %w", err)
@@ -216,7 +214,7 @@ func (r *managedResolver) fetchToFile(ctx context.Context, url, dst string, prog
 	return err
 }
 
-// progressReader rate-limits callbacks to ~10/sec so the GTK main thread isn't flooded on a fast network.
+// Rate-limits callbacks to ~10/sec so the GTK main thread isn't flooded.
 type progressReader struct {
 	r        io.Reader
 	total    int64
@@ -254,7 +252,7 @@ func (r *managedResolver) fetchBytes(ctx context.Context, url string) ([]byte, e
 	return io.ReadAll(resp.Body)
 }
 
-// lookupSHA256: filenames may carry a "*" prefix (coreutils binary mode).
+// Filenames may carry a "*" prefix (coreutils binary mode).
 func lookupSHA256(sums, filename string) string {
 	for _, line := range strings.Split(sums, "\n") {
 		fields := strings.Fields(line)
@@ -290,7 +288,6 @@ func managedBinariesRoot() (string, error) {
 	return filepath.Join(dataHome, "terrain", "binaries"), nil
 }
 
-// ListManagedBinaries: missing cache root → empty list.
 func ListManagedBinaries() ([]ManagedBinaryInfo, error) {
 	root, err := managedBinariesRoot()
 	if err != nil {
@@ -336,7 +333,7 @@ func ListManagedBinaries() ([]ManagedBinaryInfo, error) {
 	return out, nil
 }
 
-// ReferencedManagedBinaries: keys are "<engine>/<version>".
+// Keys are "<engine>/<version>".
 func ReferencedManagedBinaries() (map[string]bool, error) {
 	dataHome, err := userDataDir()
 	if err != nil {
@@ -396,7 +393,6 @@ func CleanUnusedManagedBinaries() ([]ManagedBinaryInfo, error) {
 	return removed, nil
 }
 
-// RemoveManagedBinary: missing dir is a no-op.
 func RemoveManagedBinary(engine, version string) error {
 	binPath, err := managedBinaryPath(engine, version)
 	if err != nil {
@@ -422,12 +418,11 @@ func sharedManagedResolver() *managedResolver {
 	return defaultManagedResolver
 }
 
-// InstallManagedBinaryWithProgress is the Preferences install path; progress fires from the HTTP response reader, rate-limited.
 func InstallManagedBinaryWithProgress(ctx context.Context, engine, version string, progress ProgressFunc) (BinaryInfo, error) {
 	return sharedManagedResolver().Install(ctx, engine, version, progress)
 }
 
-// LatestInstalledVersion returns the highest semver-sorted installed version of engine, or ErrManagedBinaryMissing if none.
+// Returns ErrManagedBinaryMissing if no version of engine is installed.
 func LatestInstalledVersion(engine string) (string, error) {
 	bins, err := ListManagedBinaries()
 	if err != nil {
@@ -446,7 +441,6 @@ func LatestInstalledVersion(engine string) (string, error) {
 	return versions[0], nil
 }
 
-// compareSemver: -1 if a<b, 0 equal, 1 if a>b. Numeric parse per dotted component; non-numeric falls back to string compare.
 func compareSemver(a, b string) int {
 	ap, bp := strings.Split(a, "."), strings.Split(b, ".")
 	for i := 0; i < len(ap) || i < len(bp); i++ {

@@ -8,19 +8,14 @@ on:
 permissions:
   contents: read
 
-# Run inside Alpine because it has current libadwaita (1.6+) needed by
-# gotk4-adwaita. Ubuntu LTS still ships 1.5. Mirrors the dev VM.
-#
-# GOTOOLCHAIN=auto overrides Alpine's distro default (local) so go.mod's
-# pinned 1.26 toolchain gets fetched on top of the package's 1.25.x.
+# Alpine ships libadwaita 1.6+ required by gotk4-adwaita; Ubuntu LTS still ships 1.5.
 env:
   APK_PACKAGES: >-
     build-base git go gtk4.0-dev libadwaita-dev gobject-introspection-dev
     libsecret-dev pkgconf
+  # GOTOOLCHAIN=auto overrides Alpine's `local` default so go.mod's pinned toolchain fetches.
   GOTOOLCHAIN: auto
-  # Skip Go's VCS stamping. Inside the container the working tree's UID
-  # mismatches the runner's, and git refuses to read repo metadata even
-  # with checkout's safe.directory bandage.
+  # Container UID mismatch breaks Go's VCS stamping even with safe.directory.
   GOFLAGS: -buildvcs=false
 
 jobs:

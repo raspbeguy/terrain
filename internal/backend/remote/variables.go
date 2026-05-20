@@ -11,10 +11,7 @@ import (
 	"github.com/raspbeguy/terrain/internal/domain"
 )
 
-// VariablesForWorkspace lists the variables of a remote workspace, mapping
-// TFE's category/HCL/sensitive into the same domain.Variable shape the local
-// backend uses. Sensitive values come back from TFE as empty strings (the
-// API never returns them); that aligns with our UI which masks them.
+// TFE returns sensitive values as empty strings, matching our masked UI.
 func (b *Backend) VariablesForWorkspace(parent context.Context, workspaceID string) ([]domain.Variable, error) {
 	ctx, cancel := context.WithTimeout(parent, 10*time.Second)
 	defer cancel()
@@ -29,10 +26,7 @@ func (b *Backend) VariablesForWorkspace(parent context.Context, workspaceID stri
 	return out, nil
 }
 
-// UpsertVariable creates or updates a workspace variable via the TFE API.
-// We list-then-pick to find an existing entry by key (TFE's update path is
-// keyed by variable ID, not name); the network cost is one extra round-trip
-// per save which is acceptable for a low-frequency operation.
+// TFE updates by ID not name, so we list-then-pick (one extra round-trip per save).
 func (b *Backend) UpsertVariable(parent context.Context, workspaceID string, v domain.Variable) error {
 	ctx, cancel := context.WithTimeout(parent, 15*time.Second)
 	defer cancel()
@@ -69,9 +63,7 @@ func (b *Backend) UpsertVariable(parent context.Context, workspaceID string, v d
 		HCL:         tfe.Bool(v.HCL),
 		Sensitive:   tfe.Bool(v.Sensitive),
 	}
-	// Only forward Value when the user actually entered something; this
-	// preserves the existing TFE-side value when they edit metadata of a
-	// sensitive variable without retyping the secret.
+	// Preserves the TFE-side value when editing metadata without retyping a secret.
 	if v.Value != "" || !v.Sensitive {
 		opts.Value = tfe.String(v.Value)
 	}
@@ -81,8 +73,7 @@ func (b *Backend) UpsertVariable(parent context.Context, workspaceID string, v d
 	return nil
 }
 
-// DeleteVariable removes the named variable from the workspace. Missing
-// variables are not errors (matches the local backend's idempotent shape).
+// Idempotent: missing variables are not errors.
 func (b *Backend) DeleteVariable(parent context.Context, workspaceID, key string) error {
 	ctx, cancel := context.WithTimeout(parent, 10*time.Second)
 	defer cancel()

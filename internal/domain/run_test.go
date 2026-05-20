@@ -53,12 +53,10 @@ func TestCanTransitionTo(t *testing.T) {
 		{StatusPlanned, StatusDiscarded, true},
 		{StatusApplying, StatusApplied, true},
 
-		// Illegal: terminal → anything
 		{StatusApplied, StatusPlanning, false},
 		{StatusErrored, StatusPlanning, false},
 		{StatusCanceled, StatusPending, false},
 
-		// Illegal: skipping required prerequisites
 		{StatusPending, StatusApplied, false},
 		{StatusPlanning, StatusApplying, false},
 		{StatusPending, StatusApplying, false},

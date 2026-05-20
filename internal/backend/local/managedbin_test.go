@@ -133,7 +133,6 @@ func TestExtractZipBinary_MissingEntry(t *testing.T) {
 	}
 }
 
-// Stub-server happy path: archive → SHA256SUMS → install.
 func TestManagedResolver_RoundTrip(t *testing.T) {
 	if _, err := mapGoArch(runtime.GOARCH); err != nil {
 		t.Skipf("unsupported arch %q for this test: %v", runtime.GOARCH, err)
@@ -206,7 +205,7 @@ func TestManagedResolver_UsesCacheWhenPresent(t *testing.T) {
 
 	r := newManagedResolver()
 	ctx, cancel := context.WithCancel(context.Background())
-	cancel() // confirms we never hit the network when the binary is cached.
+	cancel()
 	bin, err := r.Resolve(ctx, "tofu", "1.0.0")
 	if err != nil {
 		t.Fatalf("cached binary should resolve: %v", err)
@@ -223,7 +222,6 @@ func TestReferencedManagedBinaries(t *testing.T) {
 	dataHome := t.TempDir()
 	t.Setenv("XDG_DATA_HOME", dataHome)
 
-	// One pinned, one host, one tracking latest (no explicit version).
 	mustWrite := func(p string, body string) {
 		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
 			t.Fatal(err)
@@ -239,7 +237,6 @@ func TestReferencedManagedBinaries(t *testing.T) {
 	mustWrite(filepath.Join(dataHome, "terrain", "local", "ws-c", "settings.json"),
 		`{"binary_source":"managed","managed_engine":"terraform","managed_track_latest":true}`)
 
-	// Stray file inside binaries/; must be skipped.
 	mustWrite(filepath.Join(dataHome, "terrain", "binaries", "junk.json"),
 		`{"binary_source":"managed","managed_engine":"tofu","managed_version":"99.99.99"}`)
 
@@ -253,7 +250,6 @@ func TestReferencedManagedBinaries(t *testing.T) {
 	if refs["tofu/99.99.99"] {
 		t.Errorf("binaries/junk.json should be skipped, got: %v", refs)
 	}
-	// ws-c uses track_latest with no explicit version; not referenced.
 	if len(refs) != 1 {
 		t.Errorf("expected 1 reference (ws-a), got %d: %v", len(refs), refs)
 	}
@@ -263,7 +259,6 @@ func TestCleanUnusedManagedBinaries(t *testing.T) {
 	dataHome := t.TempDir()
 	t.Setenv("XDG_DATA_HOME", dataHome)
 
-	// Install three versions on disk.
 	for _, v := range []struct{ engine, version string }{
 		{"tofu", "1.7.0"},
 		{"tofu", "1.6.0"},
@@ -281,7 +276,6 @@ func TestCleanUnusedManagedBinaries(t *testing.T) {
 		}
 	}
 
-	// Only one workspace references one of them.
 	settings := filepath.Join(dataHome, "terrain", "local", "ws-a", "settings.json")
 	if err := os.MkdirAll(filepath.Dir(settings), 0o755); err != nil {
 		t.Fatal(err)
@@ -310,7 +304,6 @@ func TestCleanUnusedManagedBinaries(t *testing.T) {
 }
 
 func TestLatestVersionCacheTTL(t *testing.T) {
-	// Reset the package cache for the test.
 	latestCacheMu.Lock()
 	latestCache = map[string]latestEntry{}
 	latestCache["tofu"] = latestEntry{version: "1.7.0", fetchedAt: time.Now()}
@@ -321,7 +314,6 @@ func TestLatestVersionCacheTTL(t *testing.T) {
 		latestCacheMu.Unlock()
 	}()
 
-	// Pre-cancelled context; confirms we hit the cache, not the network.
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	got, err := LatestManagedVersion(ctx, "tofu")
@@ -343,7 +335,6 @@ func TestFetchLatestReleaseTag_RedirectParsing(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	// Bypass fetchLatestReleaseTag's hardcoded URL; just exercise the redirect parser.
 	req, err := http.NewRequest(http.MethodHead, srv.URL+"/redirect", nil)
 	if err != nil {
 		t.Fatal(err)

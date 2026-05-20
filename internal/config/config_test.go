@@ -9,17 +9,11 @@ import (
 	"github.com/zalando/go-keyring"
 )
 
-// TestMain swaps the system keyring backend for an in-memory mock so the
-// secrets package's Set/Get/Delete work without a D-Bus session. All tests
-// in this package see the same mock store; they must use unique IDs/keys
-// to avoid bleeding into each other.
 func TestMain(m *testing.M) {
 	keyring.MockInit()
 	os.Exit(m.Run())
 }
 
-// withConfigDir points $XDG_CONFIG_HOME at a tmp dir for the test, so
-// config.Path() and Save() write into a sandbox.
 func withConfigDir(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
@@ -240,11 +234,9 @@ func TestResolveToken_PrefersKeyring(t *testing.T) {
 		Type:  "remote",
 		Token: "plaintext-fallback",
 	}
-	// Empty keyring → falls back to plaintext.
 	if got := bc.ResolveToken(); got != "plaintext-fallback" {
 		t.Errorf("no keyring: got %q, want plaintext-fallback", got)
 	}
-	// Populate keyring → keyring wins.
 	c := defaultConfig()
 	c.Backends = []BackendConfig{bc}
 	if _, err := c.MigrateTokens(); err != nil {
@@ -263,7 +255,7 @@ func TestMigrateTokens_Idempotent(t *testing.T) {
 	c := defaultConfig()
 	c.Backends = []BackendConfig{
 		{ID: "remote-A", Type: "remote", Token: "tok-A"},
-		{ID: "remote-B", Type: "remote", Token: ""}, // no plaintext, skip
+		{ID: "remote-B", Type: "remote", Token: ""},
 	}
 
 	n, err := c.MigrateTokens()
@@ -274,7 +266,6 @@ func TestMigrateTokens_Idempotent(t *testing.T) {
 		t.Errorf("first call: migrated %d, want 1", n)
 	}
 
-	// Second call: nothing to migrate.
 	n, err = c.MigrateTokens()
 	if err != nil {
 		t.Fatal(err)
