@@ -12,6 +12,8 @@ build-options:
     GOTOOLCHAIN: local
     # Pin GOCACHE so meson compile and meson install share Go's build cache (custom_target build_always_stale=true triggers go build twice).
     GOCACHE: /run/build/terrain/.gocache
+    # Substituted by CI; fallback used when building the manifest as-is.
+    TERRAIN_VERSION: __TERRAIN_VERSION__
 command: terrain
 cleanup:
   - /include

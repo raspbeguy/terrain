@@ -1,5 +1,5 @@
 project('terrain',
-  version: '0.0.2',
+  version: run_command('sh', '-c', 'echo "${TERRAIN_VERSION:-0.0.0-dev}"', check: true).stdout().strip(),
   meson_version: '>= 1.0.0',
   license: 'GPL-3.0-or-later',
 )

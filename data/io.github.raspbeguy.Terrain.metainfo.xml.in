@@ -102,7 +102,24 @@
   </screenshots>
 
   <releases>
-    <release version="@VERSION@" date="2026-05-08">
+    <release version="@VERSION@" date="2026-05-20">
+      <description>
+        <p>
+          Terrain now ships as portable AppImages in addition to the
+          Flatpak and host tarballs. Two flavours are available: a
+          glibc build for modern desktop distros (Ubuntu 25.04+,
+          Fedora 42+, Debian 13+, Arch) and a musl build for Alpine,
+          Void, postmarketOS, and other musl-based systems. Both
+          AppImages bundle GTK and libadwaita so they run without
+          installing GNOME runtime dependencies on the host.
+        </p>
+        <p>
+          The README is updated with honest per-artifact compatibility
+          information and four screenshots of the running application.
+        </p>
+      </description>
+    </release>
+    <release version="0.0.2" date="2026-05-08">
       <description>
         <p>
           Local projects are now added by git URL plus an optional subpath

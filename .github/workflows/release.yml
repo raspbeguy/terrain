@@ -26,6 +26,15 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      - name: Substitute TERRAIN_VERSION in manifest
+        run: |
+          if [ "${GITHUB_REF#refs/tags/}" != "$GITHUB_REF" ]; then
+            V="${GITHUB_REF_NAME#v}"
+          else
+            V="0.0.0-dev"
+          fi
+          sed -i "s|__TERRAIN_VERSION__|${V}|" build-aux/flatpak/io.github.raspbeguy.Terrain.yml
+
       - name: Build Flatpak bundle
         uses: flatpak/flatpak-github-actions/flatpak-builder@v6
         with:
@@ -76,6 +85,12 @@ jobs:
             patchelf wget file libfuse2t64 libglib2.0-bin
 
       - uses: actions/checkout@v6
+
+      - name: Compute TERRAIN_VERSION
+        run: |
+          if [ "${GITHUB_REF#refs/tags/}" != "$GITHUB_REF" ]; then
+            echo "TERRAIN_VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+          fi
 
       - uses: actions/setup-go@v6
         with:
@@ -165,9 +180,15 @@ jobs:
           APPIMAGE_ARCH: ${{ matrix.appimage_arch }}
           GOARCH_TAG: ${{ matrix.goarch }}
         run: |
+          if [ "${GITHUB_REF#refs/tags/}" != "$GITHUB_REF" ]; then
+            TERRAIN_VERSION="${GITHUB_REF_NAME#v}"
+          else
+            TERRAIN_VERSION="0.0.0-dev"
+          fi
+          export TERRAIN_VERSION
           mkdir -p ~/.cache/go-build ~/go/pkg/mod
           docker run --rm \
-            -e APPIMAGE_ARCH -e GOARCH_TAG \
+            -e APPIMAGE_ARCH -e GOARCH_TAG -e TERRAIN_VERSION \
             -v "$PWD":/work -w /work \
             -v "$HOME/.cache/go-build":/root/.cache/go-build \
             -v "$HOME/go/pkg/mod":/root/go/pkg/mod \
