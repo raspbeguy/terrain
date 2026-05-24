@@ -18,10 +18,10 @@
   type: archive
   url: https://proxy.golang.org/github.com/diamondburned/gotk4/pkg/@v/v0.3.2-0.20250703063411-16654385f59a.zip
 - dest: vendor/github.com/go-git/go-git/v5
-  sha256: 703cd2cea04d2af744a8325989b54a48e00a47fd05744c89bbd437c88c97f075
+  sha256: a3c518199b2cfc3b37667ac43971ee7c3f45916b54911976abda044476d993ce
   strip-components: 4
   type: archive
-  url: https://proxy.golang.org/github.com/go-git/go-git/v5/@v/v5.19.0.zip
+  url: https://proxy.golang.org/github.com/go-git/go-git/v5/@v/v5.19.1.zip
 - dest: vendor/github.com/hashicorp/go-tfe
   sha256: 4a568e5b72ca6d8fb3faa6f4cabd82acfbb9055cea3e7da20c5a9adcc90cacb0
   strip-components: 3
@@ -48,10 +48,10 @@
   type: archive
   url: https://proxy.golang.org/github.com/zclconf/go-cty/@v/v1.18.1.zip
 - dest: vendor/golang.org/x/crypto
-  sha256: a28a63b8a6abbbfcbf9fecf8417ce734c50dd988564cadf301c72c2a944f3a6a
+  sha256: a4dca44f467a3d8745aef41147c7bc6a90cdcfda9c42ae0585888bf046c7941e
   strip-components: 3
   type: archive
-  url: https://proxy.golang.org/golang.org/x/crypto/@v/v0.51.0.zip
+  url: https://proxy.golang.org/golang.org/x/crypto/@v/v0.52.0.zip
 - dest: vendor/dario.cat/mergo
   sha256: 1a7ef396709c5835216bb47ba9218dd440ac5307583c69d1798ce9e457f1311d
   strip-components: 2
@@ -208,20 +208,20 @@
   type: archive
   url: https://proxy.golang.org/golang.org/x/mod/@v/v0.35.0.zip
 - dest: vendor/golang.org/x/net
-  sha256: 3808b07d64ba58f58ca91737f0a165439f72b03a512ea901bad2aa1e168092d5
+  sha256: 1fef7f3ac7fc69f85b7fa47df036c75ad2136f719072a2bb4b93fc79f90bc7c7
   strip-components: 3
   type: archive
-  url: https://proxy.golang.org/golang.org/x/net/@v/v0.53.0.zip
+  url: https://proxy.golang.org/golang.org/x/net/@v/v0.54.0.zip
 - dest: vendor/golang.org/x/sync
   sha256: 7179d4d68800f6fdcadb9d4bbf11cbb5df9b40360c89305c203fe20723cbd375
   strip-components: 3
   type: archive
   url: https://proxy.golang.org/golang.org/x/sync/@v/v0.20.0.zip
 - dest: vendor/golang.org/x/sys
-  sha256: f1fa1052808e6bd6eb9c5372c053b2370a582532fac5d6a4600e7a6fab190ff3
+  sha256: e51c1c88045b4edbe48ad810122131381ff541c89edbd97ef833ed6653b59e6a
   strip-components: 3
   type: archive
-  url: https://proxy.golang.org/golang.org/x/sys/@v/v0.44.0.zip
+  url: https://proxy.golang.org/golang.org/x/sys/@v/v0.45.0.zip
 - dest: vendor/golang.org/x/text
   sha256: b8d475c17835ab602b91f1147684ceb5dbf4060e72e5dfb2e0e33efc9312a982
   strip-components: 3
