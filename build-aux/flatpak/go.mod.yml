@@ -23,10 +23,10 @@
   type: archive
   url: https://proxy.golang.org/github.com/go-git/go-git/v5/@v/v5.19.1.zip
 - dest: vendor/github.com/hashicorp/go-tfe
-  sha256: 5d1f6dd09998d8a6b5dadbc54a5c46da7ae4c87592b6341c2a784fa77d6535b8
+  sha256: 397d8448a334d58e1c4bd5b5be12ddb20f03568262cfe40bef4cd9ab0fd8e912
   strip-components: 3
   type: archive
-  url: https://proxy.golang.org/github.com/hashicorp/go-tfe/@v/v1.107.0.zip
+  url: https://proxy.golang.org/github.com/hashicorp/go-tfe/@v/v1.108.0.zip
 - dest: vendor/github.com/hashicorp/hcl/v2
   sha256: 53fd4e96ac9c190e192759daf49b63397865214d337ab5f6dbf6e68c1b0f4810
   strip-components: 4

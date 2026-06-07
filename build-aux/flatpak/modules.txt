@@ -189,7 +189,7 @@ github.com/hashicorp/go-slug
 github.com/hashicorp/go-slug/internal/escapingfs
 github.com/hashicorp/go-slug/internal/ignorefiles
 github.com/hashicorp/go-slug/internal/unpackinfo
-# github.com/hashicorp/go-tfe v1.107.0
+# github.com/hashicorp/go-tfe v1.108.0
 ## explicit; go 1.25.0
 github.com/hashicorp/go-tfe
 # github.com/hashicorp/go-version v1.9.0
