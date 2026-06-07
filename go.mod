@@ -7,7 +7,7 @@ require (
 	github.com/diamondburned/gotk4-adwaita/pkg v0.0.0-20250703085337-e94555b846b6
 	github.com/diamondburned/gotk4/pkg v0.3.2-0.20250703063411-16654385f59a
 	github.com/go-git/go-git/v5 v5.19.1
-	github.com/hashicorp/go-tfe v1.107.0
+	github.com/hashicorp/go-tfe v1.108.0
 	github.com/hashicorp/hcl/v2 v2.24.0
 	github.com/hashicorp/terraform-json v0.27.2
 	github.com/zalando/go-keyring v0.2.8
