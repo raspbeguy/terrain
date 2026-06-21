@@ -24,7 +24,7 @@ jobs:
       image: ghcr.io/flathub-infra/flatpak-github-actions:gnome-50
       options: --privileged
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Substitute TERRAIN_VERSION in manifest
         run: |
@@ -84,7 +84,7 @@ jobs:
             libgirepository1.0-dev git ca-certificates \
             patchelf wget file libfuse2t64 libglib2.0-bin
 
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Compute TERRAIN_VERSION
         run: |
@@ -162,7 +162,7 @@ jobs:
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Restore Go caches
         uses: actions/cache@v5
