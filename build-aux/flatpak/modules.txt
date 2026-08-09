@@ -74,7 +74,7 @@ github.com/danieljoos/wincred
 # github.com/diamondburned/gotk4-adwaita/pkg v0.0.0-20250703085337-e94555b846b6
 ## explicit; go 1.24.0
 github.com/diamondburned/gotk4-adwaita/pkg/adw
-# github.com/diamondburned/gotk4/pkg v0.3.2-0.20250703063411-16654385f59a
+# github.com/diamondburned/gotk4/pkg v0.4.0
 ## explicit; go 1.24.0
 github.com/diamondburned/gotk4/pkg/cairo
 github.com/diamondburned/gotk4/pkg/cairo/swizzle
@@ -117,7 +117,7 @@ github.com/go-git/go-billy/v5/helper/polyfill
 github.com/go-git/go-billy/v5/memfs
 github.com/go-git/go-billy/v5/osfs
 github.com/go-git/go-billy/v5/util
-# github.com/go-git/go-git/v5 v5.19.1
+# github.com/go-git/go-git/v5 v5.19.2
 ## explicit; go 1.25.0
 github.com/go-git/go-git/v5
 github.com/go-git/go-git/v5/config
@@ -194,8 +194,8 @@ github.com/hashicorp/go-slug
 github.com/hashicorp/go-slug/internal/escapingfs
 github.com/hashicorp/go-slug/internal/ignorefiles
 github.com/hashicorp/go-slug/internal/unpackinfo
-# github.com/hashicorp/go-tfe v1.109.0
-## explicit; go 1.25.0
+# github.com/hashicorp/go-tfe v1.110.0
+## explicit; go 1.26.4
 github.com/hashicorp/go-tfe
 # github.com/hashicorp/go-version v1.9.0
 ## explicit
@@ -300,8 +300,8 @@ golang.org/x/sys/windows
 ## explicit; go 1.25.0
 golang.org/x/text/transform
 golang.org/x/text/unicode/norm
-# golang.org/x/time v0.14.0
-## explicit; go 1.24.0
+# golang.org/x/time v0.15.0
+## explicit; go 1.25.0
 golang.org/x/time/rate
 # golang.org/x/tools v0.47.0
 ## explicit; go 1.25.0

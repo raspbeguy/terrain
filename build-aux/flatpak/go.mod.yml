@@ -13,20 +13,20 @@
   type: archive
   url: https://proxy.golang.org/github.com/diamondburned/gotk4-adwaita/pkg/@v/v0.0.0-20250703085337-e94555b846b6.zip
 - dest: vendor/github.com/diamondburned/gotk4/pkg
-  sha256: 8280282c9f2076a2e4b6ef1016a1ac65bd8e926c3aa5fcd981957b2f2ac4a966
+  sha256: 8ce1cca4ae1c9b62e77cb1d9e78b74f4602a203d1d15a6b2209eff9cf67b4e7e
   strip-components: 4
   type: archive
-  url: https://proxy.golang.org/github.com/diamondburned/gotk4/pkg/@v/v0.3.2-0.20250703063411-16654385f59a.zip
+  url: https://proxy.golang.org/github.com/diamondburned/gotk4/pkg/@v/v0.4.0.zip
 - dest: vendor/github.com/go-git/go-git/v5
-  sha256: a3c518199b2cfc3b37667ac43971ee7c3f45916b54911976abda044476d993ce
+  sha256: 8912b30dd8f38491ea74ab818cacc50b0083fafb4c5c896b2824e36090dab133
   strip-components: 4
   type: archive
-  url: https://proxy.golang.org/github.com/go-git/go-git/v5/@v/v5.19.1.zip
+  url: https://proxy.golang.org/github.com/go-git/go-git/v5/@v/v5.19.2.zip
 - dest: vendor/github.com/hashicorp/go-tfe
-  sha256: d09ea37aa1258e470f780fda101bed644553604214d23d491a0aa701f94bd517
+  sha256: a14c1151c84500ba5afc4697ecefe371939a5fbd3d3eb44bf32ad3927779381e
   strip-components: 3
   type: archive
-  url: https://proxy.golang.org/github.com/hashicorp/go-tfe/@v/v1.109.0.zip
+  url: https://proxy.golang.org/github.com/hashicorp/go-tfe/@v/v1.110.0.zip
 - dest: vendor/github.com/hashicorp/hcl/v2
   sha256: 53fd4e96ac9c190e192759daf49b63397865214d337ab5f6dbf6e68c1b0f4810
   strip-components: 4
@@ -233,10 +233,10 @@
   type: archive
   url: https://proxy.golang.org/golang.org/x/text/@v/v0.40.0.zip
 - dest: vendor/golang.org/x/time
-  sha256: 0e2d2e47d107859130c7088346966d99a14ec0f7a42290c4acc0e2cc568e7a81
+  sha256: 8cfb20e915fa5d6c3fd264304233f8d71a3385e48a37819239c532ad9da27f84
   strip-components: 3
   type: archive
-  url: https://proxy.golang.org/golang.org/x/time/@v/v0.14.0.zip
+  url: https://proxy.golang.org/golang.org/x/time/@v/v0.15.0.zip
 - dest: vendor/golang.org/x/tools
   sha256: 143d132b519da1454db967febb65241796805d7c9d4752034341c1376fd3d7f1
   strip-components: 3
