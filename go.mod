@@ -1,13 +1,13 @@
 module github.com/raspbeguy/terrain
 
-go 1.26
+go 1.26.4
 
 require (
 	github.com/BurntSushi/toml v1.6.0
 	github.com/diamondburned/gotk4-adwaita/pkg v0.0.0-20250703085337-e94555b846b6
-	github.com/diamondburned/gotk4/pkg v0.3.2-0.20250703063411-16654385f59a
-	github.com/go-git/go-git/v5 v5.19.1
-	github.com/hashicorp/go-tfe v1.109.0
+	github.com/diamondburned/gotk4/pkg v0.4.0
+	github.com/go-git/go-git/v5 v5.19.2
+	github.com/hashicorp/go-tfe v1.110.0
 	github.com/hashicorp/hcl/v2 v2.24.0
 	github.com/hashicorp/terraform-json v0.28.0
 	github.com/zalando/go-keyring v0.2.8
@@ -52,7 +52,7 @@ require (
 	golang.org/x/sync v0.22.0 // indirect
 	golang.org/x/sys v0.47.0 // indirect
 	golang.org/x/text v0.40.0 // indirect
-	golang.org/x/time v0.14.0 // indirect
+	golang.org/x/time v0.15.0 // indirect
 	golang.org/x/tools v0.47.0 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 )
