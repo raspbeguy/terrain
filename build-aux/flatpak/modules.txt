@@ -5,9 +5,6 @@ dario.cat/mergo
 ## explicit; go 1.18
 github.com/BurntSushi/toml
 github.com/BurntSushi/toml/internal
-# github.com/KarpelesLab/weak v0.1.1
-## explicit; go 1.18
-github.com/KarpelesLab/weak
 # github.com/Microsoft/go-winio v0.6.2
 ## explicit; go 1.21
 github.com/Microsoft/go-winio
@@ -74,7 +71,7 @@ github.com/danieljoos/wincred
 # github.com/diamondburned/gotk4-adwaita/pkg v0.0.0-20250703085337-e94555b846b6
 ## explicit; go 1.24.0
 github.com/diamondburned/gotk4-adwaita/pkg/adw
-# github.com/diamondburned/gotk4/pkg v0.3.2-0.20250703063411-16654385f59a
+# github.com/diamondburned/gotk4/pkg v0.4.1
 ## explicit; go 1.24.0
 github.com/diamondburned/gotk4/pkg/cairo
 github.com/diamondburned/gotk4/pkg/cairo/swizzle
@@ -117,7 +114,7 @@ github.com/go-git/go-billy/v5/helper/polyfill
 github.com/go-git/go-billy/v5/memfs
 github.com/go-git/go-billy/v5/osfs
 github.com/go-git/go-billy/v5/util
-# github.com/go-git/go-git/v5 v5.19.1
+# github.com/go-git/go-git/v5 v5.19.2
 ## explicit; go 1.25.0
 github.com/go-git/go-git/v5
 github.com/go-git/go-git/v5/config
@@ -194,8 +191,8 @@ github.com/hashicorp/go-slug
 github.com/hashicorp/go-slug/internal/escapingfs
 github.com/hashicorp/go-slug/internal/ignorefiles
 github.com/hashicorp/go-slug/internal/unpackinfo
-# github.com/hashicorp/go-tfe v1.109.0
-## explicit; go 1.25.0
+# github.com/hashicorp/go-tfe v1.110.0
+## explicit; go 1.26.4
 github.com/hashicorp/go-tfe
 # github.com/hashicorp/go-version v1.9.0
 ## explicit
@@ -257,10 +254,7 @@ github.com/zclconf/go-cty/cty/gocty
 github.com/zclconf/go-cty/cty/internal/graphemes
 github.com/zclconf/go-cty/cty/json
 github.com/zclconf/go-cty/cty/set
-# go4.org/unsafe/assume-no-moving-gc v0.0.0-20231121144256-b99613f794b6
-## explicit; go 1.11
-go4.org/unsafe/assume-no-moving-gc
-# golang.org/x/crypto v0.54.0
+# golang.org/x/crypto v0.55.0
 ## explicit; go 1.25.0
 golang.org/x/crypto/argon2
 golang.org/x/crypto/blake2b
@@ -278,10 +272,10 @@ golang.org/x/crypto/ssh
 golang.org/x/crypto/ssh/agent
 golang.org/x/crypto/ssh/internal/bcrypt_pbkdf
 golang.org/x/crypto/ssh/knownhosts
-# golang.org/x/mod v0.37.0
+# golang.org/x/mod v0.38.0
 ## explicit; go 1.25.0
 golang.org/x/mod/semver
-# golang.org/x/net v0.56.0
+# golang.org/x/net v0.57.0
 ## explicit; go 1.25.0
 golang.org/x/net/context
 golang.org/x/net/internal/socks
@@ -296,14 +290,14 @@ golang.org/x/sys/cpu
 golang.org/x/sys/execabs
 golang.org/x/sys/unix
 golang.org/x/sys/windows
-# golang.org/x/text v0.40.0
+# golang.org/x/text v0.41.0
 ## explicit; go 1.25.0
 golang.org/x/text/transform
 golang.org/x/text/unicode/norm
-# golang.org/x/time v0.14.0
-## explicit; go 1.24.0
+# golang.org/x/time v0.15.0
+## explicit; go 1.25.0
 golang.org/x/time/rate
-# golang.org/x/tools v0.47.0
+# golang.org/x/tools v0.48.0
 ## explicit; go 1.25.0
 golang.org/x/tools/cmd/stringer
 golang.org/x/tools/go/ast/edge
